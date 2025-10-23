@@ -58,9 +58,9 @@ export function LandingPage({ onGetStarted }) { // A prop onGetStarted não é m
               </div>
               
               <h1 className="text-3xl sm:text-5xl md:text-4xl font-bold tracking-tighter leading-tight text-gray-900"> {/* Cor de texto padrão */}
-                <span className="block">Automatize</span>
+                
                 <span className="block bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                  Direto na sua Agenda
+                  Agendamento Inteligente para profissionais modernos
                 </span>
               </h1>
               
