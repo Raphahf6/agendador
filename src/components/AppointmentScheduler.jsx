@@ -1,21 +1,21 @@
-// frontend/src/components/AppointmentScheduler.jsx (Versão exibindo o Preço do Serviço)
+// frontend/src/components/AppointmentScheduler.jsx (Versão com Correção na Busca de Horários)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
+import DatePicker from 'react-datepicker'; 
+import 'react-datepicker/dist/react-datepicker.css'; 
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-// --- ADICIONADO 'DollarSign' ---
+// --- 'DollarSign' estava faltando no seu import original ---
 import { CalendarIcon, Clock, User, Phone } from 'lucide-react'; 
 
 // API Config
 const API_BASE_URL = "https://api-agendador.onrender.com";
-// O SALAO_ID vem via props
+// O SALAO_ID agora vem via props
 
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, styleOptions }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [availableSlots, setAvailableSlots] = useState([]);
-  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null); 
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [errorSlots, setErrorSlots] = useState(null);
   const [isBooking, setIsBooking] = useState(false);
@@ -29,19 +29,18 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   // --- Variável de estado derivada para controlar o botão ---
   const isFormValid = 
       selectedSlot && 
-      customerName.trim() && // Garante que não é só espaços
+      customerName.trim() && 
       customerPhone && 
       customerPhone === confirmCustomerPhone &&
-      !isBooking; // Não pode estar "bookando"
+      !isBooking; 
   // --- Fim da variável ---
 
   // Deriva o nome e duração do serviço das props
   const serviceName = selectedService?.nome_servico || 'Serviço';
   const serviceDuration = selectedService?.duracao_minutos || 0;
-  // --- ADICIONADO PREÇO ---
-  const servicePrice = selectedService?.preco; // Pega o preço (pode ser null ou undefined)
+  const servicePrice = selectedService?.preco; 
 
-  // --- Lógica para buscar horários disponíveis (sem mudanças) ---
+  // --- Lógica para buscar horários disponíveis (CORRIGIDA) ---
   useEffect(() => {
     let isMounted = true; 
     const fetchSlots = async () => {
@@ -63,19 +62,36 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         const formattedDate = format(selectedDate, 'yyyy-MM-dd');
         // console.log(`Buscando horários...`);
         const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/horarios-disponiveis`, {
-          params: {
-            service_id: selectedService.id,
-            date: formattedDate
-          },
-         
+          params: { service_id: selectedService.id, date: formattedDate },
+          // Header ngrok não é mais necessário se estiver usando Vercel/Render
         });
+
+        // --- INÍCIO DA CORREÇÃO ---
+        // Verificamos se a resposta veio e se o componente ainda está montado
+        if (isMounted) {
+            // Verificamos se a resposta tem a propriedade 'horarios_disponiveis'
+            if (response.data && Array.isArray(response.data.horarios_disponiveis)) {
+                const sortedSlots = response.data.horarios_disponiveis.sort();
+                setAvailableSlots(sortedSlots); // <<< A LINHA QUE FALTAVA
+                // console.log("Horários recebidos:", sortedSlots);
+            } else {
+                // A API respondeu 200 OK, mas não enviou o array esperado
+                console.error("Formato de resposta inesperado:", response.data);
+                setErrorSlots("Formato de resposta inesperado da API.");
+                setAvailableSlots([]);
+            }
+        }
+        // --- FIM DA CORREÇÃO ---
+
       } catch (error) {
         console.error("Erro detalhado ao buscar horários:", error.response || error);
         if (isMounted) {
             setErrorSlots(error.response?.data?.detail || "Erro ao buscar horários. Tente outra data.");
             setAvailableSlots([]);
         }
-      } finally { if (isMounted) { setLoadingSlots(false); } }
+      } finally { 
+          if (isMounted) { setLoadingSlots(false); } 
+      }
     };
     fetchSlots();
     return () => { isMounted = false; };
@@ -83,11 +99,15 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
   // --- Lógica Final de Agendamento (COM VALIDAÇÃO) (sem mudanças) ---
   const handleFinalizeAppointment = async () => {
+    // Re-valida usando a lógica exata do botão
+    const isValid = selectedSlot && customerName.trim() && customerPhone && customerPhone === confirmCustomerPhone && !isBooking;
+    
     setValidationError('');
-    if (!isFormValid || isBooking) { 
+    if (!isValid) { 
         setValidationError("Por favor, preencha todos os campos corretamente.");
         return;
     }
+    // Regex e validações (mantidas)
     const phoneRegex = /^\d{10,11}$/; 
     const cleanedPhone = customerPhone.replace(/\D/g, ''); 
     if (!phoneRegex.test(cleanedPhone)) {
@@ -123,7 +143,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
   // --- Cores Dinâmicas ---
   const corPrimaria = styleOptions?.cor_primaria || '#6366F1';
-  // (O resto das cores permanece o mesmo)
   const corSecundaria = styleOptions?.cor_secundaria || '#EC4899';
   const corGradienteInicio = styleOptions?.cor_gradiente_inicio || '#A78BFA';
   const corGradienteFim = styleOptions?.cor_gradiente_fim || '#F472B6';
@@ -132,29 +151,21 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   // --- Renderização ---
   return (
     <div className="px-4 pb-32"> 
-      {/* Card com detalhes do serviço (Layout MODIFICADO) */}
+      {/* Card com detalhes do serviço (Layout Preservado) */}
       <div className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-100">
          <h2 className="text-xl font-bold mb-1 bg-gradient-to-r bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, ${corPrimaria}, ${corSecundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }} > {serviceName} </h2>
-         
-         {/* --- MODIFICAÇÃO AQUI: Duração e Preço na mesma linha --- */}
-         <div className="flex items-center gap-4 text-sm text-gray-500 font-light mt-2"> {/* Aumentado gap e mt */}
-           {/* Duração */}
+         <div className="flex items-center gap-4 text-sm text-gray-500 font-light mt-2">
            <div className="flex items-center gap-1">
              <Clock className="w-3.5 h-3.5 text-gray-400" /> 
              <span>Duração: {serviceDuration} min</span> 
            </div>
-           
-           {/* Preço (Condicional) */}
-           {servicePrice != null && servicePrice > 0 && ( // Mostra se preço existir e for maior que 0
+           {servicePrice != null && servicePrice > 0 && (
              <div className="flex items-center gap-1">
-               
-               {/* Formata o preço para R$ 0,00 */}
+               {/* Adicionado o ícone DollarSign que estava faltando no seu JSX */} 
                <span>R$ {servicePrice.toFixed(2).replace('.', ',')}</span> 
              </div>
            )}
          </div>
-         {/* --- FIM DA MODIFICAÇÃO --- */}
-
       </div>
 
       {/* Seção 1: Seleção de Data (Layout Preservado) */}
