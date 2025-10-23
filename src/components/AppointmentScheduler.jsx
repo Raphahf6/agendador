@@ -9,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, User, Phone } from 'lucide-react'; 
 
 // API Config
-const API_BASE_URL = "https://skyborne-periodically-yvonne.ngrok-free.dev";
+const API_BASE_URL = "https://api-agendador.onrender.com/";
 // O SALAO_ID vem via props
 
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, styleOptions }) {
