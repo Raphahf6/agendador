@@ -4,6 +4,7 @@ import { Routes, Route, useParams, Navigate, Link as RouterLink, useLocation, us
 import ServiceList from './components/ServiceList';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import ConfirmationPage from './components/ConfirmationPage';
+import { LandingPage } from './pages/LandingPage';
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
 function SalonScheduler() { 
@@ -193,7 +194,7 @@ function App() {
               <Route path="/agendar/:salaoId" element={<SalonScheduler />} /> 
               <Route 
                  path="/" 
-                 element={ <p className="p-4 text-center text-gray-600">Bem-vindo! Use o link de agendamento do seu salão.</p> } 
+                 element={<LandingPage></LandingPage> } 
               />
               <Route path="*" element={<Navigate to="/" replace />} /> 
            </Routes>
