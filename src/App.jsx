@@ -173,8 +173,8 @@ function SalonScheduler() {
                     )}
                     {/* Loading/Erro iniciais */}
                     {loadingSalonData && !errorSalon && !selectedService && ( <div className="flex flex-col items-center justify-center p-10">
-                            <LoadingSpinner size="h-8 w-8" color="text-purple-500" />
-                            <p className="text-gray-500 text-sm mt-3">Carregando dados do salão...</p>
+                           
+                           
                          </div>)}
                     {errorSalon && !selectedService && ( <p className="text-red-600">Erro ao carregar dados do salão.</p> )}
                   
