@@ -113,7 +113,6 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
                                 </div>
 
                                 <div className="flex items-center gap-1">
-                                    <DollarSign className="w-4 h-4 text-green-600" />
                                     <span className="text-green-700">R$ {service.preco}</span>
                                 </div>
                             </div>
