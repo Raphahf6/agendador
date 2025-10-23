@@ -124,7 +124,7 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
                             </div>
 
                             {/* Hover Arrow Indicator */}
-                            
+
                         </div>
                     </Card>
                 ))}
@@ -132,7 +132,6 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
                     <p className="text-muted-foreground">
                         ✨ Agendamento rápido e fácil
                     </p>
-
                 </div>
             </div>
         </div>
