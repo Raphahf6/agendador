@@ -99,7 +99,7 @@ export function LandingPage({ onGetStarted }) { // A prop onGetStarted não é m
                 </div>
                 <div>
                   <div className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                    Zero
+                    0
                   </div>
                   <p className="text-sm text-gray-500">Papel</p>
                 </div>
