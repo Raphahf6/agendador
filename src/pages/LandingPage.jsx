@@ -59,13 +59,13 @@ export function LandingPage({ onGetStarted }) { // A prop onGetStarted não é m
               
               <h1 className="text-3xl sm:text-5xl md:text-4xl font-bold tracking-tighter leading-tight text-gray-900"> {/* Cor de texto padrão */}
                 
-                <span className="block">Foque no seu Talento.</span> <span className="block bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                <span className="block">Foque no seu Trabalho.</span> <span className="block bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
                   Deixe a Agenda Conosco
                 </span>
               </h1>
               
               <p className="text-gray-600 text-lg" data-aos="fade-up" data-aos-delay="200">
-                Simplifique sua vida! Seus clientes agendam pelo link, e os compromissos aparecem automaticamente na sua Google Agenda. Sem complicação, sem papel, sem esquecimentos.
+                Simplifique sua vida! Seus clientes agendam pelo link, e os compromissos aparecem automaticamente na sua Google Agenda. Sem complicação, sem esquecimentos.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4" data-aos="fade-up" data-aos-delay="400">
@@ -101,7 +101,7 @@ export function LandingPage({ onGetStarted }) { // A prop onGetStarted não é m
                   <div className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
                     0
                   </div>
-                  <p className="text-sm text-gray-500">Papel</p>
+                  <p className="text-sm text-gray-500">Complicações</p>
                 </div>
               </div>
             </div>
