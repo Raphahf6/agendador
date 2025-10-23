@@ -9,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, User, Phone } from 'lucide-react'; 
 
 // API Config
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://skyborne-periodically-yvonne.ngrok-free.dev";
 // O SALAO_ID vem via props
 
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, styleOptions }) {
@@ -63,13 +63,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         const formattedDate = format(selectedDate, 'yyyy-MM-dd');
         // console.log(`Buscando horários...`);
         const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/horarios-disponiveis`, {
-          params: { service_id: selectedService.id, date: formattedDate }
+          params: {
+            service_id: selectedService.id,
+            date: formattedDate
+          },
+         
         });
-        if (isMounted) {
-            const sortedSlots = response.data.horarios_disponiveis.sort();
-            setAvailableSlots(sortedSlots);
-            // console.log("Horários recebidos:", sortedSlots);
-        }
       } catch (error) {
         console.error("Erro detalhado ao buscar horários:", error.response || error);
         if (isMounted) {
