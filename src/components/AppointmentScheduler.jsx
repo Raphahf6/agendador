@@ -1,19 +1,21 @@
-// frontend/src/components/AppointmentScheduler.jsx (Versão com Correção na Busca de Horários)
+// frontend/src/components/AppointmentScheduler.jsx (Versão com HoralisCalendar e Scroll de Horários)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import DatePicker from 'react-datepicker'; 
-import 'react-datepicker/dist/react-datepicker.css'; 
-import { format } from 'date-fns';
+// REMOVIDO: import DatePicker from 'react-datepicker';
+// REMOVIDO: import 'react-datepicker/dist/react-datepicker.css';
+import { format, isBefore, startOfToday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-// --- 'DollarSign' estava faltando no seu import original ---
-import { CalendarIcon, Clock, User, Phone } from 'lucide-react'; 
+// REMOVIDO: import { CalendarIcon, ... } from 'lucide-react';
+import { Clock, User, Phone, DollarSign } from 'lucide-react'; // Mantidos os ícones usados
+import HoralisCalendar from './HoralisCalendar'; // <<< NOVO IMPORT
 
 // API Config
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
-// O SALAO_ID agora vem via props
+// O SALAO_ID vem via props
 
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, styleOptions }) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Define a data inicial como hoje, sem permitir datas passadas
+  const [selectedDate, setSelectedDate] = useState(startOfToday()); 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null); 
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -40,7 +42,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const serviceDuration = selectedService?.duracao_minutos || 0;
   const servicePrice = selectedService?.preco; 
 
-  // --- Lógica para buscar horários disponíveis (CORRIGIDA) ---
+  // --- Lógica para buscar horários disponíveis (com parseISO) ---
   useEffect(() => {
     let isMounted = true; 
     const fetchSlots = async () => {
@@ -63,26 +65,22 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         // console.log(`Buscando horários...`);
         const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/horarios-disponiveis`, {
           params: { service_id: selectedService.id, date: formattedDate },
-          // Header ngrok não é mais necessário se estiver usando Vercel/Render
         });
 
-        // --- INÍCIO DA CORREÇÃO ---
-        // Verificamos se a resposta veio e se o componente ainda está montado
         if (isMounted) {
-            // Verificamos se a resposta tem a propriedade 'horarios_disponiveis'
             if (response.data && Array.isArray(response.data.horarios_disponiveis)) {
-                const sortedSlots = response.data.horarios_disponiveis.sort();
-                setAvailableSlots(sortedSlots); // <<< A LINHA QUE FALTAVA
-                // console.log("Horários recebidos:", sortedSlots);
+                // Converte as strings ISO do backend para objetos Date
+                const sortedSlots = response.data.horarios_disponiveis
+                                      .map(slot => parseISO(slot)) // Converte string para Date
+                                      .sort((a, b) => a - b); // Ordena por data
+                setAvailableSlots(sortedSlots);
+                // console.log("Horários recebidos (convertidos para Date):", sortedSlots);
             } else {
-                // A API respondeu 200 OK, mas não enviou o array esperado
                 console.error("Formato de resposta inesperado:", response.data);
                 setErrorSlots("Formato de resposta inesperado da API.");
                 setAvailableSlots([]);
             }
         }
-        // --- FIM DA CORREÇÃO ---
-
       } catch (error) {
         console.error("Erro detalhado ao buscar horários:", error.response || error);
         if (isMounted) {
@@ -97,40 +95,53 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     return () => { isMounted = false; };
   }, [selectedDate, selectedService?.id, salaoId]);
 
-  // --- Lógica Final de Agendamento (COM VALIDAÇÃO) (sem mudanças) ---
-  const handleFinalizeAppointment = async () => {
-    // Re-valida usando a lógica exata do botão
-    const isValid = selectedSlot && customerName.trim() && customerPhone && customerPhone === confirmCustomerPhone && !isBooking;
-    
-    setValidationError('');
-    if (!isValid) { 
-        setValidationError("Por favor, preencha todos os campos corretamente.");
-        return;
+  // --- NOVA FUNÇÃO para lidar com a seleção do calendário ---
+  const handleDateSelect = (date) => {
+    // Garante que a data não seja no passado
+    if (isBefore(date, startOfToday())) {
+      console.log("Tentativa de selecionar data passada bloqueada.");
+      return; // Não faz nada se a data for anterior a hoje
     }
-    // Regex e validações (mantidas)
+    setSelectedDate(date);
+    setSelectedSlot(null); // Limpa o slot ao mudar a data
+    setValidationError(''); // Limpa erros
+  };
+  // --- FIM DA NOVA FUNÇÃO ---
+
+  // --- Lógica Final de Agendamento (COM VALIDAÇÃO) ---
+  const handleFinalizeAppointment = async () => {
+    // ... (lógica de validação idêntica à anterior) ...
+    const isValid = selectedSlot && customerName.trim() && customerPhone && customerPhone === confirmCustomerPhone && !isBooking;
+    if (!isValid) { 
+         setValidationError("Por favor, preencha todos os campos corretamente.");
+         return; 
+    }
     const phoneRegex = /^\d{10,11}$/; 
     const cleanedPhone = customerPhone.replace(/\D/g, ''); 
-    if (!phoneRegex.test(cleanedPhone)) {
+    if (!phoneRegex.test(cleanedPhone)) { 
          setValidationError("Telefone inválido. Use apenas números (DDD + Número).");
-         return;
+         return; 
     }
-    if (customerPhone !== confirmCustomerPhone) {
+    if (customerPhone !== confirmCustomerPhone) { 
          setValidationError("Os números de telefone não coincidem.");
-         return;
+         return; 
     }
 
     setIsBooking(true);
     try {
+      // Converte o objeto Date do selectedSlot de volta para string ISO
+      const startTimeISO = selectedSlot.toISOString();
+
       await axios.post(`${API_BASE_URL}/agendamentos`, {
         salao_id: salaoId,
         service_id: selectedService.id,
-        start_time: selectedSlot,
+        start_time: startTimeISO, // Envia a string ISO completa
         customer_name: customerName.trim(), 
         customer_phone: customerPhone 
       });
       onAppointmentSuccess({
         serviceName: serviceName,
-        startTime: selectedSlot,
+        startTime: startTimeISO, // Passa a string ISO
         customerName: customerName.trim(),
         customerPhone: customerPhone
       });
@@ -161,47 +172,74 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
            </div>
            {servicePrice != null && servicePrice > 0 && (
              <div className="flex items-center gap-1">
-               {/* Adicionado o ícone DollarSign que estava faltando no seu JSX */} 
+               <DollarSign className="w-3.5 h-3.5 text-gray-400" /> 
                <span>R$ {servicePrice.toFixed(2).replace('.', ',')}</span> 
              </div>
            )}
          </div>
       </div>
 
-      {/* Seção 1: Seleção de Data (Layout Preservado) */}
+      {/* --- SEÇÃO 1: CALENDÁRIO CUSTOMIZADO --- */}
       <div className="mb-6">
-        <label className="block text-gray-700 font-medium mb-2 text-sm">1. Escolha a Data</label>
-        <div className="relative">
-            <DatePicker selected={selectedDate} onChange={(date) => { setSelectedDate(date); setSelectedSlot(null); setValidationError(''); }} dateFormat="dd 'de' MMMM 'de' yyyy" minDate={new Date()} locale={ptBR} wrapperClassName="w-full" className="w-full border border-gray-300 p-3 pl-10 rounded-lg text-left cursor-pointer font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white hover:bg-gray-50 text-gray-700" disabled={loadingSlots || isBooking} />
-            <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        </div>
+        <label className="block text-gray-700 font-medium mb-2 text-sm text-center">1. Escolha a Data</label>
+        <HoralisCalendar
+            selectedDate={selectedDate}
+            onDateSelect={handleDateSelect} // Usa a nova função handler
+            styleOptions={styleOptions} // Passa as cores dinâmicas
+        />
       </div>
+      {/* --- FIM DA SEÇÃO 1 --- */}
 
-      {/* Seção 2: Horários Disponíveis (Layout Preservado) */}
+      {/* --- SEÇÃO 2: HORÁRIOS (COM SCROLL) --- */}
+      {/* Container principal da Seção 2 */}
       <div className="mb-8">
-        <label className="block text-gray-700 font-medium mb-3 text-sm">2. Selecione o Horário</label>
-        {loadingSlots && <p className="text-center text-sm text-blue-600 py-4">Buscando horários...</p>}
-        {errorSlots && <div className="p-3 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{errorSlots}</p></div>}
-        {!loadingSlots && !errorSlots && !selectedDate && ( <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Selecione uma data</p></div> )}
-        {!loadingSlots && !errorSlots && selectedDate && availableSlots.length === 0 && ( <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Nenhum horário disponível.</p></div> )}
-        {!loadingSlots && !errorSlots && selectedDate && availableSlots.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {availableSlots.map((slotISO) => {
-                    const isSelected = selectedSlot === slotISO;
-                    return (
-                        <button key={slotISO} onClick={() => {setSelectedSlot(slotISO); setValidationError('');}} style={isSelected ? { backgroundColor: corPrimaria } : {}} className={`p-3 rounded-lg text-sm font-medium transition duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${ isSelected ? 'text-white shadow-md ring-blue-400' : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 hover:border-gray-400' }`} disabled={loadingSlots || isBooking} >
-                            {format(new Date(slotISO), 'HH:mm')}
-                        </button>
-                    );
-                 })}
-            </div>
-        )}
+        <label className="block text-gray-700 font-medium mb-3 text-sm text-center">2. Selecione o Horário</label>
+        
+        {/* Container para o conteúdo (loading, erro, ou a grade) */}
+        {/* Adicionamos uma altura máxima e scroll aqui */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 max-h-[250px] overflow-y-auto"> 
+            {loadingSlots && (
+                <p className="text-center text-sm text-blue-600 py-4">Buscando horários...</p>
+            )}
+            {errorSlots && (
+                <div className="p-3 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{errorSlots}</p></div>
+            )}
+            {!loadingSlots && !errorSlots && selectedDate && availableSlots.length === 0 && (
+                <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Nenhum horário disponível.</p></div>
+            )}
+            {!loadingSlots && !errorSlots && selectedDate && availableSlots.length > 0 && (
+                // A grade de horários agora está dentro do container com scroll
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {availableSlots.map((slotDate) => { 
+                        const isSelected = selectedSlot && selectedSlot.getTime() === slotDate.getTime();
+                        const isDisabled = isBefore(slotDate, new Date());
+                        
+                        return (
+                            <button 
+                                key={slotDate.toISOString()} 
+                                onClick={() => { if (!isDisabled) { setSelectedSlot(slotDate); setValidationError(''); } }}
+                                style={isSelected ? { backgroundColor: corPrimaria } : {}} 
+                                className={`p-3 rounded-lg text-sm font-medium transition duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${ 
+                                    isDisabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 
+                                    (isSelected ? 'text-white shadow-md ring-blue-400' : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 hover:border-gray-400') 
+                                }`}
+                                disabled={loadingSlots || isBooking || isDisabled} 
+                            >
+                                {format(slotDate, 'HH:mm')} 
+                            </button>
+                        );
+                     })}
+                </div>
+            )}
+        </div> {/* Fim do container com scroll */}
       </div>
+      {/* --- FIM DA SEÇÃO 2 --- */}
 
       {/* Seção 3: Dados do Cliente (Layout Preservado) */}
       {selectedSlot && (
         <div className="mb-8 p-4 bg-white rounded-lg shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-gray-700 font-medium text-sm mb-3 border-b pb-2">3. Seus Dados</h3>
+            {/* ... (código dos inputs Nome, Telefone, Confirmação igual ao anterior) ... */}
             <div>
               <label htmlFor="customerName" className="block text-xs font-medium text-gray-600 mb-1"> Seu Nome </label>
               <div className="relative rounded-md shadow-sm">
