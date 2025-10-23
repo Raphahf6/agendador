@@ -9,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Clock, User, Phone } from 'lucide-react'; 
 
 // API Config
-const API_BASE_URL = "https://api-agendador.onrender.com";
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 // O SALAO_ID agora vem via props
 
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, styleOptions }) {
