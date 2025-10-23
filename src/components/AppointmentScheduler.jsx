@@ -197,7 +197,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         
         {/* Container para o conteúdo (loading, erro, ou a grade) */}
         {/* Adicionamos uma altura máxima e scroll aqui */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 max-h-[250px] overflow-y-auto"> 
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 max-h-[300px] overflow-y-auto"> 
             {loadingSlots && (
                 <p className="text-center text-sm text-blue-600 py-4">Buscando horários...</p>
             )}
