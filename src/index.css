@@ -1,0 +1,69 @@
+/* frontend/src/index.css (Estrutura FINAL com Layers Corretas) */
+
+/* 1. Definições de Camada Base (Variáveis CSS e Estilos Globais) */
+/* ESSENCIAL: Define as variáveis ANTES que o Tailwind tente usá-las */
+@layer base {
+  :root {
+    /* Cole aqui as variáveis CSS que o 'npx shadcn@latest init' gerou */
+    /* Exemplo: */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  /* Modo escuro (opcional) */
+  .dark { /* ... variáveis do tema escuro ... */ }
+}
+
+/* Aplica estilos base globais usando as variáveis */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+
+/* 2. Diretivas do Tailwind */
+/* Carregam os resets, componentes pré-definidos e classes de utilidade */
+@tailwind base;
+
+@layer components {
+  @import 'react-day-picker/dist/style.css'; 
+
+  /* (Opcional) Você pode adicionar overrides MUITO específicos aqui se necessário */
+  /* Ex: .rdp { font-size: 1rem !important; } */
+}
+@tailwind components;
+@tailwind utilities;
+
+/* 3. Estilos Específicos de Bibliotecas (se necessário) */
+/* Se o import no main.jsx não funcionar, esta é a ÚLTIMA alternativa: */
+/* Tente adicionar o @import AQUI, DEPOIS de todas as diretivas @tailwind. */
+/* Pode causar especificidade, mas pode preservar o layout. */
+/* @import 'react-day-picker/dist/style.css'; */
+
+/* Se ainda houver problemas, podemos adicionar overrides específicos aqui */
+/* Ex: Forçar display grid ou table para elementos do calendário se necessário */
+/* .rdp-month table { display: table !important; } */ /* Exemplo apenas, não adicione ainda */
