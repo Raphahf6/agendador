@@ -5,6 +5,7 @@ import ServiceList from './components/ServiceList';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import ConfirmationPage from './components/ConfirmationPage';
 import { LandingPage } from './pages/LandingPage';
+import LoadingSpinner from './components/LoadingSpinner';
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
 function SalonScheduler() { 
@@ -171,7 +172,10 @@ function SalonScheduler() {
                         </div>
                     )}
                     {/* Loading/Erro iniciais */}
-                    {loadingSalonData && !errorSalon && !selectedService && ( <p className="text-gray-600 animate-pulse">Carregando dados do salão...</p> )}
+                    {loadingSalonData && !errorSalon && !selectedService && ( <div className="flex flex-col items-center justify-center p-10">
+                            <LoadingSpinner size="h-8 w-8" color="text-purple-500" />
+                            <p className="text-gray-500 text-sm mt-3">Carregando dados do salão...</p>
+                         </div>)}
                     {errorSalon && !selectedService && ( <p className="text-red-600">Erro ao carregar dados do salão.</p> )}
                   
                     
