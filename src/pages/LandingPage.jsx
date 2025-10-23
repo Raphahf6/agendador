@@ -36,7 +36,7 @@ export function LandingPage({ onGetStarted }) {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full shadow-sm">
                 <Sparkles className="w-4 h-4 text-purple-600" />
-                <span className="text-sm text-purple-700">Horalis de Agendamento Inteligente</span>
+                <span className="text-sm text-purple-700">Horalis Agendamento Inteligente</span>
               </div>
               
               <h1 className="leading-tight">
