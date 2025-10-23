@@ -4,7 +4,7 @@ import axios from 'axios';
 // O ID do salão será fixo por enquanto. No futuro, ele virá da URL.
 // Use o ID de teste que você cadastrou.
 // ATENÇÃO: Use a porta 8000 se o seu FastAPI estiver rodando lá.
-const API_BASE_URL = "https://api-agendador.onrender.com/"; 
+const API_BASE_URL = "https://api-agendador.onrender.com"; 
 
 function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
   
