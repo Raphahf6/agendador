@@ -65,7 +65,7 @@ export function LandingPage({ onGetStarted }) { // A prop onGetStarted não é m
               </h1>
               
               <p className="text-gray-600 text-lg" data-aos="fade-up" data-aos-delay="200">
-                Simplifique sua vida! Seus clientes agendam pelo link, e os compromissos aparecem automaticamente na sua Google Agenda. Sem complicação, sem esquecimentos.
+                Simplifique sua vida! Seus clientes agendam pelo link, e os compromissos aparecem automaticamente na sua Google Agenda. Sem desorganização, sem esquecimentos.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4" data-aos="fade-up" data-aos-delay="400">
