@@ -68,7 +68,7 @@ export function LandingPage() {
           <div className="absolute top-full left-0 right-0 bg-white/95 backdrop-blur-sm shadow-md sm:hidden z-30">
             <div className="flex flex-col p-4 space-y-2">
               <Link
-                to={`/painel/${DEFAULT_SALAO_ID}/login`}
+                to={`/login`}
                 className="flex items-center gap-2 px-3 py-2 text-base font-medium text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
