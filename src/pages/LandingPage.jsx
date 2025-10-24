@@ -10,7 +10,6 @@ import 'aos/dist/aos.css';
 // Link único do WhatsApp para todos os CTAs
 const WHATSAPP_LNK = "https://w.app/rebdigitalsolucoes";
 const BRAND_NAME = "Horalis"; 
-const DEFAULT_SALAO_ID = "00000000000"; // Placeholder para a rota de login
 
 export function LandingPage() {
     const [isMenuOpen, setIsMenuOpen] = useState(false); // Estado para o menu hamburguer mobile
@@ -82,7 +81,7 @@ export function LandingPage() {
                             className="flex items-center gap-2 px-3 py-2 text-base font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
                             onClick={() => setIsMenuOpen(false)}
                         >
-                            <Phone className="w-5 h-5" /> Falar com Horalis
+                            <Phone className="w-5 h-5" /> Contate-nos
                         </a>
                     </div>
                 </div>
@@ -138,8 +137,8 @@ export function LandingPage() {
                                 <p className="text-sm text-gray-500">Disponível</p>
                             </div>
                             <div>
-                                <div className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">100%</div>
-                                <p className="text-sm text-gray-500">Digital</p>
+                                <div className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">0</div>
+                                <p className="text-sm text-gray-500">Complicações</p>
                             </div>
                         </div>
                     </div>
