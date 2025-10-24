@@ -176,22 +176,19 @@ function SalonScheduler() {
                     )}
                     {!selectedService && !loadingSalonData && !errorSalon && (
                         <div className="flex flex-col items-center">
-                            {salonDetails.url_logo && (<ImageWithFallback alt={salonDetails.nome_salao} src={salonDetails.url_logo} className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-lg object-cover" />)}
-                            <h1 className="text-3xl font-bold mb-1 bg-gradient-to-r bg-clip-text text-transparent tracking-tight" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} > {salonDetails.nome_salao} </h1>
+                            {salonDetails.url_logo && (<img alt={salonDetails.nome_salao} src={salonDetails.url_logo} className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-lg object-cover" />)}
+                            <h1 className="text-2xl mb-1 bg-gradient-to-r bg-clip-text text-transparent tracking-tight" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} > {salonDetails.nome_salao} </h1>
                             <p className="text-base text-gray-600 font-light mb-8"> {salonDetails.tagline} </p>
                             <div className="w-full px-2">
-                                <h2 className="text-lg text-gray-800 mb-2 text-left font-semibold"> Selecione um Serviço </h2>
-                                <p className="text-sm text-gray-600 mb-4 text-left font-light"> Escolha o serviço desejado para agendar </p>
+                                <h2 className="text-center mb-2"> Selecione um Serviço </h2>
+                                <p className="text-center text-muted-foreground"> Escolha o serviço desejado para agendar </p>
                             </div>
                         </div>
                     )}
-                    {loadingSalonData && !errorSalon && !selectedService && (<p className="text-gray-600 animate-pulse">Carregando dados do salão...</p>)}
+                    
+                    {loadingSalonData && !errorSalon && !selectedService && (<p className="text-gray-600 animate-pulse"></p>)}
                     {errorSalon && !selectedService && (<p className="text-red-600">Erro ao carregar dados do salão.</p>)}
-                    {selectedService && !appointmentConfirmed && (
-                        <h1 className="text-2xl font-bold text-center pt-2 bg-gradient-to-r bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} >
-                            Agendar: {selectedService.nome_servico}
-                        </h1>
-                    )}
+                   
                 </header>
             )}
 
@@ -235,7 +232,7 @@ function App() {
                     <Route index element={<Navigate to="calendario" replace />} />
                     <Route path="calendario" element={<CalendarioPage />} />
                     <Route path="servicos" element={<ServicosPage />} />
-                    <Route path="horarios" element={ <HorariosPage /> } />
+                    <Route path="horarios" element={<HorariosPage />} />
                     <Route path="personalizacao" element={<PersonalizacaoPage />} />
                     <Route path="configuracoes" element={<ConfiguracoesPage />} />
 

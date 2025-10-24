@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios'; // Para chamar a API e registrar o salão
 
 // URL da API (usada para registrar o salão no backend)
-const API_BASE_URL = "http://localhost:8000/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
 
 function ProfissionalSignupPage() {
   const [email, setEmail] = useState('');

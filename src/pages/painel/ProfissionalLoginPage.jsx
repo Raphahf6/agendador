@@ -7,7 +7,7 @@ import { User, Lock } from 'lucide-react';
 import axios from 'axios'; // Para chamar o endpoint que busca o ID
 
 // A URL base da API
-const API_BASE_URL = "http://localhost:8000/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
 
 function ProfissionalLoginPage() {
   const [email, setEmail] = useState('');
