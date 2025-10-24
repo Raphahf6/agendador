@@ -1,29 +1,81 @@
-// frontend/src/App.jsx (Versão CORRIGIDA - Fundo Gradiente Suave)
+// frontend/src/App.jsx (Definindo as Sub-rotas do Painel)
 import React, { useState, useEffect, useCallback } from 'react';
+// Imports do React Router
 import { Routes, Route, useParams, Navigate, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+// Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import ConfirmationPage from './components/ConfirmationPage';
+import HoralisCalendar from './components/HoralisCalendar';
+// Imports da Landing Page
 import { LandingPage } from './pages/LandingPage';
-import LoadingSpinner from './components/LoadingSpinner';
+import { ImageWithFallback } from '@/ui/ImageWithFallback';
+
+// --- Imports do NOVO PAINEL ---
+import PainelLayout from './pages/painel/PainelLayout';
+import VisaoGeral from './pages/painel/VisaoGeral';
+import CalendarioPage from './pages/painel/CalendarioPage';
+import ServicosPage from './pages/painel/ServicosPage';
+import PersonalizacaoPage from './pages/painel/PersonalizacaoPage';
+import ConfiguracoesPage from './pages/painel/ConfiguracoesPage';
+import ProfissionalLoginPage from './pages/painel/ProfissionalLoginPage'; // <<< NOVO IMPORT
+import ProfissionalSignupPage from './pages/painel/ProfissionalSignupPage'; // <<< NOVO IMPORT
+import { onAuthStateChanged, signOut } from "firebase/auth"; // Imports do Firebase Auth
+import { auth } from './firebaseConfig';
+import { useRef } from 'react';
+import HorariosPage from './pages/painel/HorariosPage';
+// --- FIM DOS NOVOS IMPORTS ---
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
+// Esta função permanece exatamente como estava (controla o /agendar/:salaoId)
+
+function ProtectedPanelRoute({ children, user, location }) {
+    const { salaoId } = useParams();
+    const navigate = useNavigate();
+
+    // 1. Auth ainda carregando? Mostra loading.
+    if (user === undefined) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-50">
+                <p className="text-gray-600 animate-pulse">Verificando autenticação...</p>
+            </div>
+        );
+    }
+
+    // 2. Não logado? Redireciona para login
+    if (!user) {
+        // Passamos a URL atual (/painel/:salaoId/...) para voltar depois
+        return <Navigate
+            to={`/painel/${salaoId}/login`} // Redireciona para o login ESPECÍFICO do painel
+            state={{ from: location }} // Guarda a URL completa para redirecionar
+            replace
+        />;
+    }
+
+    // 3. Logado, mas o UID NÃO BATE com o salaoId da URL
+    // NOTE: No futuro, a lógica aqui deve verificar se o user.uid do Firebase
+    // corresponde ao salaoId, ou se ele é o Super Admin. Por enquanto, assumimos que se 
+    // ele está logado, ele pode ver o painel.
+    // if (user.email !== `${salaoId}@example.com`) { ... }
+
+    // 4. Se logado, renderiza o componente filho.
+    return children;
+}
+
 function SalonScheduler() {
     const { salaoId } = useParams();
-
     const [selectedService, setSelectedService] = useState(null);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
     const [salonDetails, setSalonDetails] = useState({
         nome_salao: '', tagline: '', url_logo: '',
         cor_primaria: '#6366F1', cor_secundaria: '#EC4899',
-        // Fallbacks para um gradiente MUITO suave
-        cor_gradiente_inicio: '#F3F4F6', // Um cinza bem claro, quase branco
-        cor_gradiente_fim: '#F8FAFC' // Um branco ainda mais sutil
+        cor_gradiente_inicio: '#F3E8FF',
+        cor_gradiente_fim: '#FFFFFF'
     });
     const [loadingSalonData, setLoadingSalonData] = useState(true);
     const [errorSalon, setErrorSalon] = useState(null);
 
-    // --- Funções Handle COMPLETAS e SIMPLIFICADAS ---
+    // --- Funções Handle (Completas) ---
     const handleDataLoaded = useCallback((details, error = null) => {
         setLoadingSalonData(false);
         if (error) {
@@ -32,40 +84,7 @@ function SalonScheduler() {
                 ...prevDetails, nome_salao: 'Erro ao Carregar', tagline: '', url_logo: '',
             }));
         } else if (details && typeof details === 'object') {
-            setSalonDetails(prevDetails => {
-                // Ao carregar os detalhes do salão, ajustamos as cores do gradiente de fundo
-                // Pegamos a cor primária e secundária e as tornamos mais claras/transparentes para o fundo
-                const basePrimary = details.cor_primaria || '#6366F1';
-                const baseSecondary = details.cor_secundaria || '#EC4899';
-
-                // Podemos usar uma ferramenta para clarear a cor ou simplesmente usar uma cor fixa muito clara
-                // Para simplificar e garantir legibilidade, vamos misturar com branco ou usar tons pastel.
-                // Uma forma simples é usar uma cor fixa MUITO clara no início e a cor primaria com um pouco de opacidade no fim.
-                // OU, como o cliente pediu, vamos clarear a cor_primaria para usar no gradiente
-
-                // Função simples para clarear um HEX (sem grandes bibliotecas)
-                const lightenColor = (hex, percent) => {
-                    const num = parseInt(hex.replace("#", ""), 16);
-                    const amt = Math.round(2.55 * percent);
-                    const R = (num >> 16) + amt;
-                    const B = (num >> 8 & 0x00FF) + amt;
-                    const G = (num & 0x0000FF) + amt;
-                    return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 + (B < 255 ? B < 1 ? 0 : B : 255) * 0x100 + (G < 255 ? G < 1 ? 0 : G : 255)).toString(16).slice(1);
-                };
-
-                const corFundoSuaveInicio = lightenColor(basePrimary, 75); // Clareia a cor primária em 75%
-                const corFundoSuaveFim = lightenColor(baseSecondary, 75); // Clareia a cor secundária em 75%
-                // Ou, se preferir um gradiente mais sutil do tipo "névoa":
-                // const corFundoSuaveInicio = '#FBF8F9'; // Quase branco
-                // const corFundoSuaveFim = lightenColor(basePrimary, 60); // A cor primária, mais clara
-
-                return {
-                    ...prevDetails,
-                    ...details,
-                    cor_gradiente_inicio: corFundoSuaveInicio, // Aplicando a cor mais clara
-                    cor_gradiente_fim: corFundoSuaveFim      // Aplicando a cor mais clara
-                };
-            });
+            setSalonDetails(prevDetails => ({ ...prevDetails, ...details }));
             setErrorSalon(null);
         } else {
             console.error("handleDataLoaded: Detalhes inválidos recebidos!", details);
@@ -103,7 +122,6 @@ function SalonScheduler() {
     // --- Lógica de Renderização ---
     const renderContent = () => {
         const styleProps = { styleOptions: salonDetails };
-
         if (loadingSalonData && !errorSalon) {
             return <ServiceList
                 salaoId={salaoId}
@@ -136,20 +154,18 @@ function SalonScheduler() {
         />;
     };
 
-    // --- OBJETO DE ESTILO DINÂMICO PARA O FUNDO ---
+    // --- Estilo de Fundo ---
     const backgroundStyle = {
-        background: `linear-gradient(to bottom right, ${salonDetails.cor_gradiente_inicio}, ${salonDetails.cor_gradiente_fim})`,
+        background: `linear-gradient(to bottom right, ${salonDetails.cor_gradiente_inicio}10, ${salonDetails.cor_gradiente_fim}10)`,
         minHeight: '100vh',
     };
 
     // --- RETURN Principal do SalonScheduler ---
     return (
-        <div style={backgroundStyle} className="w-full font-sans">
+        <div style={backgroundStyle} className="w-full font-sans flex flex-col">
 
-            {/* Cabeçalho Condicional */}
             {!appointmentConfirmed && (
                 <header className="pt-8 pb-6 px-4 text-center relative">
-                    {/* Botão Voltar */}
                     {selectedService && (
                         <div className="absolute top-4 left-2 z-10">
                             <button onClick={handleBackFromScheduler} className="text-gray-600 hover:text-gray-900 font-medium flex items-center p-2 rounded transition-colors hover:bg-white/30 text-sm">
@@ -158,59 +174,78 @@ function SalonScheduler() {
                             </button>
                         </div>
                     )}
-
-                    {/* Logo, Nome e Tagline */}
                     {!selectedService && !loadingSalonData && !errorSalon && (
                         <div className="flex flex-col items-center">
-                            {salonDetails.url_logo && (<img alt={salonDetails.nome_salao} src={salonDetails.url_logo} className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-lg object-cover" />)}
-                            <h1 className="text-2xl mb-1 bg-gradient-to-r bg-clip-text text-transparent tracking-tight" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} > {salonDetails.nome_salao} </h1>
+                            {salonDetails.url_logo && (<ImageWithFallback alt={salonDetails.nome_salao} src={salonDetails.url_logo} className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-lg object-cover" />)}
+                            <h1 className="text-3xl font-bold mb-1 bg-gradient-to-r bg-clip-text text-transparent tracking-tight" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} > {salonDetails.nome_salao} </h1>
                             <p className="text-base text-gray-600 font-light mb-8"> {salonDetails.tagline} </p>
                             <div className="w-full px-2">
-                                <h2 className="text-center mb-2"> Selecione um Serviço </h2>
-                                <p className="text-center text-muted-foreground"> Escolha o serviço desejado para agendar </p>
+                                <h2 className="text-lg text-gray-800 mb-2 text-left font-semibold"> Selecione um Serviço </h2>
+                                <p className="text-sm text-gray-600 mb-4 text-left font-light"> Escolha o serviço desejado para agendar </p>
                             </div>
                         </div>
                     )}
-                    {/* Loading/Erro iniciais */}
-                    {loadingSalonData && !errorSalon && !selectedService && (<div className="flex flex-col items-center justify-center p-10">
-
-
-                    </div>)}
+                    {loadingSalonData && !errorSalon && !selectedService && (<p className="text-gray-600 animate-pulse">Carregando dados do salão...</p>)}
                     {errorSalon && !selectedService && (<p className="text-red-600">Erro ao carregar dados do salão.</p>)}
-
-
+                    {selectedService && !appointmentConfirmed && (
+                        <h1 className="text-2xl font-bold text-center pt-2 bg-gradient-to-r bg-clip-text text-transparent" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} >
+                            Agendar: {selectedService.nome_servico}
+                        </h1>
+                    )}
                 </header>
             )}
 
-            <main className={!appointmentConfirmed ? "pb-24 px-4" : ""}>
+            <main className={`flex-grow ${!appointmentConfirmed ? "px-4" : ""}`}>
                 {renderContent()}
             </main>
-            {/* --- FOOTER COM LÓGICA CORRIGIDA --- */}
-
             {!appointmentConfirmed && !selectedService && !loadingSalonData && !errorSalon && (
-                <footer className="w-full text-center px-4 py-6 mt-auto"> {/* mt-auto empurra para baixo */}
+                <footer className="w-full text-center px-4 py-6 mt-auto">
                     <p className="text-xs text-gray-500">
                         © {new Date().getFullYear()} Horalis. Todos os direitos reservados.
                     </p>
                 </footer>
             )}
-            {/* --- FIM DO FOOTER --- */}
-
         </div>
     );
 } // Fim do SalonScheduler
 
 
-// --- Componente App Principal (Simplificado - SEM Autenticação) ---
 function App() {
     return (
         <div className="relative min-h-screen">
+
             <Routes>
+                {/* Rota da Landing Page */}
+                <Route path="/" element={<LandingPage />} />
+
+                {/* --- ROTAS DE AUTENTICAÇÃO PÚBLICA (Fora do /painel) --- */}
+                {/* O Login do Profissional agora está em /login */}
+                <Route path="/login" element={<ProfissionalLoginPage />} />
+                {/* O Cadastro do Profissional agora está em /cadastro */}
+                <Route path="/cadastro" element={<ProfissionalSignupPage />} />
+
+                {/* Rota de Agendamento (Para o cliente final) */}
                 <Route path="/agendar/:salaoId" element={<SalonScheduler />} />
-                <Route
-                    path="/"
-                    element={<LandingPage></LandingPage>}
-                />
+
+                {/* --- ROTA DO PAINEL PROTEGIDA (Pai) --- */}
+                {/* Removido o login e cadastro daqui. Se não estiver logado, o ProtectedRoute interno irá redirecionar para /login */}
+                <Route path="/painel/:salaoId" element={<PainelLayout />}>
+                    {/* SUB-ROTAS (Renderizadas dentro do PainelLayout) */}
+                    {/* Estas rotas agora são /painel/:salaoId/calendario */}
+                    <Route index element={<Navigate to="calendario" replace />} />
+                    <Route path="calendario" element={<CalendarioPage />} />
+                    <Route path="servicos" element={<ServicosPage />} />
+                    <Route path="horarios" element={ <HorariosPage /> } />
+                    <Route path="personalizacao" element={<PersonalizacaoPage />} />
+                    <Route path="configuracoes" element={<ConfiguracoesPage />} />
+
+                    {/* Rotas de Autenticação Aninhadas REMOVIDAS daqui: */}
+                    {/* <Route path="login" element={<ProfissionalLoginPage />} /> */}
+                    {/* <Route path="cadastro" element={<ProfissionalSignupPage />} /> */}
+                </Route>
+                {/* --- FIM DA ROTA DO PAINEL PROTEGIDA --- */}
+
+                {/* Rota Curinga */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </div>
@@ -218,4 +253,3 @@ function App() {
 } // Fim do App
 
 export default App;
-

@@ -5,6 +5,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src","components"],
   "exclude": ["node_modules"]
 }
