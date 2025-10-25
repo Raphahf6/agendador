@@ -197,7 +197,7 @@ export function LandingPage() {
               </div>
               <h3 className="text-lg font-semibold mb-3 text-gray-900">Receba Agendamentos</h3>
               <p className="text-sm text-gray-500">
-                Os agendamentos aparecem automaticamente na sua Google Agenda. Simples assim!
+                Os agendamentos aparecem automaticamente na sua Horalis agenda no seu painel e na sua Google Agenda. Simples assim!
               </p>
             </Card>
           </div>
