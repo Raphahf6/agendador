@@ -24,6 +24,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth"; // Imports do Fireb
 import { auth } from './firebaseConfig';
 import { useRef } from 'react';
 import HorariosPage from './pages/painel/HorariosPage';
+import { Toaster } from 'react-hot-toast';
 // --- FIM DOS NOVOS IMPORTS ---
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
@@ -210,6 +211,21 @@ function SalonScheduler() {
 function App() {
     return (
         <div className="relative min-h-screen">
+
+            {/* --- ADIÇÃO DO TOASTER --- */}
+           {/* Este componente renderiza os pop-ups de notificação */}
+           <Toaster 
+                position="top-right" // Posição
+                reverseOrder={false}
+                toastOptions={{
+                    duration: 5000, // Duração de 5 segundos
+                    style: {
+                        background: '#333',
+                        color: '#fff',
+                    },
+                }}
+           />
+           {/* --- FIM DA ADIÇÃO --- */}
 
             <Routes>
                 {/* Rota da Landing Page */}
