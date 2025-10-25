@@ -212,7 +212,7 @@ export function LandingPage() {
             <div className="order-2 lg:order-1" data-aos="fade-right">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl">
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1729860648922-a79abb2fbcf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFydHBob25lJTIwY2FsZW5kYXIlMjBhcHB8ZW58MXx8fHwxNzYxMTg5MjI5fDA&ixlib=rb-4.1.0&q=80&w=1080"
+                  src="calendario.png"
                   alt="Calendário no smartphone"
                   className="w-full h-auto"
                 />
