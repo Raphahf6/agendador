@@ -11,26 +11,7 @@ import { ptBR } from 'date-fns/locale';
 // --- DADOS DE EXEMPLO (MOCK) ---
 // Usado como fallback se a API retornar uma lista vazia
 const mockEvents = [
-  {
-    id: 'MOCK-1', 
-    title: 'Corte - Raphael Menezes (Exemplo)',
-    start: new Date().toISOString().split('T')[0] + 'T10:00:00', 
-    end: new Date().toISOString().split('T')[0] + 'T10:45:00',
-    backgroundColor: '#3788D8', 
-    borderColor: '#3788D8',
-    extendedProps: { 
-      customerName: 'Raphael Menezes',
-      customerPhone: '+5511988062634'
-    }
-  },
-  {
-    id: 'MOCK-2',
-    title: 'Barba Terapia - Cliente Teste (Exemplo)',
-    start: new Date().toISOString().split('T')[0] + 'T14:00:00', 
-    end: new Date().toISOString().split('T')[0] + 'T14:30:00',
-    backgroundColor: '#EC4899',
-    borderColor: '#D83788'
-  },
+  
   {
     id: 'MOCK-3',
     title: 'Luzes - Cliente Teste 2 (Exemplo)',
