@@ -196,7 +196,7 @@ function PainelLayout() {
                     className="h-10 w-10 rounded-full object-cover"
                  />
              )}
-             <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+             <h1 className="text-2xl font-bold bg-gradient bg-clip-text text-transparent"style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                {salonDetails?.nome_salao || 'Horalis'}
              </h1>
           </div>
@@ -258,6 +258,9 @@ function PainelLayout() {
           </div>
         </main>
       </div>
+       <footer className="w-full text-center p-6 mt-8 text-xs text-gray-500">
+        © {new Date().getFullYear()} Horalis. Todos os direitos reservados.
+      </footer>
     </div>
   )
 }

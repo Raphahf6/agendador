@@ -7,7 +7,7 @@ import { Clock, Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react'
 import { auth } from '@/firebaseConfig'; 
 
 // URL da API (deve estar correta para o seu ambiente)
-const API_BASE_URL = "hhttps://api-agendador.onrender.com/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
 
 // Estrutura padrão para inicializar o estado
 const DIAS_DA_SEMANA = [

@@ -1,12 +1,15 @@
 // frontend/src/pages/painel/ProfissionalLoginPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { auth } from '@/firebaseConfig'; 
-import { User, Lock } from 'lucide-react';
-import axios from 'axios'; // Para chamar o endpoint que busca o ID
+import { Mail, Lock, LogIn, ArrowRight } from 'lucide-react'; // Ícones
+import axios from 'axios'; 
+import AOS from 'aos'; // Para a animação
+import 'aos/dist/aos.css'; // Estilos do AOS
+import { Loader2 } from 'lucide-react';
 
-// A URL base da API
+// URL da API 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
 
 function ProfissionalLoginPage() {
@@ -16,37 +19,43 @@ function ProfissionalLoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  // O salaoId da URL (ex: /painel/default/login) não é mais usado para a rota final
-  const { salaoId: initialSalaoId } = useParams(); 
+
+  // Inicializa o AOS
+  useEffect(() => {
+    AOS.init({
+      duration: 800,
+      once: true,
+    });
+  }, []);
 
   // Função para buscar o token e o ID do salão
   const getSalãoIdAndRedirect = async (user) => {
-    // 1. Gera o token JWT real para autenticar no backend
     const token = await user.getIdToken();
-    
     try {
-      // 2. Chama o novo endpoint PROTEGIDO
       const response = await axios.get(`${API_BASE_URL}/admin/user/salao-id`, {
-        headers: {
-          Authorization: `Bearer ${token}` // Envia o token real
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
       
       const realSalãoId = response.data.salao_id;
-
-      // 3. Redireciona para a rota FINAL (Painel/Calendário)
-      const redirectPath = `/painel/${realSalãoId}/calendario`;
       
+      // Tenta redirecionar para onde o usuário queria ir (se houver)
+      const from = location.state?.from;
+      if (from && from.startsWith('/painel/')) {
+        // Se o ID da URL for diferente do ID do usuário, redireciona para o ID correto
+        if (from.includes(realSalãoId)) {
+          navigate(from, { replace: true });
+          return;
+        }
+      }
+      
+      // Redirecionamento padrão
+      const redirectPath = `/painel/${realSalãoId}/calendario`;
       console.log(`Login Profissional Sucedido. Redirecionando para: ${redirectPath}`);
       navigate(redirectPath, { replace: true }); 
 
     } catch (apiError) {
       console.error("Erro ao buscar ID do Salão:", apiError);
-      
-      // Se falhar, desloga o usuário (ele não pode acessar o painel)
       await auth.signOut(); 
-      
-      // Define o erro para o formulário
       setError(apiError.response?.data?.detail || "Erro ao conectar conta. Verifique seu cadastro no Horalis.");
     }
   };
@@ -58,11 +67,8 @@ function ProfissionalLoginPage() {
     setLoading(true);
 
     try {
-      // 1. Tenta fazer login no Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
-      // 2. Login Firebase bem-sucedido. Busca o ID real do salão
       await getSalãoIdAndRedirect(user);
 
     } catch (err) {
@@ -77,77 +83,106 @@ function ProfissionalLoginPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] bg-gray-100/50">
-      <div className="w-full max-w-sm p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-200">
-        <h2 className="text-2xl font-bold text-center text-gray-800">Acesso ao Painel</h2>
-        <p className="text-sm text-center text-gray-600">Acesse o painel de administração da sua agenda.</p>
-        <form onSubmit={handleLogin} className="space-y-4">
-          
-          {/* Campo Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1"> E-mail </label>
-             <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  id="email" type="email" required
-                  className="mt-1 block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+    // Container principal com o fundo gradiente suave
+    <div className="min-h-screen w-full bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex flex-col items-center justify-center p-4">
+      
+      {/* Container do Card com animação */}
+      <div className="w-full max-w-md" data-aos="fade-up">
+        
+        {/* 1. Logo Horalis (no topo) */}
+        <div className="text-center mb-6">
+          <Link to="/"> {/* Link para a Landing Page */}
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+              Horalis
+            </h1>
+          </Link>
+          <p className="text-gray-600 mt-1">Acesso ao Painel do Profissional</p>
+        </div>
+
+        {/* 2. O Card Branco */}
+        <div className="bg-white p-8 shadow-xl border border-gray-100 rounded-2xl">
+          <form onSubmit={handleLogin} className="space-y-6">
+            
+            {/* 3. Campo Email (com ícone) */}
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700">E-mail</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  id="email" 
+                  type="email" 
+                  placeholder="seuemail@salao.com"
+                  required
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-purple-400" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  placeholder="Seu e-mail de administrador"
                 />
-             </div>
-          </div>
-          
-          {/* Campo Senha */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1"> Senha </label>
-            <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  id="password" type="password" required
-                  className="mt-1 block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              </div>
+            </div>
+
+            {/* 4. Campo Senha (com ícone) */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label htmlFor="password" className="text-sm font-medium text-gray-700">Senha</label>
+                <Link to="/esqueci-senha" // Rota futura (placeholder)
+                  className="text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
+                >
+                  Esqueceu a senha?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  id="password" 
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-purple-400"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
-                  placeholder="Sua senha"
                 />
+              </div>
             </div>
-          </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-xs text-red-700 text-center">{error}</p>
-            </div>
-          )}
+            {/* 5. Erro (se houver) */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-center">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
 
-          {/* Botão de Login */}
-          <div>
+            {/* 6. Botão (com gradiente) */}
             <button
               type="submit"
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg shadow-md hover:from-pink-700 hover:to-purple-700 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-70 disabled:scale-100"
               disabled={loading}
             >
               {loading ? (
-                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" viewBox="0 0 24 24">...</svg>
+                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                'Entrar no Painel'
+                <>
+                  <LogIn className="w-5 h-5 mr-2" /> Entrar
+                </>
               )}
             </button>
-          </div>
-        </form>
 
-        {/* Link para Cadastro */}
-        <p className="text-sm text-center text-gray-600 pt-4 border-t border-gray-200">
-          Ainda não tem cadastro?{' '}
-          <Link 
-             to={`/cadastro`} 
-             className="font-medium text-purple-600 hover:text-purple-500 underline"
-          >
-            Cadastre-se agora
-          </Link>
-        </p>
+            {/* 7. Link de Cadastro */}
+            <div className="text-center text-sm text-gray-600 pt-6 border-t border-gray-100">
+              Não tem uma conta?{' '}
+              <Link to="/cadastro" className="font-semibold text-purple-600 hover:text-purple-700 hover:underline">
+                Cadastre-se aqui <ArrowRight className="w-4 h-4 inline" />
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
+
+      {/* 8. Footer */}
+      <footer className="w-full text-center p-6 mt-8 text-xs text-gray-500">
+        © {new Date().getFullYear()} Horalis. Todos os direitos reservados.
+      </footer>
     </div>
   );
 }
