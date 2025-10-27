@@ -447,6 +447,8 @@ function CalendarioPage() {
         eventClick={handleEventClick}
         dateClick={handleDateClick}
         initialView="timeGridWeek"
+        longPressDelay={250}
+        eventDurationEditable={false}
         
         // <<< MUDANÇA: Removido 'datesSet' (obsoleto) >>>
       />
