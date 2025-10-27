@@ -1,30 +1,23 @@
 // frontend/src/components/HoralisFullCalendar.jsx
-// Versão FINAL - Recebe a lista de eventos (MESMO QUE VAZIA)
-import React, { useRef, useEffect } from 'react'; // Adicionado useRef e useEffect
+import React from 'react'; // useRef e useEffect não são necessários aqui
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid' 
 import timeGridPlugin from '@fullcalendar/timegrid' 
 import interactionPlugin from '@fullcalendar/interaction' 
 import { ptBR } from 'date-fns/locale'; 
 
-// --- DADOS DE EXEMPLO (MOCK) REMOVIDOS ---
-// O componente agora espera apenas a lista de eventos reais.
-// --- FIM DA REMOÇÃO ---
-
 /**
  * Props:
  * - events (array): A lista de eventos (agendamentos) para exibir.
- * - dateClick (function): Função chamada quando um slot de data/hora é clicado. 
- * - eventClick (function): Função chamada quando um evento existente é clicado.
- * - datesSet (function): Função chamada quando a visão do calendário muda.
  * - calendarRef (React Ref): Referência para acessar a API do FullCalendar
+ * - ...rest (spread): Todas as outras props do FullCalendar 
+ * (como dateClick, eventClick, editable, eventDrop, etc.)
  */
 function HoralisFullCalendar({ 
   events, 
-  dateClick, 
-  eventClick,
-  datesSet,
-  calendarRef // <<< Recebe a ref do componente pai
+  calendarRef,
+  // <<< MUDANÇA: 'dateClick', 'eventClick' e 'datesSet' removidos daqui
+  ...rest // <<< MUDANÇA: Captura todas as outras props (editable, eventDrop, etc.)
 }) {
   
   // --- CONFIGURAÇÃO DE RESPONSIVIDADE (Permanece a mesma) ---
@@ -32,7 +25,7 @@ function HoralisFullCalendar({
     left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay'
   };
   const mobileHeaderToolbarConfig = {
-    left: 'prev,next today', // Adicionado 'today' para mobile
+    left: 'prev,next today', 
     center: 'title',
     right: 'timeGridDay,dayGridMonth'
   };
@@ -62,11 +55,14 @@ function HoralisFullCalendar({
         }}
         
         // --- PROPS DE INTERATIVIDADE CORRIGIDAS ---
-        // Agora, se 'events' for [], o calendário renderizará vazio
-        events={events} // <<< Recebe a lista (real ou vazia)
-        dateClick={dateClick} 
-        eventClick={eventClick} 
-        datesSet={datesSet} 
+        events={events} // Recebe a lista (real ou vazia)
+        
+        // <<< MUDANÇA: Repassa todas as outras props >>>
+        // Isso inclui 'dateClick', 'eventClick', 'editable', e 'eventDrop'
+        // que foram passadas pelo CalendarioPage.jsx
+        {...rest} 
+        
+        // <<< MUDANÇA: Removido 'datesSet' (era obsoleto) >>>
         
         // --- CONFIGURAÇÕES DE VISUALIZAÇÃO ---
         allDaySlot={false} 
