@@ -2,238 +2,203 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Card } from '@/ui/card';
-import { Clock, Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react'; 
-import { auth } from '@/firebaseConfig'; 
+// import { Card } from '@/ui/card'; // Usaremos div com Tailwind
+import { Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react'; // Trocado Clock por CalendarDays
+import { auth } from '@/firebaseConfig';
 
-// URL da API (deve estar correta para o seu ambiente)
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// Estrutura padrão para inicializar o estado
+// <<< DEFINIÇÕES DE COR >>>
+const CIANO_COLOR_TEXT = 'text-cyan-600';
+const CIANO_COLOR_BG = 'bg-cyan-600';
+const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
+const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
+const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
+const CIANO_CHECKED_BG = 'checked:bg-cyan-600'; // Para o toggle
+
+// Helper Ícone Simples
+const Icon = ({ icon: IconComponent, className = "" }) => (
+    <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+);
+
 const DIAS_DA_SEMANA = [
-    { name: "Segunda-feira", dbKey: "monday" }, 
-    { name: "Terça-feira", dbKey: "tuesday" }, 
-    { name: "Quarta-feira", dbKey: "wednesday" }, 
-    { name: "Quinta-feira", dbKey: "thursday" }, 
-    { name: "Sexta-feira", dbKey: "friday" }, 
-    { name: "Sábado", dbKey: "saturday" }, 
+    { name: "Segunda-feira", dbKey: "monday" }, { name: "Terça-feira", dbKey: "tuesday" },
+    { name: "Quarta-feira", dbKey: "wednesday" }, { name: "Quinta-feira", dbKey: "thursday" },
+    { name: "Sexta-feira", dbKey: "friday" }, { name: "Sábado", dbKey: "saturday" },
     { name: "Domingo", dbKey: "sunday" }
 ];
 
 function HorariosPage() {
     const { salaoId } = useParams();
-    // O estado agora é simplificado, usando os campos do modelo do backend
-    const [diasTrabalho, setDiasTrabalho] = useState([]); // Array de strings (dbKey)
+    const [diasTrabalho, setDiasTrabalho] = useState([]);
     const [horarioInicio, setHorarioInicio] = useState("09:00");
     const [horarioFim, setHorarioFim] = useState("18:00");
-    
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
 
     // --- Lógica de Busca (GET) ---
     const fetchHorarios = useCallback(async () => {
-        if (!salaoId) { setError("ID do Salão não encontrado."); setLoading(false); return; }
-        
+        // ... (lógica fetchHorarios existente, sem alterações funcionais) ...
+        if (!salaoId) { setError("ID do Salão inválido."); setLoading(false); return; }
         const currentUser = auth.currentUser;
-        if (!currentUser) { setError("Sessão expirada. Faça login novamente."); setLoading(false); return; }
-        const token = await currentUser.getIdToken(); 
-
-        setLoading(true);
-        setError(null);
-        
+        if (!currentUser) { setError("Sessão expirada."); setLoading(false); return; }
+        const token = await currentUser.getIdToken();
+        setLoading(true); setError(null);
         try {
-            // Busca os detalhes COMPLETOs do salão
             const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
             const data = response.data;
-            
-            // 1. Atualiza os dias de trabalho (array de strings)
             setDiasTrabalho(data.dias_trabalho || []);
-            // 2. Atualiza os horários
             setHorarioInicio(data.horario_inicio || "09:00");
             setHorarioFim(data.horario_fim || "18:00");
-
         } catch (err) {
-            console.error("Erro ao buscar horários:", err.response?.data?.detail || err.message);
-            setError("Não foi possível carregar os horários. Verifique a autenticação.");
-        } finally {
-            setLoading(false);
-        }
+            setError("Não foi possível carregar os horários.");
+        } finally { setLoading(false); }
     }, [salaoId]);
 
-    useEffect(() => {
-        fetchHorarios();
-    }, [fetchHorarios]);
+    useEffect(() => { fetchHorarios(); }, [fetchHorarios]);
 
     // --- Lógica de Manipulação do Formulário ---
     const handleToggle = (dbKey) => {
-        setDiasTrabalho(prev => 
-            prev.includes(dbKey)
-            ? prev.filter(key => key !== dbKey) // Se já está aberto, fecha
-            : [...prev, dbKey] // Se está fechado, abre
+        setDiasTrabalho(prev =>
+            prev.includes(dbKey) ? prev.filter(key => key !== dbKey) : [...prev, dbKey]
         );
     };
 
-    const handleTimeChange = (value) => {
-        // Validação simples de tempo (HH:MM)
-        if (value.length === 5 && value.includes(':')) {
-            setHorarioInicio(value);
-        }
-    };
-    
     // --- Lógica de Salvamento (PUT) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsSaving(true);
-        setError(null);
-
-        // Validação simples
-        if (diasTrabalho.length === 0) {
-            setError("Seu salão não pode estar fechado todos os dias!");
-            setIsSaving(false);
-            return;
-        }
-        if (horarioInicio >= horarioFim) {
-             setError("O horário de início deve ser anterior ao horário de fim.");
-             setIsSaving(false);
-             return;
-        }
+        setIsSaving(true); setError(null);
+        // Validações...
+        if (diasTrabalho.length === 0) { setError("Selecione pelo menos um dia de trabalho."); setIsSaving(false); return; }
+        if (horarioInicio >= horarioFim) { setError("Horário de início deve ser anterior ao de fim."); setIsSaving(false); return; }
 
         try {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("Sessão expirada.");
-            const token = await currentUser.getIdToken(); 
-
-            // 1. Busca os dados COMPLETOs do salão para não perder outras configurações
-            const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const token = await currentUser.getIdToken();
+            // Busca dados completos
+            const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
             const salonData = salonResponse.data;
-            
-            // 2. Prepara o payload para o PUT, atualizando os campos do backend
+            // Prepara payload
             const payload = {
-                ...salonData, 
-                id: salaoId, 
-                dias_trabalho: diasTrabalho, // Array de chaves do DB
-                horario_inicio: horarioInicio,
-                horario_fim: horarioFim,
+                ...salonData, id: salaoId,
+                dias_trabalho: diasTrabalho, horario_inicio: horarioInicio, horario_fim: horarioFim,
             };
-            
-            // 3. Envia o PUT
-            await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            alert("Horários salvos com sucesso!");
+            // Envia PUT
+            await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+            // Adiciona um feedback visual de sucesso (ex: toast ou alert simples)
+            alert("Horários salvos com sucesso!"); // Pode substituir por toast
 
         } catch (err) {
-            console.error("Erro ao salvar horários:", err.response?.data?.detail || err.message);
-            setError("Falha ao salvar horários. Tente novamente.");
-        } finally {
-            setIsSaving(false);
-        }
+            setError("Falha ao salvar horários.");
+        } finally { setIsSaving(false); }
     };
-    
-    // --- Renderização ---
+
+    // --- Renderização Loading/Error ---
     if (loading) {
         return (
-            <Card className="p-6 text-center shadow min-h-[300px] flex items-center justify-center">
-                 <Loader2 className="h-6 w-6 animate-spin text-purple-600 mx-auto mb-2" />
-                 <p className="text-gray-600">Carregando horários...</p>
-            </Card>
+            // <<< ALTERADO: Card e Spinner Ciano >>>
+            <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
+                <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
+                <p className="text-gray-600">Carregando horários...</p>
+            </div>
         );
     }
-
-    if (error) {
+    if (error && !isSaving) { // Não mostra erro geral durante o salvamento
         return (
-            <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow">
-                <h3 className="font-semibold mb-2">Erro</h3>
-                <p className="flex items-center"><AlertTriangle className="w-5 h-5 mr-2"/> {error}</p>
+            <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 font-sans flex items-center gap-2">
+                <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" />
+                <p>{error}</p>
             </div>
         );
     }
 
+    // --- Renderização Principal ---
     return (
-        <div className="max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <CalendarDays className="w-6 h-6 mr-3 text-purple-600" />
+        // Adicionado font-sans
+        <div className="max-w-3xl mx-auto font-sans">
+            {/* <<< ALTERADO: Título com Ícone Ciano >>> */}
+            <h2 className={`text-2xl font-bold text-gray-900 mb-6 flex items-center ${CIANO_COLOR_TEXT}`}>
+                <Icon icon={CalendarDays} className="w-6 h-6 mr-3" />
                 Configurar Horário de Funcionamento
             </h2>
 
-            <Card className="p-6 shadow-lg">
+            {/* <<< ALTERADO: Card com bg-white, shadow-sm, border >>> */}
+            <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                 <form onSubmit={handleSubmit}>
-                    
-                    {/* Campos de Horário Padrão */}
-                    <div className="flex justify-between items-center mb-6 pb-4 border-b">
-                        <p className="font-semibold text-gray-700">Horário Padrão:</p>
+
+                    {/* Horário Padrão */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-gray-100">
+                        <p className="font-semibold text-gray-700 mb-2 sm:mb-0">Horário Padrão:</p>
                         <div className="flex space-x-3 items-center">
+                            {/* <<< ALTERADO: Inputs com Foco Ciano >>> */}
                             <input
-                                type="time"
-                                value={horarioInicio}
-                                onChange={(e) => setHorarioInicio(e.target.value)}
-                                className="border border-gray-300 rounded-md p-2 text-center text-sm"
-                                disabled={isSaving}
-                                required
+                                type="time" value={horarioInicio} onChange={(e) => setHorarioInicio(e.target.value)}
+                                className={`border border-gray-300 rounded-md p-2 text-center text-sm h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`}
+                                disabled={isSaving} required
                             />
                             <span className="text-gray-500">às</span>
                             <input
-                                type="time"
-                                value={horarioFim}
-                                onChange={(e) => setHorarioFim(e.target.value)}
-                                className="border border-gray-300 rounded-md p-2 text-center text-sm"
-                                disabled={isSaving}
-                                required
+                                type="time" value={horarioFim} onChange={(e) => setHorarioFim(e.target.value)}
+                                className={`border border-gray-300 rounded-md p-2 text-center text-sm h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`}
+                                disabled={isSaving} required
                             />
                         </div>
                     </div>
 
-
-                    {/* Toggles dos Dias da Semana */}
-                    <div className="space-y-4">
-                        <p className="font-semibold text-gray-700 mb-2">Dias de Trabalho:</p>
-                        {DIAS_DA_SEMANA.map((item) => (
-                            <div key={item.dbKey} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                                
-                                <label htmlFor={`toggle-${item.dbKey}`} className={`font-medium ${diasTrabalho.includes(item.dbKey) ? 'text-gray-900' : 'text-gray-500'}`}>
-                                    {item.name}
-                                </label>
-
-                                {/* Switch (Toggle) */}
-                                <input
-                                    type="checkbox"
-                                    id={`toggle-${item.dbKey}`}
-                                    checked={diasTrabalho.includes(item.dbKey)}
-                                    onChange={() => handleToggle(item.dbKey)}
-                                    disabled={isSaving}
-                                    // Usando classes Tailwind para estilizar o switch nativo
-                                    className="h-6 w-11 rounded-full appearance-none bg-gray-200 checked:bg-green-500 transition duration-200 cursor-pointer"
-                                />
-                            </div>
-                        ))}
+                    {/* Dias da Semana */}
+                    <div className="space-y-3"> {/* Ajustado space */}
+                        <p className="font-semibold text-gray-700 mb-3">Dias de Trabalho:</p>
+                        {DIAS_DA_SEMANA.map((item) => {
+                            const isChecked = diasTrabalho.includes(item.dbKey);
+                            return (
+                                // <<< ALTERADO: Layout e Estilo do Toggle >>>
+                                <div key={item.dbKey} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"> {/* Adicionado hover sutil */}
+                                    <label htmlFor={`toggle-${item.dbKey}`} className={`font-medium cursor-pointer ${isChecked ? 'text-gray-800' : 'text-gray-500'}`}>
+                                        {item.name}
+                                    </label>
+                                    {/* Switch Customizado com Tailwind */}
+                                    <label htmlFor={`toggle-${item.dbKey}`} className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            id={`toggle-${item.dbKey}`}
+                                            className="sr-only peer" // Esconde o input original
+                                            checked={isChecked}
+                                            onChange={() => handleToggle(item.dbKey)}
+                                            disabled={isSaving}
+                                        />
+                                        {/* Fundo do toggle - AGORA COM A COR CIANO CORRETA NO CHECKED */}
+                                        <div className={`w-11 h-6 bg-gray-300 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 ${CIANO_RING_FOCUS} peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600`}></div> {/* <<< CORREÇÃO AQUI: peer-checked:bg-cyan-600 >>> */}
+                                    </label>
+                                </div>
+                            );
+                        })}
                     </div>
 
-                    {/* Mensagem de Erro e Botão Salvar */}
-                    {error && <p className="text-sm text-red-600 mt-4">{error}</p>}
+                    {/* Erro Geral (mostrado fora do loop, antes do botão) */}
+                    {error && !isSaving && <p className="text-sm text-red-600 mt-4 text-center">{error}</p>}
 
-                    <div className="flex justify-end pt-6 border-t mt-6">
+                    {/* Botão Salvar */}
+                    <div className="flex justify-end pt-6 border-t border-gray-100 mt-6">
                         <button
                             type="submit"
-                            className="flex items-center px-6 py-2 bg-purple-600 text-white rounded-lg shadow-md hover:bg-purple-700 transition-colors disabled:opacity-50"
+                            // <<< ALTERADO: Botão Ciano >>>
+                            className={`flex items-center px-6 py-2.5 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors disabled:opacity-50`}
                             disabled={isSaving}
                         >
                             {isSaving ? (
-                                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" />
                             ) : (
-                                <Save className="w-5 h-5 mr-2" />
+                                <Icon icon={Save} className="w-5 h-5 mr-2" />
                             )}
                             {isSaving ? 'Salvando...' : 'Salvar Horários'}
                         </button>
                     </div>
                 </form>
-            </Card>
+            </div>
         </div>
     );
 }

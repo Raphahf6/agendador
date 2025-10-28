@@ -7,6 +7,8 @@
    // <<< ADICIONADO safelist PARA DEBUG >>>
    safelist: [
      'text-cyan-600',
+     'text-cyan',
+     'text-cyan-700',
      'bg-cyan-600',
      'hover:bg-cyan-700',
      'hover:bg-cyan-50', // Para o link do painel
