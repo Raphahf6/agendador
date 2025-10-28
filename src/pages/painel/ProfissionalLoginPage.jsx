@@ -1,16 +1,27 @@
 // frontend/src/pages/painel/ProfissionalLoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { auth } from '@/firebaseConfig'; 
+import { Link, useNavigate, useLocation } from 'react-router-dom'; // Removido useParams (não usado)
+import { auth } from '@/firebaseConfig';
 import { Mail, Lock, LogIn, ArrowRight } from 'lucide-react'; // Ícones
-import axios from 'axios'; 
-import AOS from 'aos'; // Para a animação
-import 'aos/dist/aos.css'; // Estilos do AOS
+import axios from 'axios';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
 import { Loader2 } from 'lucide-react';
 
-// URL da API 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+
+// <<< DEFINIÇÕES DE COR >>>
+const CIANO_COLOR_TEXT = 'text-cyan-600';
+const CIANO_COLOR_BG = 'bg-cyan-600';
+const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
+const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
+const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
+
+// Helper Ícone Simples
+const Icon = ({ icon: IconComponent, className = "" }) => (
+  <IconComponent className={`stroke-current ${className}`} />
+);
 
 function ProfissionalLoginPage() {
   const [email, setEmail] = useState('');
@@ -20,7 +31,6 @@ function ProfissionalLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Inicializa o AOS
   useEffect(() => {
     AOS.init({
       duration: 800,
@@ -28,49 +38,37 @@ function ProfissionalLoginPage() {
     });
   }, []);
 
-  // Função para buscar o token e o ID do salão
+  // Função getSalãoIdAndRedirect (sem alterações de lógica)
   const getSalãoIdAndRedirect = async (user) => {
     const token = await user.getIdToken();
     try {
       const response = await axios.get(`${API_BASE_URL}/admin/user/salao-id`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
       const realSalãoId = response.data.salao_id;
-      
-      // Tenta redirecionar para onde o usuário queria ir (se houver)
       const from = location.state?.from;
-      if (from && from.startsWith('/painel/')) {
-        // Se o ID da URL for diferente do ID do usuário, redireciona para o ID correto
-        if (from.includes(realSalãoId)) {
+      if (from && from.startsWith('/painel/') && from.includes(realSalãoId)) {
           navigate(from, { replace: true });
           return;
-        }
       }
-      
-      // Redirecionamento padrão
       const redirectPath = `/painel/${realSalãoId}/calendario`;
       console.log(`Login Profissional Sucedido. Redirecionando para: ${redirectPath}`);
-      navigate(redirectPath, { replace: true }); 
-
+      navigate(redirectPath, { replace: true });
     } catch (apiError) {
       console.error("Erro ao buscar ID do Salão:", apiError);
-      await auth.signOut(); 
+      await auth.signOut();
       setError(apiError.response?.data?.detail || "Erro ao conectar conta. Verifique seu cadastro no Horalis.");
     }
   };
 
-
+  // Função handleLogin (sem alterações de lógica)
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await getSalãoIdAndRedirect(user);
-
+      await getSalãoIdAndRedirect(userCredential.user);
     } catch (err) {
       console.error("Erro no login:", err.code, err.message);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
@@ -83,37 +81,39 @@ function ProfissionalLoginPage() {
   };
 
   return (
-    // Container principal com o fundo gradiente suave
-    <div className="min-h-screen w-full bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex flex-col items-center justify-center p-4">
-      
-      {/* Container do Card com animação */}
+    // <<< ALTERADO: Fundo cinza claro, fonte sans >>>
+    <div className="min-h-screen w-full bg-gray-100 flex flex-col items-center justify-center p-4 font-sans">
+
       <div className="w-full max-w-md" data-aos="fade-up">
-        
-        {/* 1. Logo Horalis (no topo) */}
-        <div className="text-center mb-6">
-          <Link to="/"> {/* Link para a Landing Page */}
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+
+        {/* 1. Logo Horalis */}
+        <div className="text-center mb-8"> {/* Aumentado margin bottom */}
+          <Link to="/">
+             {/* <<< ALTERADO: Logo com cor ciano >>> */}
+            <h1 className={`text-4xl font-bold text-gray-900`}>
               Horalis
             </h1>
           </Link>
-          <p className="text-gray-600 mt-1">Acesso ao Painel do Profissional</p>
+          <p className="text-gray-600 mt-2">Acesso ao Painel do Profissional</p> {/* Aumentado margin top */}
         </div>
 
         {/* 2. O Card Branco */}
-        <div className="bg-white p-8 shadow-xl border border-gray-100 rounded-2xl">
+        <div className="bg-white p-8 shadow-lg border border-gray-200 rounded-xl"> {/* Ajustado shadow/border/rounded */}
           <form onSubmit={handleLogin} className="space-y-6">
-            
-            {/* 3. Campo Email (com ícone) */}
-            <div className="space-y-2">
+
+            {/* 3. Campo Email */}
+            <div className="space-y-1"> {/* Diminuído space-y */}
               <label htmlFor="email" className="text-sm font-medium text-gray-700">E-mail</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input 
-                  id="email" 
-                  type="email" 
+                 {/* <<< Ícone cinza >>> */}
+                <Icon icon={Mail} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="email"
+                  type="email"
                   placeholder="seuemail@salao.com"
                   required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-purple-400" 
+                   // <<< ALTERADO: Ring/border ciano no focus >>>
+                  className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} // Ajustado padding/height
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
@@ -121,24 +121,27 @@ function ProfissionalLoginPage() {
               </div>
             </div>
 
-            {/* 4. Campo Senha (com ícone) */}
-            <div className="space-y-2">
+            {/* 4. Campo Senha */}
+            <div className="space-y-1"> {/* Diminuído space-y */}
               <div className="flex justify-between items-center">
                 <label htmlFor="password" className="text-sm font-medium text-gray-700">Senha</label>
-                <Link to="/esqueci-senha" // Rota futura (placeholder)
-                  className="text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
+                 {/* <<< ALTERADO: Link ciano >>> */}
+                <Link to="/esqueci-senha"
+                  className={`text-xs font-medium ${CIANO_COLOR_TEXT} hover:underline`}
                 >
                   Esqueceu a senha?
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input 
-                  id="password" 
+                 {/* <<< Ícone cinza >>> */}
+                <Icon icon={Lock} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="password"
                   type="password"
                   placeholder="••••••••"
                   required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg h-12 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                   // <<< ALTERADO: Ring/border ciano no focus >>>
+                  className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} // Ajustado padding/height
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
@@ -146,33 +149,36 @@ function ProfissionalLoginPage() {
               </div>
             </div>
 
-            {/* 5. Erro (se houver) */}
+            {/* 5. Erro (sem alteração de estilo) */}
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-center">
+              <div className="p-3 bg-red-100 border border-red-200 rounded-md text-center">
                 <p className="text-sm text-red-700">{error}</p>
               </div>
             )}
 
-            {/* 6. Botão (com gradiente) */}
+            {/* 6. Botão */}
             <button
               type="submit"
-              className="w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-gradient-to-r from-pink-600 to-purple-600 rounded-lg shadow-md hover:from-pink-700 hover:to-purple-700 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-70 disabled:scale-100"
+               // <<< ALTERADO: Fundo ciano sólido, removido scale transform >>>
+              className={`w-full h-11 flex items-center justify-center text-base font-semibold text-white ${CIANO_COLOR_BG} rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 disabled:opacity-70`}
               disabled={loading}
             >
               {loading ? (
-                 <Loader2 className="w-5 h-5 animate-spin" />
+                 <Loader2 className="w-5 h-5 animate-spin stroke-current" />
               ) : (
                 <>
-                  <LogIn className="w-5 h-5 mr-2" /> Entrar
+                   {/* <<< Ícone branco >>> */}
+                  <Icon icon={LogIn} className="w-5 h-5 mr-2" /> Entrar
                 </>
               )}
             </button>
 
             {/* 7. Link de Cadastro */}
-            <div className="text-center text-sm text-gray-600 pt-6 border-t border-gray-100">
+            <div className="text-center text-sm text-gray-600 pt-4 border-t border-gray-100"> {/* Diminuído padding top */}
               Não tem uma conta?{' '}
-              <Link to="/cadastro" className="font-semibold text-purple-600 hover:text-purple-700 hover:underline">
-                Cadastre-se aqui <ArrowRight className="w-4 h-4 inline" />
+               {/* <<< ALTERADO: Link ciano >>> */}
+              <Link to="/cadastro" className={`font-semibold ${CIANO_COLOR_TEXT} hover:underline`}>
+                Cadastre-se aqui <Icon icon={ArrowRight} className="w-4 h-4 inline" />
               </Link>
             </div>
           </form>

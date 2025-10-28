@@ -1,15 +1,23 @@
+// frontend/src/components/ServiceList.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import LoadingSpinner from './LoadingSpinner';
-import { Card } from '@/ui/card';
-import { DollarSign, Clock, Sparkles } from 'lucide-react';
-// O ID do salão será fixo por enquanto. No futuro, ele virá da URL.
-// Use o ID de teste que você cadastrou.
-// ATENÇÃO: Use a porta 8000 se o seu FastAPI estiver rodando lá.
+// import { Card } from '@/ui/card'; // <<< REMOVIDO: Usaremos div com Tailwind
+import { DollarSign, Clock, Sparkles, ArrowRight } from 'lucide-react'; // Adicionado ArrowRight
+
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
+// <<< DEFINIÇÕES DE COR >>>
+const CIANO_COLOR_TEXT = 'text-cyan-800';
+const CIANO_BORDER_CLASS = 'border-cyan-800'; // Para a borda lateral
 
+// Helper Ícone Simples
+const Icon = ({ icon: IconComponent, className = "" }) => (
+  <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+);
+
+
+function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -17,7 +25,10 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
     useEffect(() => {
         let isMounted = true;
         const fetchSalonData = async () => {
-            if (!salaoId) { /* ... (erro ID não fornecido) ... */ return; }
+            if (!salaoId) {
+                if (isMounted) { setError("ID do salão não fornecido."); setLoading(false); onDataLoaded(null, "ID do salão não fornecido."); }
+                return;
+            }
             if (isMounted) { setLoading(true); setError(null); }
 
             let salonDetails = null;
@@ -25,114 +36,113 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick }) {
             let fetchError = null;
 
             try {
-
-                const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`, {
-
-                });
-
-
-                // --- VALIDAÇÃO DA RESPOSTA ---
+                const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`);
                 if (response.data && typeof response.data === 'object') {
-                    salonDetails = { // Extrai detalhes com fallbacks seguros
+                    salonDetails = { // Extrai apenas o necessário para onDataLoaded
                         nome_salao: response.data.nome_salao || 'Nome Indefinido',
                         tagline: response.data.tagline || '',
                         url_logo: response.data.url_logo || null,
-                        cor_primaria: response.data.cor_primaria || '#6366F1',
-                        cor_secundaria: response.data.cor_secundaria || '#EC4899',
-                        cor_gradiente_inicio: response.data.cor_gradiente_inicio || '#F3E8FF',
-                        cor_gradiente_fim: response.data.cor_gradiente_fim || '#FFFFFF',
+                        // Cores não são mais necessárias aqui
                     };
-                    // Garante que 'servicos' seja sempre um array
                     servicesData = Array.isArray(response.data.servicos) ? response.data.servicos : [];
                 } else {
-                    // Se a resposta não for um objeto válido
                     throw new Error("Formato de resposta inesperado da API.");
                 }
-                // --- FIM DA VALIDAÇÃO ---
-
             } catch (err) {
-                console.error("ServiceList: ERRO na chamada axios ou processamento:", err);
+                console.error("ServiceList: ERRO na chamada axios:", err);
                 fetchError = err.response?.data?.detail || err.message || "Não foi possível carregar os dados.";
-                salonDetails = null; // Garante que detalhes sejam nulos em caso de erro
+                salonDetails = null;
                 servicesData = [];
-
             } finally {
                 if (isMounted) {
                     setServices(servicesData);
                     setError(fetchError);
                     setLoading(false);
-                    // Log antes de chamar onDataLoaded para ter certeza dos valores
-
-                    onDataLoaded(salonDetails, fetchError);
+                    onDataLoaded(salonDetails, fetchError); // Passa os dados (ou null) e o erro
                 }
             }
         };
         fetchSalonData();
         return () => { isMounted = false; };
-    }, [salaoId, onDataLoaded]);
+    }, [salaoId, onDataLoaded]); // Dependências corretas
+
     if (loading) {
-        return <div className="flex flex-col items-center justify-center p-10">
-            <LoadingSpinner size="h-8 w-8" color="text-purple-500" />
-            <p className="text-gray-500 text-sm mt-3">Carregando dados do salão...</p>
-        </div>;
+        return (
+            <div className="flex flex-col items-center justify-center p-10">
+                 {/* <<< ALTERADO: Cor do Spinner >>> */}
+                <LoadingSpinner size="h-8 w-8" color={CIANO_COLOR_TEXT} />
+                <p className="text-gray-500 text-sm mt-3">Carregando serviços...</p>
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="p-4 text-center text-red-400">{error}</div>;
+        // Exibe o erro de forma mais destacada
+        return (
+            <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-center">
+                <p className="text-red-700 font-medium">Erro ao carregar</p>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+            </div>
+         );
+    }
+
+     if (services.length === 0) {
+        return (
+             <div className="p-6 bg-gray-100 border border-gray-200 rounded-lg text-center">
+                <p className="text-gray-600">Nenhum serviço cadastrado.</p>
+            </div>
+        );
     }
 
     return (
-        <div className="px-4 pb-4">
-
-            <div className="space-y-3">
+        // Container dos cards
+        <div className="px-1 sm:px-4 pb-4"> {/* Ajustado padding horizontal */}
+            <div className="space-y-4"> {/* Aumentado space-y */}
                 {services.map((service) => (
-                    // Card com mais padding interno (p-6), cantos mais arredondados (rounded-xl) e sombra suti
-                    <Card
+                    // <<< ALTERADO: Card agora é um div estilizado >>>
+                    <div
                         key={service.id}
                         onClick={() => onServiceClick(service)}
-                        className="group relative overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl border-0"
+                        // Estilos do card: fundo branco, borda lateral ciano, sombra sutil, efeito hover
+                        className={`group bg-white rounded-lg border ${CIANO_BORDER_CLASS} border-l-4 border-gray-200 shadow-sm cursor-pointer transition-all duration-300 ease-in-out hover:shadow-lg hover:-translate-y-1`}
                     >
-
-                        {/* Decorative Circle */}
-                        <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/30 blur-2xl group-hover:scale-150 transition-transform duration-500" />
-
-                        <div className="relative p-6">
-                            {/* Icon Container */}
-
-
-                            {/* Service Name */}
-                            <h3 className="mb-3 group-hover:translate-x-1 transition-transform duration-300">
+                        {/* Removido círculo decorativo */}
+                        {/* Padding interno */}
+                        <div className="p-4">
+                            {/* Nome do Serviço */}
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2 group-hover:text-cyan-700 transition-colors"> {/* Aumentado tamanho da fonte */}
                                 {service.nome_servico}
                             </h3>
 
-                            {/* Info Grid */}
-                            <div className="flex items-center justify-between gap-4 mb-4">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Clock className="w-4 h-4" />
-                                    <span className="text-sm">{service.duracao_minutos} min</span>
+                            {/* Informações (Duração e Preço) */}
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 text-sm"> {/* Adicionado flex-wrap */}
+                                <div className="flex items-center gap-1.5 text-gray-500">
+                                    <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
+                                    <span>{service.duracao_minutos} min</span>
                                 </div>
-
-                                <div className="flex items-center gap-1">
-                                    <span className="text-green-700">R$ {service.preco}</span>
-                                </div>
+                                {/* Preço (se existir) */}
+                                {service.preco != null && service.preco >= 0 && ( // Permite preço 0
+                                     <div className="flex items-center gap-1 text-green-700 font-medium">
+                                        {/* <Icon icon={DollarSign} className="w-4 h-4 text-green-500" /> */} {/* Ícone opcional */}
+                                        <span>R$ {Number(service.preco).toFixed(2).replace('.', ',')}</span>
+                                     </div>
+                                )}
                             </div>
 
-                            {/* Popular Badge (opcional - pode ser passado como prop) */}
-                            <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-yellow-500" />
-                                <span className="text-xs text-muted-foreground">Agende agora</span>
+                            {/* Link/Texto "Agende agora" */}
+                             {/* <<< ALTERADO: Cor Ciano, Ícone ArrowRight no hover >>> */}
+                            <div className={`flex items-center gap-1.5 ${CIANO_COLOR_TEXT} font-medium text-sm mt-3`}>
+                                <Icon icon={Sparkles} className="w-4 h-4" />
+                                <span>Agende agora</span>
+                                <Icon icon={ArrowRight} className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ml-1"/> {/* Seta aparece no hover */}
                             </div>
-
-                            {/* Hover Arrow Indicator */}
-
                         </div>
-                    </Card>
+                    </div>
                 ))}
-                <div className="text-center space-y-2">
-                    <p className="text-muted-foreground">
-                        ✨ Agendamento rápido e fácil
-                    </p>
-                </div>
+                {/* Rodapé da lista (opcional) */}
+                {/* <div className="text-center pt-4">
+                     <p className="text-xs text-gray-400">✨ Agendamento rápido e fácil</p>
+                 </div> */}
             </div>
         </div>
     );

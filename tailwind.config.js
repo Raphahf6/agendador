@@ -1,78 +1,60 @@
-  // tailwind.config.js (Configuração para shadcn/ui)
-  /** @type {import('tailwindcss').Config} */
-  module.exports = {
-    darkMode: ["class"], // Mantido darkMode por padrão
-    content: [
-      './pages/**/*.{js,jsx}',
-      './components/**/*.{js,jsx}',
-      './app/**/*.{js,jsx}',
-      './src/**/*.{js,jsx}', // Garante que src seja lido
-    ],
-    prefix: "", // Remove prefixo se houver
-    theme: {
-      container: {
-        center: true,
-        padding: "2rem",
-        screens: {
-          "2xl": "1400px",
-        },
-      },
-      extend: {
-        colors: { // Cores base do shadcn (pode customizar)
-          border: "hsl(var(--border))",
-          input: "hsl(var(--input))",
-          ring: "hsl(var(--ring))",
-          background: "hsl(var(--background))",
-          foreground: "hsl(var(--foreground))",
-          primary: {
-            DEFAULT: "hsl(var(--primary))",
-            foreground: "hsl(var(--primary-foreground))",
-          },
-          secondary: {
-            DEFAULT: "hsl(var(--secondary))",
-            foreground: "hsl(var(--secondary-foreground))",
-          },
-          destructive: {
-            DEFAULT: "hsl(var(--destructive))",
-            foreground: "hsl(var(--destructive-foreground))",
-          },
-          muted: {
-            DEFAULT: "hsl(var(--muted))",
-            foreground: "hsl(var(--muted-foreground))",
-          },
-          accent: {
-            DEFAULT: "hsl(var(--accent))",
-            foreground: "hsl(var(--accent-foreground))",
-          },
-          popover: {
-            DEFAULT: "hsl(var(--popover))",
-            foreground: "hsl(var(--popover-foreground))",
-          },
-          card: {
-            DEFAULT: "hsl(var(--card))",
-            foreground: "hsl(var(--card-foreground))",
-          },
-        },
-        borderRadius: {
-          lg: "var(--radius)",
-          md: "calc(var(--radius) - 2px)",
-          sm: "calc(var(--radius) - 4px)",
-        },
-        keyframes: { // Animações do shadcn
-          "accordion-down": {
-            from: { height: "0" },
-            to: { height: "var(--radix-accordion-content-height)" },
-          },
-          "accordion-up": {
-            from: { height: "var(--radix-accordion-content-height)" },
-            to: { height: "0" },
-          },
-        },
-        animation: {
-          "accordion-down": "accordion-down 0.2s ease-out",
-          "accordion-up": "accordion-up 0.2s ease-out",
-        },
-      },
-    },
-    plugins: [require("tailwindcss-animate")], // Plugin de animação
-  }
+// tailwind.config.js
+ const defaultTheme = require('tailwindcss/defaultTheme');
+
+ /** @type {import('tailwindcss').Config} */
+ module.exports = {
+   darkMode: ["class"],
+   // <<< ADICIONADO safelist PARA DEBUG >>>
+   safelist: [
+     'text-cyan-600',
+     'bg-cyan-600',
+     'hover:bg-cyan-700',
+     'hover:bg-cyan-50', // Para o link do painel
+     'bg-cyan-50',     // Para a tag da Hero section
+     'border-cyan-100', // Para a tag da Hero section
+     // Adicione outras classes ciano se houver (ex: cyan-500, cyan-700)
+     // Adicione classes de ícone se suspeitar delas também
+     'w-4', 'h-4', 'w-5', 'h-5', 'w-6', 'h-6', 'w-8', 'h-8', 'ml-1', 'ml-2', // Tamanhos comuns usados
+     'text-white', // Essencial para ícones em fundo ciano
+   ],
+   // <<< FIM DA ADIÇÃO >>>
+   content: [
+     './pages/**/*.{js,jsx}',
+     './components/**/*.{js,jsx}',
+     './app/**/*.{js,jsx}',
+     './src/**/*.{js,jsx}',
+   ],
+   prefix: "",
+   theme: {
+     container: {
+       center: true,
+       padding: "2rem",
+       screens: {
+         "2xl": "1400px",
+       },
+     },
+     extend: {
+       fontFamily: {
+         sans: ['Poppins', ...defaultTheme.fontFamily.sans],
+       },
+       colors: { // Cores shadcn
+         border: "hsl(var(--border))",
+         input: "hsl(var(--input))",
+         ring: "hsl(var(--ring))",
+         background: "hsl(var(--background))",
+         foreground: "hsl(var(--foreground))", // Deve ser escuro!
+         primary: { /* ... */ },
+         secondary: { /* ... */ },
+         destructive: { /* ... */ },
+         muted: { /* ... */ },
+         accent: { /* ... */ },
+         popover: { /* ... */ },
+         card: { /* ... */ },
+       },
+       borderRadius: { /* ... */ },
+       keyframes: { /* ... */ },
+       animation: { /* ... */ },
+     },
+   },
+   plugins: [require("tailwindcss-animate")],
+ }

@@ -10,6 +10,7 @@ import HoralisCalendar from './components/HoralisCalendar';
 // Imports da Landing Page
 import { LandingPage } from './pages/LandingPage';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
+import { ArrowLeft } from 'lucide-react';
 
 // --- Imports do NOVO PAINEL ---
 import PainelLayout from './pages/painel/PainelLayout';
@@ -63,66 +64,77 @@ function ProtectedPanelRoute({ children, user, location }) {
     return children;
 }
 
+const Icon = ({ icon: IconComponent, className = "" }) => (
+  <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+);
+
 function SalonScheduler() {
     const { salaoId } = useParams();
     const [selectedService, setSelectedService] = useState(null);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
+    // <<< ALTERADO: Removidas cores dinâmicas do estado inicial >>>
     const [salonDetails, setSalonDetails] = useState({
-        nome_salao: '', tagline: '', url_logo: '',
-        cor_primaria: '#6366F1', cor_secundaria: '#EC4899',
-        cor_gradiente_inicio: '#F3E8FF',
-        cor_gradiente_fim: '#FFFFFF'
+        nome_salao: '', tagline: '', url_logo: ''
+        // Cores Ciano/Branco/Cinza serão aplicadas diretamente nos componentes
     });
     const [loadingSalonData, setLoadingSalonData] = useState(true);
     const [errorSalon, setErrorSalon] = useState(null);
+    const navigate = useNavigate(); // Para navegação programática
 
-    // --- Funções Handle (Completas) ---
+    // --- Funções Handle (sem alteração na lógica interna) ---
     const handleDataLoaded = useCallback((details, error = null) => {
         setLoadingSalonData(false);
         if (error) {
             setErrorSalon(error);
-            setSalonDetails(prevDetails => ({
-                ...prevDetails, nome_salao: 'Erro ao Carregar', tagline: '', url_logo: '',
-            }));
+            setSalonDetails(prev => ({ ...prev, nome_salao: 'Erro ao Carregar' }));
         } else if (details && typeof details === 'object') {
-            setSalonDetails(prevDetails => ({ ...prevDetails, ...details }));
+            // Apenas atualiza os dados básicos, não mais as cores
+            setSalonDetails(prev => ({
+                ...prev,
+                nome_salao: details.nome_salao,
+                tagline: details.tagline,
+                url_logo: details.url_logo
+            }));
             setErrorSalon(null);
         } else {
-            console.error("handleDataLoaded: Detalhes inválidos recebidos!", details);
-            setErrorSalon("Erro inesperado ao processar dados.");
-            setSalonDetails(prevDetails => ({ ...prevDetails, nome_salao: 'Erro Inesperado' }));
+            console.error("handleDataLoaded: Detalhes inválidos!", details);
+            setErrorSalon("Erro inesperado.");
+            setSalonDetails(prev => ({ ...prev, nome_salao: 'Erro' }));
         }
     }, []);
 
     const handleServiceSelect = useCallback((service) => {
         setSelectedService(service);
         setAppointmentConfirmed(null);
-        window.scrollTo(0, 0);
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll suave
     }, []);
 
     const handleAppointmentSuccess = useCallback((details) => {
         setAppointmentConfirmed(details);
         setSelectedService(null);
-        window.scrollTo(0, 0);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }, []);
 
     const handleGoBackHome = useCallback(() => {
         setAppointmentConfirmed(null);
         setSelectedService(null);
+        // Opcional: navegar para algum lugar específico ou apenas resetar o estado
     }, []);
 
     const handleBackFromScheduler = useCallback(() => {
         setSelectedService(null);
+        // Opcional: scroll suave de volta para a lista de serviços se necessário
     }, []);
-    // --- Fim das Funções Handle ---
+    // --- Fim Funções Handle ---
 
     if (!salaoId) {
         return <p className="p-4 text-center text-red-600">ID do Salão inválido na URL.</p>;
     }
 
-    // --- Lógica de Renderização ---
+    // --- Lógica de Renderização (sem alteração interna) ---
     const renderContent = () => {
-        const styleProps = { styleOptions: salonDetails };
+        // <<< ALTERADO: Remove styleProps de cores dinâmicas >>>
+        // Os componentes filhos usarão o tema Ciano diretamente
         if (loadingSalonData && !errorSalon) {
             return <ServiceList
                 salaoId={salaoId}
@@ -137,7 +149,7 @@ function SalonScheduler() {
             return <ConfirmationPage
                 appointmentDetails={appointmentConfirmed}
                 onGoBack={handleGoBackHome}
-                {...styleProps}
+                salonName={salonDetails.nome_salao} // Passa o nome do salão
             />;
         }
         if (selectedService) {
@@ -145,67 +157,91 @@ function SalonScheduler() {
                 salaoId={salaoId}
                 selectedService={selectedService}
                 onAppointmentSuccess={handleAppointmentSuccess}
-                {...styleProps}
+                // styleOptions não é mais necessário para cores
             />;
         }
+        // Fallback: mostra a lista de serviços se nenhum outro estado for ativo
         return <ServiceList
             salaoId={salaoId}
-            onDataLoaded={handleDataLoaded}
+            onDataLoaded={handleDataLoaded} // Permite recarregar se necessário
             onServiceClick={handleServiceSelect}
         />;
     };
 
-    // --- Estilo de Fundo ---
-    const backgroundStyle = {
-        background: `linear-gradient(to bottom right, ${salonDetails.cor_gradiente_inicio}10, ${salonDetails.cor_gradiente_fim}10)`,
-        minHeight: '100vh',
-    };
-
-    // --- RETURN Principal do SalonScheduler ---
+    // --- RETURN Principal ---
     return (
-        <div style={backgroundStyle} className="w-full font-sans flex flex-col">
+        // <<< ALTERADO: Fundo cinza claro, removido style={backgroundStyle} >>>
+        <div className="w-full min-h-screen bg-gray-50 font-sans flex flex-col items-center">
 
-            {!appointmentConfirmed && (
-                <header className="pt-8 pb-6 px-4 text-center relative">
-                    {selectedService && (
-                        <div className="absolute top-4 left-2 z-10">
-                            <button onClick={handleBackFromScheduler} className="text-gray-600 hover:text-gray-900 font-medium flex items-center p-2 rounded transition-colors hover:bg-white/30 text-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                                Voltar
-                            </button>
-                        </div>
-                    )}
-                    {!selectedService && !loadingSalonData && !errorSalon && (
-                        <div className="flex flex-col items-center">
-                            {salonDetails.url_logo && (<img alt={salonDetails.nome_salao} src={salonDetails.url_logo} className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-lg object-cover" />)}
-                            <h1 className="text-2xl mb-1 bg-gradient-to-r bg-clip-text text-transparent tracking-tight" style={{ backgroundImage: `linear-gradient(to right, ${salonDetails.cor_primaria}, ${salonDetails.cor_secundaria})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }} > {salonDetails.nome_salao} </h1>
-                            <p className="text-base text-gray-600 font-light mb-8"> {salonDetails.tagline} </p>
-                            <div className="w-full px-2">
-                                <h2 className="text-center mb-2"> Selecione um Serviço </h2>
-                                <p className="text-center text-muted-foreground"> Escolha o serviço desejado para agendar </p>
+            {/* Container principal para limitar a largura no desktop */}
+            <div className="w-full max-w-2xl flex flex-col flex-grow">
+
+                {/* Cabeçalho Condicional */}
+                {!appointmentConfirmed && (
+                    <header className="pt-8 pb-6 px-4 text-center relative w-full">
+                        {/* Botão Voltar (quando serviço selecionado) */}
+                        {selectedService && (
+                            <div className="absolute top-4 left-2 sm:left-4 z-10"> {/* Ajustado posicionamento */}
+                                <button
+                                    onClick={handleBackFromScheduler}
+                                    className="text-gray-600 hover:text-gray-900 font-medium flex items-center p-2 rounded transition-colors hover:bg-gray-200 text-sm" // Fundo hover mais sutil
+                                >
+                                    <Icon icon={ArrowLeft} className="h-4 w-4 mr-1"/> {/* Usando Icon helper */}
+                                    Voltar
+                                </button>
                             </div>
-                        </div>
-                    )}
-                    
-                    {loadingSalonData && !errorSalon && !selectedService && (<p className="text-gray-600 animate-pulse"></p>)}
-                    {errorSalon && !selectedService && (<p className="text-red-600">Erro ao carregar dados do salão.</p>)}
-                   
-                </header>
-            )}
+                        )}
+                        {/* Detalhes do Salão (quando nenhum serviço selecionado) */}
+                        {!selectedService && !loadingSalonData && !errorSalon && (
+                            <div className="flex flex-col items-center">
+                                {salonDetails.url_logo && (
+                                    <img
+                                        alt={salonDetails.nome_salao}
+                                        src={salonDetails.url_logo}
+                                        className="w-20 h-20 rounded-full mb-4 border-2 border-white shadow-md object-cover" // Sombra mais sutil
+                                    />
+                                )}
+                                {/* <<< ALTERADO: Título H1 sem gradiente >>> */}
+                                <h1 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">
+                                    {salonDetails.nome_salao}
+                                </h1>
+                                <p className="text-base text-gray-500 font-light mb-6"> {/* Reduzido margin bottom */}
+                                    {salonDetails.tagline}
+                                </p>
+                                {/* Título "Selecione um Serviço" (pode ser movido para ServiceList se preferir) */}
+                                <div className="w-full px-2 mt-4"> {/* Adicionado margin top */}
+                                    <h2 className="text-1xl font-semibold text-gray-800 text-center mb-2">
+                                        Selecione um Serviço
+                                    </h2>
+                                    <p className="text-sm text-center text-gray-500">
+                                        Escolha o serviço desejado para agendar
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {/* Indicadores de Loading/Erro no Header (simplificados) */}
+                        {loadingSalonData && !errorSalon && !selectedService && (<div className="h-28"></div>)/* Espaço reservado */}
+                        {errorSalon && !selectedService && (<p className="text-red-600 mt-4">Erro ao carregar.</p>)}
+                    </header>
+                )}
 
-            <main className={`flex-grow ${!appointmentConfirmed ? "px-4" : ""}`}>
-                {renderContent()}
-            </main>
-            {!appointmentConfirmed && !selectedService && !loadingSalonData && !errorSalon && (
-                <footer className="w-full text-center px-4 py-6 mt-auto">
-                    <p className="text-xs text-gray-500">
-                        © {new Date().getFullYear()} Horalis. Todos os direitos reservados.
-                    </p>
-                </footer>
-            )}
+                {/* Conteúdo Principal (ServiceList, Scheduler ou Confirmation) */}
+                <main className={`flex-grow w-full ${!appointmentConfirmed ? "px-4 pb-4" : ""}`}>
+                    {renderContent()}
+                </main>
+
+                {/* Footer Condicional */}
+                {!appointmentConfirmed && !selectedService && !loadingSalonData && !errorSalon && (
+                    <footer className="w-full text-center px-4 py-6 mt-auto border-t border-gray-200"> {/* Adicionado border-t */}
+                        <p className="text-xs text-gray-500">
+                            © {new Date().getFullYear()} Horalis. Todos os direitos reservados.
+                        </p>
+                    </footer>
+                )}
+            </div>
         </div>
     );
-} // Fim do SalonScheduler
+}
 
 
 function App() {

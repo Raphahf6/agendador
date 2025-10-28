@@ -1,11 +1,10 @@
-/* frontend/src/index.css (Estrutura FINAL com Layers Corretas) */
+/* frontend/src/index.css (CORRIGIDO) */
 
 /* 1. Definições de Camada Base (Variáveis CSS e Estilos Globais) */
-/* ESSENCIAL: Define as variáveis ANTES que o Tailwind tente usá-las */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @layer base {
   :root {
-    /* Cole aqui as variáveis CSS que o 'npx shadcn@latest init' gerou */
-    /* Exemplo: */
+    /* Suas variáveis CSS do shadcn/ui */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -32,7 +31,14 @@
   .dark { /* ... variáveis do tema escuro ... */ }
 }
 
+/* <<< MOVIDO PARA CÁ: Import da Fonte Poppins >>> */
+/* Deve vir ANTES das diretivas @tailwind base/components/utilities */
+
+
+
 /* Aplica estilos base globais usando as variáveis */
+/* Esta seção @layer base pode vir antes ou depois do @import da fonte,
+   mas é mais comum colocá-la junto com as variáveis */
 @layer base {
   * {
     @apply border-border;
@@ -41,29 +47,25 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+     /* Opcional: Definir Poppins como fonte padrão do body aqui OU via font-sans no JSX */
+     /* font-family: 'Poppins', sans-serif; */
   }
 }
 
 
 /* 2. Diretivas do Tailwind */
-/* Carregam os resets, componentes pré-definidos e classes de utilidade */
 @tailwind base;
-
-@layer components {
-  @import 'react-day-picker/dist/style.css'; 
-
-  /* (Opcional) Você pode adicionar overrides MUITO específicos aqui se necessário */
-  /* Ex: .rdp { font-size: 1rem !important; } */
-}
 @tailwind components;
 @tailwind utilities;
 
-/* 3. Estilos Específicos de Bibliotecas (se necessário) */
-/* Se o import no main.jsx não funcionar, esta é a ÚLTIMA alternativa: */
-/* Tente adicionar o @import AQUI, DEPOIS de todas as diretivas @tailwind. */
-/* Pode causar especificidade, mas pode preservar o layout. */
-/* @import 'react-day-picker/dist/style.css'; */
 
-/* Se ainda houver problemas, podemos adicionar overrides específicos aqui */
-/* Ex: Forçar display grid ou table para elementos do calendário se necessário */
-/* .rdp-month table { display: table !important; } */ /* Exemplo apenas, não adicione ainda */
+/* 3. Estilos Específicos de Bibliotecas */
+@layer components {
+  /* É uma boa prática colocar imports de libs em @layer components */
+  @import 'react-day-picker/dist/style.css';
+
+  /* (Opcional) Overrides específicos */
+}
+
+/* Se o import acima causar problemas, a alternativa é colocar DEPOIS de @tailwind utilities */
+/* @import 'react-day-picker/dist/style.css'; */
