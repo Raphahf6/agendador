@@ -6,7 +6,7 @@ import React from 'react';
 function LoadingSpinner() {
   return (
     <svg
-      className="animate-spin h-10 w-10 text-purple-600" // Cor primária (pode ser dinâmica)
+      className="animate-spin h-10 w-10 text-cyan-800" // Cor primária (pode ser dinâmica)
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

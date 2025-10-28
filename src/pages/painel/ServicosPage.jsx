@@ -2,59 +2,61 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Card } from '@/ui/card';
-import { Scissors, DollarSign, Clock, Loader2, PlusCircle, Trash2, X } from 'lucide-react'; 
-import { auth } from '@/firebaseConfig'; // Importa a instância de autenticação
+// import { Card } from '@/ui/card'; // Removido Card (usaremos divs)
+import { Scissors, DollarSign, Clock, Loader2, PlusCircle, Trash2, X, Edit3 } from 'lucide-react'; // Adicionado Edit3
+import { auth } from '@/firebaseConfig';
 
-// URL da API 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1"; 
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+
+// <<< DEFINIÇÕES DE COR >>>
+const CIANO_COLOR_TEXT = 'text-cyan-600';
+const CIANO_COLOR_BG = 'bg-cyan-600';
+const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
+const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
+const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
+
+// Helper Ícone Simples
+const Icon = ({ icon: IconComponent, className = "" }) => (
+  <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+);
 
 // --- COMPONENTE MODAL DE EDIÇÃO/CRIAÇÃO ---
 const ServiceFormModal = ({ isOpen, onClose, serviceData, salaoId, currentServices, onSaveSuccess }) => {
-    // Inicializa o estado do formulário com os dados do serviço (ou vazio para novo)
     const [formData, setFormData] = useState(() => ({
-        id: serviceData?.id || null, // Se existir, é edição
+        id: serviceData?.id || null,
         nome_servico: serviceData?.nome_servico || '',
         duracao_minutos: serviceData?.duracao_minutos || 30,
         preco: serviceData?.preco || 0,
         descricao: serviceData?.descricao || '',
     }));
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const isNew = formData.id === null;
 
-    const isNew = formData.id === null; // Flag para saber se é criação
-
-    // Sincroniza o estado do formulário com os dados recebidos (útil para edição)
     useEffect(() => {
         setFormData({
-            id: serviceData?.id || null, 
+            id: serviceData?.id || null,
             nome_servico: serviceData?.nome_servico || '',
             duracao_minutos: serviceData?.duracao_minutos || 30,
             preco: serviceData?.preco || 0,
             descricao: serviceData?.descricao || '',
         });
         setError('');
-    }, [serviceData]); // Re-renderiza quando o serviço a ser editado muda
+    }, [serviceData, isOpen]); // Resetar no fechamento também
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: name === 'duracao_minutos' || name === 'preco' ? (Number(value) || 0) : value, // Garante que preço e duração são números
+            [name]: name === 'duracao_minutos' || name === 'preco' ? (Number(value) || 0) : value,
         }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        // Validação básica
+        setLoading(true); setError('');
         if (!formData.nome_servico.trim() || !formData.duracao_minutos) {
-            setError("Nome e Duração são obrigatórios.");
-            setLoading(false);
-            return;
+            setError("Nome e Duração são obrigatórios."); setLoading(false); return;
         }
 
         try {
@@ -62,270 +64,202 @@ const ServiceFormModal = ({ isOpen, onClose, serviceData, salaoId, currentServic
             if (!currentUser) throw new Error("Sessão expirada.");
             const token = await currentUser.getIdToken();
 
-            // 1. Prepara a nova lista completa de serviços
-            let newServicesList;
-
-            if (isNew) {
-                // Adição: Adiciona o novo serviço ao array existente, sem o ID temporário
-                const serviceToSave = { ...formData };
-                delete serviceToSave.id; // Remove o ID temporário
-                newServicesList = [...currentServices, serviceToSave];
-
-            } else {
-                // Edição: Mapeia a lista existente e substitui o item editado
-                // Filtra os serviços temporários (sem ID) para garantir que eles não entrem no PUT.
-                newServicesList = currentServices
-                    .filter(s => s.id !== formData.id || s.id.startsWith('temp-'))
-                    .map(s => {
-                        // Se for o serviço editado, usa os dados do formulário
-                        if (s.id === formData.id) {
-                            // Retorna o objeto de serviço, removendo IDs temporários se existirem
-                            const updatedService = { ...formData };
-                            if (updatedService.id.startsWith('temp-')) {
-                                delete updatedService.id; 
-                            }
-                            return updatedService;
-                        }
-                        return s;
-                    });
-            }
-            
-            // 2. Chama o endpoint GET para obter os dados principais do salão (para não sobrescrever nada)
+            // Pega dados atuais do salão
             const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const salonData = salonResponse.data;
-            
-            // 3. Prepara o payload para o PUT (atualização total do cliente)
-            const payload = {
-                ...salonData, // Todos os dados existentes do salão (cores, tagline, etc.)
-                id: salaoId, // O ID do salão
-                servicos: newServicesList, // A lista de serviços ATUALIZADA
-            };
-            
-            // 4. Envia o PUT
+
+            let newServicesList;
+            if (isNew) {
+                const serviceToSave = { ...formData }; delete serviceToSave.id;
+                // Garante que a lista de serviços exista antes de adicionar
+                newServicesList = [...(salonData.servicos || []), serviceToSave];
+            } else {
+                newServicesList = (salonData.servicos || []).map(s =>
+                    s.id === formData.id ? { ...formData } : s
+                );
+            }
+
+            const payload = { ...salonData, id: salaoId, servicos: newServicesList };
             await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
-            // 5. Sucesso
-            onSaveSuccess(); // Notifica o componente pai para recarregar a lista
-            onClose(); // Fecha o modal
-            
+
+            onSaveSuccess(); onClose();
         } catch (err) {
             console.error("Erro ao salvar serviço:", err);
             setError(err.response?.data?.detail || "Falha ao salvar serviço.");
+        } finally {
             setLoading(false);
         }
     };
 
-    if (!isOpen) return null; // Não renderiza se não estiver aberto
+    if (!isOpen) return null;
 
     return (
-        // Modal Overlay
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md bg-white shadow-2xl overflow-y-auto max-h-[90vh]">
-                <div className="flex justify-between items-center p-4 border-b">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"> {/* Aumentado opacity */}
+             {/* <<< ALTERADO: Card com bg-white, rounded-xl >>> */}
+            <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
+                {/* Cabeçalho do Modal */}
+                <div className="flex justify-between items-center p-5 border-b border-gray-200"> {/* Ajustado padding */}
                     <h2 className="text-xl font-semibold text-gray-800">
-                        {isNew ? 'Adicionar Novo Serviço' : `Editar ${serviceData?.nome_servico || 'Serviço'}`}
+                        {isNew ? 'Adicionar Novo Serviço' : `Editar Serviço`}
                     </h2>
-                    <button type="button" onClick={onClose} className="text-gray-500 hover:text-gray-900">
-                        <X className="w-6 h-6" />
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+                        <Icon icon={X} className="w-5 h-5" /> {/* Ajustado tamanho */}
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                    
-                    {/* Campos do Formulário... (sem alterações) */}
+                {/* Formulário */}
+                <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"> {/* Adicionado max-h e overflow */}
                     <div>
-                        <label htmlFor="nome_servico" className="block text-sm font-medium text-gray-700">Nome do Serviço*</label>
-                        <input name="nome_servico" id="nome_servico" type="text" value={formData.nome_servico} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md p-2" disabled={loading} required/>
+                        <label htmlFor="nome_servico" className="block text-sm font-medium text-gray-700 mb-1">Nome do Serviço*</label>
+                        <input name="nome_servico" id="nome_servico" type="text" value={formData.nome_servico} onChange={handleChange}
+                               // <<< ALTERADO: Foco Ciano >>>
+                               className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} required/>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="duracao_minutos" className="block text-sm font-medium text-gray-700">Duração (min)*</label>
-                            <input name="duracao_minutos" id="duracao_minutos" type="number" value={formData.duracao_minutos} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md p-2" disabled={loading} required min="10"/>
+                            <label htmlFor="duracao_minutos" className="block text-sm font-medium text-gray-700 mb-1">Duração (min)*</label>
+                            <input name="duracao_minutos" id="duracao_minutos" type="number" value={formData.duracao_minutos} onChange={handleChange}
+                                   // <<< ALTERADO: Foco Ciano >>>
+                                   className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} required min="5"/> {/* Min 5 min */}
                         </div>
                         <div>
-                            <label htmlFor="preco" className="block text-sm font-medium text-gray-700">Preço (R$)</label>
-                            <input name="preco" id="preco" type="number" step="0.01" value={formData.preco} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md p-2" disabled={loading} min="0"/>
+                            <label htmlFor="preco" className="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
+                            <input name="preco" id="preco" type="number" step="0.01" value={formData.preco} onChange={handleChange}
+                                   // <<< ALTERADO: Foco Ciano >>>
+                                   className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} min="0"/>
                         </div>
                     </div>
-                    
                     <div>
-                        <label htmlFor="descricao" className="block text-sm font-medium text-gray-700">Descrição</label>
-                        <textarea name="descricao" id="descricao" rows="2" value={formData.descricao} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md p-2" disabled={loading} />
+                        <label htmlFor="descricao" className="block text-sm font-medium text-gray-700 mb-1">Descrição (Opcional)</label>
+                        <textarea name="descricao" id="descricao" rows="3" value={formData.descricao} onChange={handleChange}
+                                  // <<< ALTERADO: Foco Ciano >>>
+                                  className={`w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} resize-none`} disabled={loading} /> {/* Desabilitado resize */}
                     </div>
 
-                    {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-                    
-                    <div className="flex justify-end pt-2">
+                    {error && <p className="text-sm text-red-600 mt-2 text-center">{error}</p>}
+
+                    {/* Botão Salvar */}
+                    <div className="flex justify-end pt-4 border-t border-gray-100"> {/* Adicionado border-t */}
                         <button
                             type="submit"
-                            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 transition-colors disabled:opacity-50"
+                             // <<< ALTERADO: Botão Ciano >>>
+                            className={`flex items-center px-6 py-2.5 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors disabled:opacity-50`}
                             disabled={loading}
                         >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : isNew ? 'Adicionar Serviço' : 'Salvar Alterações'}
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" /> : null}
+                            {isNew ? 'Adicionar Serviço' : 'Salvar Alterações'}
                         </button>
                     </div>
                 </form>
-            </Card>
+            </div>
         </div>
     );
 };
-// --- FIM DO COMPONENTE MODAL ---
-
 
 function ServicosPage() {
-  const { salaoId } = useParams(); // Pega o ID do salão da URL
+  const { salaoId } = useParams();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingService, setEditingService] = useState(null); 
-  const [isDeleting, setIsDeleting] = useState(false); // Novo estado para o loading de exclusão
+  const [editingService, setEditingService] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-
-  // Função para buscar a lista de serviços (useCallback para estabilidade)
+  // Função fetchServices (sem alteração funcional)
   const fetchServices = useCallback(async () => {
-    if (!salaoId) { setError("ID do Salão não encontrado."); setLoading(false); return; }
-    
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) { setError("Sessão expirada. Faça login novamente para ver os serviços."); setLoading(false); return; }
-    const token = await currentUser.getIdToken(); 
-    setLoading(true);
-    setError(null);
-    
-    try {
+    // ... (lógica fetchServices existente, garantindo que retorna ID) ...
+     if (!salaoId) { setError("ID do Salão inválido."); setLoading(false); return; }
+     const currentUser = auth.currentUser;
+     if (!currentUser) { setError("Sessão expirada."); setLoading(false); return; }
+     const token = await currentUser.getIdToken();
+     setLoading(true); setError(null);
+     try {
         const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
-            headers: {
-                Authorization: `Bearer ${token}` 
-            }
+            headers: { Authorization: `Bearer ${token}` }
         });
-        
-        if (response.data && Array.isArray(response.data.servicos)) {
-            // Garante que todos os serviços têm um ID para a prop 'key'
-            const servicesWithKeys = response.data.servicos.map((s, index) => ({
-                ...s,
-                // Cria um ID temporário se o serviço não tiver um ID (Ex: novos serviços antes de serem salvos)
-                id: s.id || `temp-${index}` 
+        // Garante que 'servicos' exista e seja um array antes de mapear
+        const servicesData = response.data?.servicos || [];
+        if (Array.isArray(servicesData)) {
+            const servicesWithKeys = servicesData.map((s, index) => ({
+                ...s, id: s.id || `temp-${Date.now()}-${index}` // ID mais robusto
             }));
             setServices(servicesWithKeys);
-        } else {
-            setServices([]); 
-        }
-    } catch (err) {
-        console.error("Erro ao buscar serviços:", err.response?.data?.detail || err.message);
-        setError(err.response?.data?.detail || "Não foi possível carregar os serviços. Verifique a autenticação.");
-    } finally {
-        setLoading(false);
-    }
-  }, [salaoId]); 
+        } else { setServices([]); }
+     } catch (err) {
+        setError(err.response?.data?.detail || "Não foi possível carregar os serviços.");
+     } finally { setLoading(false); }
+  }, [salaoId]);
 
-  // Dispara a busca inicial
-  useEffect(() => {
-    fetchServices();
-  }, [fetchServices]);
+  useEffect(() => { fetchServices(); }, [fetchServices]);
 
-
-  // --- FUNÇÃO DE EXCLUSÃO (NOVA LÓGICA) ---
-  const handleRemove = async (serviceId) => {
-    if (!window.confirm("Tem certeza que deseja remover este serviço? Esta ação não pode ser desfeita.")) {
-        return;
-    }
-    
-    setIsDeleting(true);
-    setError(null); // Limpa erros anteriores
-    
-    try {
+  // Função handleRemove (sem alteração funcional)
+  const handleRemove = async (serviceIdToRemove) => {
+    // ... (lógica handleRemove existente, usando PUT) ...
+      if (!window.confirm("Remover este serviço?")) return;
+      setIsDeleting(true); setError(null);
+      try {
         const currentUser = auth.currentUser;
         if (!currentUser) throw new Error("Sessão expirada.");
-        const token = await currentUser.getIdToken(); 
-
-        // 1. Busca os dados atuais do salão
+        const token = await currentUser.getIdToken();
         const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
             headers: { Authorization: `Bearer ${token}` }
         });
         const salonData = salonResponse.data;
-
-        // 2. Filtra o array de serviços para remover o serviço com o ID correspondente
-        // Usamos o ID que o serviço tinha no Firetore (se tiver), ou o ID temporário do frontend.
-        const updatedServices = salonData.servicos.filter(s => s.id !== serviceId);
-
-        // 3. Prepara o payload para o PUT
-        const payload = {
-            ...salonData, // Todos os dados existentes
-            servicos: updatedServices, // Lista filtrada
-        };
-        
-        // 4. Envia o PUT
+        const updatedServices = (salonData.servicos || []).filter(s => s.id !== serviceIdToRemove);
+        const payload = { ...salonData, servicos: updatedServices };
         await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, {
             headers: { Authorization: `Bearer ${token}` }
         });
-
-        // 5. Sucesso: Recarrega a lista
-        await fetchServices();
-
-    } catch (err) {
-        console.error("Erro ao remover serviço:", err.response?.data?.detail || err.message);
-        setError("Falha ao remover serviço. Tente novamente.");
-    } finally {
-        setIsDeleting(false);
-    }
-  };
-  // --- FIM DA FUNÇÃO DE EXCLUSÃO ---
-
-  // Funções do Modal (sem alterações)
-  const handleEdit = (service) => {
-    setEditingService(service);
-    setIsModalOpen(true);
+        await fetchServices(); // Recarrega
+      } catch (err) {
+        setError("Falha ao remover serviço.");
+      } finally { setIsDeleting(false); }
   };
 
-  const handleAdd = () => {
-    setEditingService(null);
-    setIsModalOpen(true);
-  };
+  const handleEdit = (service) => { setEditingService(service); setIsModalOpen(true); };
+  const handleAdd = () => { setEditingService(null); setIsModalOpen(true); };
+  const handleClose = () => { setIsModalOpen(false); setEditingService(null); };
 
-  const handleClose = () => {
-    setIsModalOpen(false);
-    setEditingService(null); 
-  };
-  
-  // --- Renderização ---
-  if (loading || isDeleting) { // Adiciona isDeleting ao loading
+  // Renderização Loading/Error
+  if (loading || isDeleting) {
     return (
-        <Card className="p-6 text-center shadow min-h-[300px] flex items-center justify-center">
-             <Loader2 className="h-6 w-6 animate-spin text-purple-600 mx-auto mb-2" />
-             <p className="text-gray-600">{isDeleting ? 'Removendo serviço...' : 'Carregando serviços...'}</p>
-        </Card>
+      // <<< ALTERADO: Card e Spinner Ciano >>>
+      <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
+          <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
+          <p className="text-gray-600">{isDeleting ? 'Removendo serviço...' : 'Carregando serviços...'}</p>
+      </div>
     );
   }
-
   if (error) {
     return (
-        <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow">
-            <h3 className="font-semibold mb-2">Erro</h3>
-            <p>{error}</p>
-        </div>
+      <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 font-sans">
+          <h3 className="font-semibold mb-2">Erro</h3>
+          <p>{error}</p>
+      </div>
     );
   }
 
+  // Renderização Principal
   return (
-    <div>
+    <div className="font-sans"> {/* Adicionado font-sans */}
+       {/* <<< ALTERADO: Título com Ícone Ciano >>> */}
       <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-        <Scissors className="w-6 h-6 mr-3 text-purple-600" />
+        {/* O Ícone agora herda text-gray-900, mas podemos deixá-lo cinza médio se preferir */}
+        <Icon icon={Scissors} className="w-6 h-6 mr-3" /> {/* Ícone cinza médio */}
         Gerenciar Meus Serviços
       </h2>
 
-      {/* Botão para Adicionar Novo Serviço */}
+       {/* <<< ALTERADO: Botão Adicionar Verde (padrão para adição) ou Ciano >>> */}
       <div className="flex justify-end mb-4">
         <button
-          onClick={handleAdd} 
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition-colors"
+          onClick={handleAdd}
+           // Classes Ciano aplicadas
+          className={`flex items-center px-4 py-2 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors`}
         >
-          <PlusCircle className="w-5 h-5 mr-2" />
+          <Icon icon={PlusCircle} className="w-5 h-5 mr-2" />
           Adicionar Serviço
         </button>
       </div>
@@ -333,64 +267,66 @@ function ServicosPage() {
       {/* Lista de Serviços */}
       <div className="space-y-4">
         {services.length === 0 && (
-            <Card className="p-6 text-center text-gray-500">Nenhum serviço cadastrado ainda.</Card>
+            <div className="p-6 text-center text-gray-500 bg-white rounded-lg border border-gray-200 shadow-sm">Nenhum serviço cadastrado ainda.</div>
         )}
-        
+
         {services.map((service) => (
-          <Card key={service.id} className="p-5 bg-white shadow-md border-gray-100 flex justify-between items-start">
+           // <<< ALTERADO: Card com bg-white, shadow-sm, border >>>
+          <div key={service.id} className="p-5 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start gap-4"> {/* Adicionado flex-col/sm:flex-row e gap */}
+            {/* Informações do Serviço */}
             <div className="flex-grow">
-              <h3 className="text-xl font-semibold text-gray-900 mb-1">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1"> {/* Reduzido tamanho fonte */}
                 {service.nome_servico}
               </h3>
-              <p className="text-sm text-gray-500 mb-2">{service.descricao}</p>
-              
-              <div className="flex gap-4 text-sm text-gray-600">
-                {/* Duração */}
+              {service.descricao && ( // Mostra descrição apenas se existir
+                 <p className="text-sm text-gray-500 mb-2">{service.descricao}</p>
+              )}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 items-center"> {/* Adicionado flex-wrap e items-center */}
                 <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-gray-400" />
+                  <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
                   {service.duracao_minutos} min
                 </span>
-                {/* Preço */}
-                <span className="flex items-center gap-1 font-bold">
-                  <DollarSign className="w-4 h-4 text-gray-400" />
-                  {service.preco ? `R$ ${service.preco.toFixed(2).replace('.', ',')}` : 'Grátis'}
+                <span className="flex items-center gap-1 font-medium"> {/* Removido font-bold */}
+                  <Icon icon={DollarSign} className="w-4 h-4 text-gray-400" />
+                  {service.preco != null && service.preco >= 0 ? `R$ ${Number(service.preco).toFixed(2).replace('.', ',')}` : 'Grátis'}
                 </span>
               </div>
             </div>
 
             {/* Botões de Ação */}
-            <div className="flex gap-2 flex-shrink-0">
-              <button 
-                title="Editar Serviço" 
-                onClick={() => handleEdit(service)} 
-                className="p-2 rounded-full text-blue-600 hover:bg-blue-50 transition-colors"
+             {/* <<< ALTERADO: Botões com Ciano (editar) e Vermelho (remover) >>> */}
+            <div className="flex gap-2 flex-shrink-0 mt-3 sm:mt-0"> {/* Adicionado margin top mobile */}
+              <button
+                title="Editar Serviço"
+                onClick={() => handleEdit(service)}
+                 // Cor Ciano para Editar
+                className={`p-2 rounded-full ${CIANO_COLOR_TEXT} hover:bg-cyan-50 transition-colors`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                 <Icon icon={Edit3} className="w-5 h-5"/> {/* Ícone de Editar */}
               </button>
-              <button 
-                title="Remover Serviço" 
-                onClick={() => handleRemove(service.id)} // Chama a nova lógica de remoção
-                className="p-2 rounded-full text-red-600 hover:bg-red-50 transition-colors"
+              <button
+                title="Remover Serviço"
+                onClick={() => handleRemove(service.id)}
+                 // Cor Vermelha para Remover
+                className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                 disabled={isDeleting}
               >
-                <Trash2 className="w-5 h-5" />
+                <Icon icon={Trash2} className="w-5 h-5" />
               </button>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
-      
-      {/* --- RENDERIZAÇÃO DO MODAL --- */}
-      <ServiceFormModal 
+
+      {/* Modal */}
+      <ServiceFormModal
         isOpen={isModalOpen}
         onClose={handleClose}
-        serviceData={editingService} 
+        serviceData={editingService}
         salaoId={salaoId}
-        currentServices={services} 
-        onSaveSuccess={fetchServices} 
+        currentServices={services}
+        onSaveSuccess={fetchServices}
       />
-      {/* --- FIM DA RENDERIZAÇÃO DO MODAL --- */}
-
     </div>
   );
 }
