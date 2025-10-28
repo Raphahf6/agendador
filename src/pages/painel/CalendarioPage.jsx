@@ -198,7 +198,7 @@ const ManualBookingModal = ({ isOpen, onClose, salaoId, initialDateTime, initial
           {/* <<< ADICIONADO: Campo E-mail Cliente >>> */}
           <div>
             <label htmlFor="manual-email" className="block text-sm font-medium text-gray-700 mb-1">E-mail do Cliente (Opcional)</label>
-            <input name="email" id="manual-email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} placeholder="Para enviar confirmação" />
+            <input name="email" id="manual-email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} placeholder="Para enviarmos e-mail de confirmação" />
           </div>
           {/* <<< FIM DA ADIÇÃO >>> */}
 
