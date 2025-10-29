@@ -68,8 +68,8 @@ function HoralisFullCalendar({
         allDaySlot={false} 
         locale={ptBR} 
         buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' }}
-        slotMinTime="08:00:00" 
-        slotMaxTime="20:00:00" 
+        slotMinTime="07:00:00" 
+        slotMaxTime="23:00:00" 
         slotDuration="00:15:00" 
         slotLabelInterval="01:00" 
         slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }} 
