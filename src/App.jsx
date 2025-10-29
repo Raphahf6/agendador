@@ -14,7 +14,7 @@ import { ArrowLeft } from 'lucide-react';
 
 // --- Imports do NOVO PAINEL ---
 import PainelLayout from './pages/painel/PainelLayout';
-import VisaoGeral from './pages/painel/VisaoGeral';
+import VisaoGeral from './pages/painel/VisaoGeralPage';
 import CalendarioPage from './pages/painel/CalendarioPage';
 import ServicosPage from './pages/painel/ServicosPage';
 import PersonalizacaoPage from './pages/painel/PersonalizacaoPage';
@@ -26,6 +26,7 @@ import { auth } from './firebaseConfig';
 import { useRef } from 'react';
 import HorariosPage from './pages/painel/HorariosPage';
 import { Toaster } from 'react-hot-toast';
+import VisaoGeralPage from './pages/painel/VisaoGeralPage';
 // --- FIM DOS NOVOS IMPORTS ---
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
@@ -281,7 +282,8 @@ function App() {
                 <Route path="/painel/:salaoId" element={<PainelLayout />}>
                     {/* SUB-ROTAS (Renderizadas dentro do PainelLayout) */}
                     {/* Estas rotas agora são /painel/:salaoId/calendario */}
-                    <Route index element={<Navigate to="calendario" replace />} />
+                    <Route index element={<Navigate to="visaoGeral" replace />} />
+                    <Route path="visaoGeral" element={<VisaoGeralPage />} />
                     <Route path="calendario" element={<CalendarioPage />} />
                     <Route path="servicos" element={<ServicosPage />} />
                     <Route path="horarios" element={<HorariosPage />} />

@@ -51,7 +51,7 @@ function ProfissionalLoginPage() {
           navigate(from, { replace: true });
           return;
       }
-      const redirectPath = `/painel/${realSalãoId}/calendario`;
+      const redirectPath = `/painel/${realSalãoId}/visaoGeral`;
       console.log(`Login Profissional Sucedido. Redirecionando para: ${redirectPath}`);
       navigate(redirectPath, { replace: true });
     } catch (apiError) {
