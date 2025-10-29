@@ -165,7 +165,7 @@ export function LandingPage() {
               <h3 className="text-lg font-semibold mb-3 text-gray-900">Receba seu Link</h3>
                {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
               <p className="text-sm text-gray-500">
-                Faça seu cadastro conosco e receba um link único: (horalis.com/agenda/seu-id-unico) que leva ao seu Horalis personalizado com sua logo, serviços e cores para compartilhar com seus clientes.
+                Faça seu cadastro conosco e receba um link único: (horalis.app/agenda/seu-id-unico) que leva ao seu Horalis personalizado com sua logo, serviços e cores para compartilhar com seus clientes.
               </p>
             </div>
             {/* Step 2 */}
