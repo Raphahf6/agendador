@@ -82,7 +82,7 @@ function PersonalizacaoPage() {
         console.log("copyLink chamada. Estado linkCopied:", linkCopied); // Log 1
 
         // <<< CONFIRME ESTA URL BASE >>>
-        const publicUrl = `https://horalis.rebdigitalsolucoes.com.br/agendar/${salaoId}`;
+        const publicUrl = `https://horalis.app/agendar/${salaoId}`;
 
         // Limpa timeout anterior se existir
         if (copyTimeoutRef.current) {
@@ -217,7 +217,7 @@ function PersonalizacaoPage() {
                          <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
                             <input
                                 type="text"
-                                value={`https://horalis.rebdigitalsolucoes.com.br/agendar/${salaoId}`}
+                                value={`https://horalis.app/agendar/${salaoId}`}
                                 readOnly
                                 className="flex-grow bg-transparent text-sm text-gray-700 focus:outline-none truncate"
                                 // Adiciona onClick para selecionar o texto ao clicar no input (opcional)
