@@ -10,6 +10,9 @@
      'text-cyan',
      'text-cyan-700',
      'bg-cyan-600',
+     'bg-cyan',
+     'bg-cyan-700',
+     'bg-cyan-800',
      'hover:bg-cyan-700',
      'hover:bg-cyan-50', // Para o link do painel
      'bg-cyan-50',     // Para a tag da Hero section

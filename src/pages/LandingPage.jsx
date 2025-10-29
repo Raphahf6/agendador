@@ -8,7 +8,7 @@ import 'aos/dist/aos.css';
 const WHATSAPP_LNK = "https://w.app/rebdigitalsolucoes";
 const BRAND_NAME = "Horalis";
 
-const CIANO_COLOR = 'cyan-600';
+const CIANO_COLOR = 'cyan-800';
 const CIANO_HOVER = 'cyan-800';
 const CIANO_TEXT_CLASS = `text-${CIANO_COLOR}`;
 const CIANO_BG_CLASS = `bg-${CIANO_COLOR}`;

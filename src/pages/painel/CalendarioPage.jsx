@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import HoralisFullCalendar from '@/components/HoralisFullCalendar'; // Assume que existe
 import { format } from 'date-fns';
-import { differenceInMinutes } from 'date-fns'; // <<< IMPORTADO >>>
+import { differenceInMinutes,isBefore } from 'date-fns'; // <<< IMPORTADO >>>
 import { Loader2, X, Clock, User, Phone, CheckCircle, ArrowLeft, Edit3, Trash2 } from "lucide-react"; // Adicionado Ícones faltantes
 import { auth, db } from '@/firebaseConfig';
 import { collection, onSnapshot } from "firebase/firestore";
@@ -14,7 +14,7 @@ const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // <<< DEFINIÇÕES DE COR (Para consistência) >>>
 const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-600';
+const CIANO_COLOR_BG = 'bg-cyan-800';
 const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
 const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
@@ -291,18 +291,38 @@ function CalendarioPage() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleDateClick = (dateInfo) => { // Clique simples
+  const handleDateClick = (dateInfo) => {
+    // <<< ADICIONADO: Verificação de Data Passada >>>
+    // Compara a data/hora clicada com a data/hora atual
+    if (isBefore(dateInfo.date, new Date())) {
+      toast.error("Não é possível agendar em horários passados."); // Mostra um aviso
+      return; // Impede a abertura do modal
+    }
+    // <<< FIM DA ADIÇÃO >>>
+
+    console.log("Slot vago clicado (dateClick):", dateInfo.dateStr);
     setInitialSlot(dateInfo.date);
-    setInitialDuration(null); // Usa duração padrão
+    setInitialDuration(null);
     setIsManualModalOpen(true);
   };
 
-  const handleTimeSelect = (selectInfo) => { // Seleção de período
+  const handleTimeSelect = (selectInfo) => {
+    // <<< ADICIONADO: Verificação de Data Passada >>>
+    // Compara a data/hora INICIAL da seleção com a data/hora atual
+    if (isBefore(selectInfo.start, new Date())) {
+      toast.error("Não é possível agendar em horários passados."); // Mostra um aviso
+      // Desseleciona visualmente
+      if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
+      return; // Impede a abertura do modal
+    }
+    // <<< FIM DA ADIÇÃO >>>
+
+    console.log("Período selecionado (select):", selectInfo.startStr, "a", selectInfo.endStr);
     const durationMinutes = differenceInMinutes(selectInfo.end, selectInfo.start);
     setInitialSlot(selectInfo.start);
-    setInitialDuration(durationMinutes > 0 ? durationMinutes : null); // Define duração
+    setInitialDuration(durationMinutes > 0 ? durationMinutes : null);
     setIsManualModalOpen(true);
-    if (calendarRef.current) calendarRef.current.getApi().unselect(); // Limpa seleção visual
+    if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
   };
 
   const handleEventDrop = useCallback(async (dropInfo) => { // Reagendamento

@@ -10,7 +10,7 @@ const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // <<< DEFINIÇÕES DE COR >>>
 const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-600';
+const CIANO_COLOR_BG = 'bg-cyan-800';
 const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
 const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
