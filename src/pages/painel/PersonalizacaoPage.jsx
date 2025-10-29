@@ -259,7 +259,7 @@ function PersonalizacaoPage() {
                 <div className="lg:sticky lg:top-24">
                      <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                         <Icon icon={Eye} className={`w-5 h-5 mr-2 ${CIANO_COLOR_TEXT}`}/>
-                        Pré-visualização da Página
+                        Pré-visualização da Página de Agendamento
                      </h3>
                      <BookingPagePreview
                         salaoId={salaoId}
