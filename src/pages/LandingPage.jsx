@@ -5,7 +5,7 @@ import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
-const WHATSAPP_LNK = "https://w.app/rebdigitalsolucoes";
+const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1,%20Gostaria%20de%20saber%20mais%20sobre%20o%20horalis";
 const BRAND_NAME = "Horalis";
 
 const CIANO_COLOR = 'cyan-800';
@@ -105,7 +105,7 @@ export function LandingPage() {
                   Deixe a Agenda Conosco
                 </span>
               </h1>
-               {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+              {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
               <p className="text-gray-600 text-lg" data-aos="fade-up" data-aos-delay="100">
                 Simplifique sua vida! Seus clientes agendam pelo link, e os compromissos aparecem automaticamente na sua Google Agenda. Sem desorganização, sem esquecimentos.
               </p>
@@ -138,7 +138,7 @@ export function LandingPage() {
             {/* Right Column */}
             <div className="relative flex justify-center items-center lg:justify-end" data-aos="fade-left" data-aos-delay="100">
               <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200">
-                <ImageWithFallback src="/calendario.png" alt="Interface Horalis" className="w-full h-auto object-cover" />
+                <ImageWithFallback src="/visao-geral.png" alt="Interface Horalis" className="w-full h-auto object-cover" />
               </div>
             </div>
           </div>
@@ -150,7 +150,7 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div data-aos="fade-up" className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4 text-gray-900">Como Funciona</h2>
-             {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+            {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
             <p className="text-gray-600 text-lg">
               Apenas 3 passos simples para começar
             </p>
@@ -160,10 +160,10 @@ export function LandingPage() {
             <div className="relative p-8 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group" data-aos="fade-up" data-aos-delay="100">
               <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-full ${CIANO_BG_CLASS} flex items-center justify-center text-white shadow-lg text-lg font-bold`}>1</div>
               <div className={`w-16 h-16 rounded-2xl ${CIANO_BG_CLASS} flex items-center justify-center mb-6 group-hover:scale-105 transition-transform text-white`}>
-                 {renderIcon(Link2, "w-8 h-8")}
+                {renderIcon(Link2, "w-8 h-8")}
               </div>
               <h3 className="text-lg font-semibold mb-3 text-gray-900">Receba seu Link</h3>
-               {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+              {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
               <p className="text-sm text-gray-500">
                 Faça seu cadastro conosco e receba um link único: (horalis.app/agenda/seu-id-unico) que leva ao seu Horalis personalizado com sua logo, serviços e cores para compartilhar com seus clientes.
               </p>
@@ -171,30 +171,48 @@ export function LandingPage() {
             {/* Step 2 */}
             <div className="relative p-8 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group" data-aos="fade-up" data-aos-delay="200">
               <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-full ${CIANO_BG_CLASS} flex items-center justify-center text-white shadow-lg text-lg font-bold`}>2</div>
-               <div className={`w-16 h-16 rounded-2xl ${CIANO_BG_CLASS} flex items-center justify-center mb-6 group-hover:scale-105 transition-transform text-white`}>
-                 {renderIcon(Users, "w-8 h-8")}
-               </div>
-               <h3 className="text-lg font-semibold mb-3 text-gray-900">Compartilhe</h3>
-                {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
-               <p className="text-sm text-gray-500">
-                 Envie o link para seus clientes por WhatsApp, Instagram, SMS ou qualquer rede social.
-               </p>
-             </div>
+              <div className={`w-16 h-16 rounded-2xl ${CIANO_BG_CLASS} flex items-center justify-center mb-6 group-hover:scale-105 transition-transform text-white`}>
+                {renderIcon(Users, "w-8 h-8")}
+              </div>
+              <h3 className="text-lg font-semibold mb-3 text-gray-900">Compartilhe</h3>
+              {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+              <p className="text-sm text-gray-500">
+                Envie o link para seus clientes por WhatsApp, Instagram, SMS ou qualquer rede social.
+              </p>
+            </div>
             {/* Step 3 */}
             <div className="relative p-8 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all group" data-aos="fade-up" data-aos-delay="300">
-               <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-full ${CIANO_BG_CLASS} flex items-center justify-center text-white shadow-lg text-lg font-bold`}>3</div>
-               <div className={`w-16 h-16 rounded-2xl ${CIANO_BG_CLASS} flex items-center justify-center mb-6 group-hover:scale-105 transition-transform text-white`}>
-                 {renderIcon(Calendar, "w-8 h-8")}
-               </div>
-               <h3 className="text-lg font-semibold mb-3 text-gray-900">Receba Agendamentos</h3>
-                {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
-               <p className="text-sm text-gray-500">
-                 Os agendamentos aparecem automaticamente na sua Horalis agenda no seu painel e na sua Google Agenda. Simples assim!
-               </p>
-             </div>
+              <div className={`absolute -top-4 -left-4 w-12 h-12 rounded-full ${CIANO_BG_CLASS} flex items-center justify-center text-white shadow-lg text-lg font-bold`}>3</div>
+              <div className={`w-16 h-16 rounded-2xl ${CIANO_BG_CLASS} flex items-center justify-center mb-6 group-hover:scale-105 transition-transform text-white`}>
+                {renderIcon(Calendar, "w-8 h-8")}
+              </div>
+              <h3 className="text-lg font-semibold mb-3 text-gray-900">Receba Agendamentos</h3>
+              {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+              <p className="text-sm text-gray-500">
+                Os agendamentos aparecem automaticamente na sua Horalis agenda no seu painel e na sua Google Agenda. Simples assim!
+              </p>
+            </div>
           </div>
         </div>
       </div>
+
+
+      {/* <<< ADICIONADO: Nova Seção Imagem Calendário >>> */}
+      <div data-aos="fade-up" className="py-20 bg-gray-50">
+        <div className="max-w-5xl mx-auto px-6 text-center"> {/* Aumentado max-w */}
+          <h2 className="text-3xl font-bold mb-4 text-gray-900">Veja sua Agenda em Ação</h2>
+          <p className="text-gray-600 text-lg mb-12">
+            Visualize seus compromissos, bloqueie horários e gerencie tudo em um só lugar.
+          </p>
+          <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200">
+            {/* Use o nome do arquivo que você quer aqui, ex: "calendario.png" */}
+            <ImageWithFallback src="/calendario.png" alt="Calendário de agendamentos Horalis" className="w-full h-auto object-cover" />
+          </div>
+        </div>
+      </div>
+      {/* <<< FIM DA NOVA SEÇÃO >>> */}
+
+
 
       {/* Benefits Section */}
       <div data-aos="fade-up" className="py-20 bg-white">
@@ -203,7 +221,7 @@ export function LandingPage() {
             {/* Image */}
             <div className="order-2 lg:order-1" data-aos="fade-right">
               <div className="relative max-w-sm w-full rounded-2xl overflow-hidden shadow-lg border border-gray-200">
-                <ImageWithFallback src="sistema-landing.png" alt="Calendário Horalis" className="w-full h-auto"/>
+                <ImageWithFallback src="sistema-landing.png" alt="Calendário Horalis" className="w-full h-auto" />
               </div>
             </div>
             {/* Benefits List */}
@@ -212,7 +230,7 @@ export function LandingPage() {
                 Por que escolher {BRAND_NAME}?
               </h2>
               <div className="space-y-4">
-                 {/* <<< TEXTOS ORIGINAIS RESTAURADOS >>> */}
+                {/* <<< TEXTOS ORIGINAIS RESTAURADOS >>> */}
                 {[
                   { icon: Zap, title: 'Rápido e Automático', description: 'Sem formulários complicados. Seu cliente agenda em segundos.' },
                   { icon: Calendar, title: 'Integração com Google', description: 'Todos os agendamentos vão direto para sua Google Agenda.' },
@@ -238,7 +256,7 @@ export function LandingPage() {
       {/* CTA Section */}
       <div data-aos="fade-up" className={`py-20 ${CIANO_BG_CLASS}`}>
         <div className="max-w-4xl mx-auto px-6 text-center text-white">
-           {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+          {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
           <h2 className="text-4xl font-bold mb-6 text-white">
             Pronto para simplificar seus agendamentos?
           </h2>
@@ -251,7 +269,7 @@ export function LandingPage() {
             rel="noopener noreferrer"
             className={`inline-flex items-center justify-center bg-white ${CIANO_TEXT_CLASS} hover:bg-gray-100 px-12 py-4 text-base font-semibold rounded-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-105`}
           >
-             {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+            {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
             Entre em contato conosco
             {renderIcon(ArrowRight, "ml-2 w-5 h-5")}
           </a>
@@ -266,13 +284,13 @@ export function LandingPage() {
               <h3 className={`text-xl font-bold`}>
                 {BRAND_NAME}
               </h3>
-               {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
+              {/* <<< TEXTO ORIGINAL RESTAURADO >>> */}
               <p className="text-sm text-gray-500">
                 Simplifique sua agenda, encante seus clientes
               </p>
             </div>
             <div className="flex gap-6 text-sm text-gray-600">
-               {/* <<< TEXTOS ORIGINAIS RESTAURADOS >>> */}
+              {/* <<< TEXTOS ORIGINAIS RESTAURADOS >>> */}
               <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className={`hover:${CIANO_TEXT_CLASS} transition-colors`}>Sobre</a>
               <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className={`hover:${CIANO_TEXT_CLASS} transition-colors`}>Recursos</a>
               <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className={`hover:${CIANO_TEXT_CLASS} transition-colors`}>Preços</a>
