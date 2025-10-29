@@ -5,7 +5,7 @@ import axios from 'axios';
 import HoralisFullCalendar from '@/components/HoralisFullCalendar'; // Assume que existe
 import { format } from 'date-fns';
 import { differenceInMinutes,isBefore } from 'date-fns'; // <<< IMPORTADO >>>
-import { Loader2, X, Clock, User, Phone, CheckCircle, ArrowLeft, Edit3, Trash2 } from "lucide-react"; // Adicionado Ícones faltantes
+import { Loader2, X, Clock, User, Phone, CheckCircle, ArrowLeft, Edit3, Trash2, Mail } from "lucide-react"; // Adicionado Ícones faltantes
 import { auth, db } from '@/firebaseConfig';
 import { collection, onSnapshot } from "firebase/firestore";
 import toast from 'react-hot-toast';
@@ -37,7 +37,14 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
   if (!isOpen || !event) return null;
 
   // Usa ?? para fallback caso extendedProps não exista
-  const { customerName, customerPhone, serviceName, durationMinutes } = event.extendedProps ?? {};
+  const extendedProps = event?.extendedProps ?? {};
+  const {
+    customerName,
+    customerPhone,
+    serviceName,
+    durationMinutes,
+    customerEmail // Extrai customerEmail (será undefined se não existir em extendedProps)
+  } = extendedProps;
   const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A"); // Calcula duração se não vier
 
   const handleCancelAppointment = async () => {
@@ -84,6 +91,14 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
               <Icon icon={User} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
               <span className="font-semibold text-gray-900">{customerName || 'Não Informado'}</span>
             </div>
+            {/* <<< ADICIONADO: E-mail (Condicional) >>> */}
+            {customerEmail && (
+              <div className="flex items-center gap-3">
+                <Icon icon={Mail} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
+                <span className="text-gray-600">{customerEmail}</span>
+              </div>
+            )}
+            {/* <<< FIM DA ADIÇÃO >>> */}
             {customerPhone && ( // Mostra telefone apenas se existir
               <div className="flex items-center gap-3">
                 <Icon icon={Phone} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
@@ -271,7 +286,7 @@ function CalendarioPage() {
           rawEvents.push({
             id: doc.id, title: `${data.serviceName || 'Serviço'} - ${data.customerName || 'Cliente'}`,
             start: startTime, end: endTime, backgroundColor: HORALIS_EVENT_COLORS[colorIndex], borderColor: HORALIS_EVENT_COLORS[colorIndex],
-            extendedProps: { customerName: data.customerName, customerPhone: data.customerPhone, serviceName: data.serviceName, durationMinutes: data.durationMinutes, googleEventId: data.googleEventId }
+            extendedProps: { customerEmail: data.customerEmail,customerName: data.customerName, customerPhone: data.customerPhone, serviceName: data.serviceName, durationMinutes: data.durationMinutes, googleEventId: data.googleEventId }
           });
         }
       });
