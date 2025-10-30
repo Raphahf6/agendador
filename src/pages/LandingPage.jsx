@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone } from 'lucide-react';
+import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail } from 'lucide-react';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
@@ -11,6 +11,22 @@ import { Navigation, Pagination, Autoplay } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
+
+const FeatureItem = ({ text }) => (
+  <li className="flex items-center gap-3">
+    <Check className="w-5 h-5 text-green-500 flex-shrink-0 stroke-current" />
+    <span className="text-gray-700">{text}</span>
+  </li>
+);
+
+const proFeatures = [
+  "Agendamentos Ilimitados",
+  "Link para Agendamentos Personalizado",
+  "Integração com Google Agenda",
+  "Notificações por E-mail",
+  "Lembretes Automáticos",
+  "Gestão de Clientes"
+];
 
 const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1,%20Gostaria%20de%20saber%20mais%20sobre%20o%20horalis";
 const BRAND_NAME = "Horalis";
@@ -24,6 +40,20 @@ const CIANO_RGB_COLOR = 'rgb(14, 116, 144)';
 
 export function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const precosRef = useRef(null);
+
+  const handleScrollToPrecos = (e) => {
+    e.preventDefault(); // Impede o link de pular direto (se for um <a>)
+    precosRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start' // Alinha o topo da seção com o topo da tela
+    });
+
+    // Se o menu mobile estiver aberto, fecha ele
+    if (isMenuOpen) {
+      setIsMenuOpen(false);
+    }
+  };
 
   // --- DADOS PARA O CARROSSEL (Sem alteração) ---
   const carouselSlides = [
@@ -80,15 +110,13 @@ export function LandingPage() {
               {renderIcon(LogIn, "w-4 h-4")}
               Acesso ao Painel
             </Link>
-            <a
-              href={WHATSAPP_LNK}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={handleScrollToPrecos}
               className={`inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-all`}
             >
               Quero Cadastrar!
               {renderIcon(ArrowRight, "w-4 h-4 ml-1")}
-            </a>
+            </button>
           </nav>
           <button
             className="sm:hidden p-2 rounded-md hover:bg-gray-100 text-gray-700 transition-colors"
@@ -331,11 +359,13 @@ export function LandingPage() {
               </h2>
               <div className="space-y-4">
                 {[
+                  { icon: Mail, title: 'Lembretes automaticos', description: 'Notificações e-mails de confirmação cancelamento e muito mais, mantenha seu cliente sempre atualizado.' },
+                  { icon: Smartphone, title: 'Responsividade', description: 'Sistema totalmente responsivo podendo utilizar tanto no celular como no computador' },
                   { icon: Zap, title: 'Rápido e Automático', description: 'Sem formulários complicados. Seu cliente agenda em segundos.' },
                   { icon: Calendar, title: 'Integração com Google', description: 'Todos os agendamentos vão direto para sua Google Agenda.' },
                   { icon: Clock, title: 'Economize Tempo', description: 'Nunca mais perca tempo anotando agendamentos manualmente.' },
                   { icon: Users, title: 'Experiência do Cliente', description: 'Eleve a experiência do seu cliente com um sistema de agendamentos feito sob medida.' },
-                   { icon: Smartphone, title: 'Responsividade', description: 'Sistema totalmente responsivo podendo utilizar tanto no celular como no computador' },
+
                 ].map((benefit, index) => (
                   <div key={index} className="flex gap-4 p-4 rounded-xl bg-white border border-gray-200 hover:bg-white transition-all hover:shadow-md">
                     <div className={`flex-shrink-0 w-12 h-12 rounded-lg ${CIANO_BG_CLASS} flex items-center justify-center text-white`}>
@@ -349,9 +379,58 @@ export function LandingPage() {
                 ))}
               </div>
             </div>
-            </div>
+          </div>
         </div>
       </div>
+
+      {/* --- <<< NOVA SEÇÃO DE PREÇOS >>> --- */}
+      <div data-aos="fade-up" className="py-20 bg-white" ref={precosRef}>
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Título da Seção */}
+          <div className="text-center mb-16 max-w-3xl mx-auto">
+            <h2 className="text-3xl font-bold mb-4 text-gray-900">Um plano completo</h2>
+            <p className="text-gray-600 text-lg">
+              Sem taxas escondidas. Todos os recursos que você precisa, por um preço justo.
+            </p>
+          </div>
+
+          {/* Card de Preço Único */}
+          <div className="max-w-lg mx-auto bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden transform hover:scale-[1.02] transition-transform duration-300">
+            <div className="p-8">
+              <h3 className={`text-lg font-semibold ${CIANO_TEXT_CLASS} uppercase`}>Plano Horalis Pro</h3>
+              <p className="text-gray-600 mt-1">Todos os recursos para automatizar sua agenda.</p>
+
+              <div className="my-6">
+                <p className="text-5xl font-bold text-gray-900">R$ 19,90</p>
+                <p className="text-lg font-medium text-gray-500">/mês</p>
+              </div>
+
+              <a
+                href={WHATSAPP_LNK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`w-full inline-flex items-center justify-center px-8 py-4 text-base font-medium text-white ${CIANO_BG_CLASS} rounded-lg shadow-md ${CIANO_BG_HOVER_CLASS} hover:shadow-lg transition-all transform hover:scale-105`}
+              >
+                Começar Agora
+                {renderIcon(ArrowRight, "ml-2 w-5 h-5")}
+              </a>
+              <p className="text-center text-sm text-gray-500 mt-4">Pagamentos por Pix ou Cartão.</p>
+            </div>
+
+            <div className="bg-gray-50 p-8 border-t border-gray-100">
+              <h4 className="text-base font-semibold text-gray-900 mb-4">Tudo incluído:</h4>
+              <ul className="space-y-3">
+                {proFeatures.map((feature, index) => (
+                  <FeatureItem key={index} text={feature} />
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* --- <<< FIM DA NOVA SEÇÃO DE PREÇOS >>> --- */}
+
+
 
       {/* CTA Section */}
       {/* ... (Sua Seção CTA idêntica) ... */}
@@ -389,12 +468,18 @@ export function LandingPage() {
               </p>
             </div>
             <div className="flex gap-6 text-sm text-gray-600">
-              <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className={`hover:${CIANO_TEXT_CLASS} transition-colors`}>Preços</a>
+              <a
+                href="#precos"
+                onClick={handleScrollToPrecos}
+                className={`hover:${CIANO_TEXT_CLASS} transition-colors cursor-pointer`}
+              >
+                Preços
+              </a>
               <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className={`hover:${CIANO_TEXT_CLASS} transition-colors`}>Contato</a>
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-200 text-center text-sm text-gray-500">
-             © {new Date().getFullYear()} {BRAND_NAME}. Todos os direitos reservados.
+            © {new Date().getFullYear()} {BRAND_NAME}. Todos os direitos reservados.
           </div>
         </div>
       </div>
