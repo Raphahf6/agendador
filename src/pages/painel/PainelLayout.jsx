@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useParams, useNavigate} from 'react-route
 import { cn } from "@/lib/utils";
 import {
   Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon, // LayoutDashboard removido (não usado)
-  LayoutDashboard
+  LayoutDashboard,CreditCard
 } from 'lucide-react';
 import axios from 'axios';
 // import { ImageWithFallback } from '@/ui/ImageWithFallback'; // <<< REMOVIDO: Não usaremos mais a imagem >>>
@@ -20,6 +20,7 @@ const navigation = [
   { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
   { name: 'Horario de Funcionamento', href: 'horarios', icon: TimerIcon },
   { name: 'Pagina de Agendamento e Personalização', href: 'personalizacao', icon: Palette },
+  { name: 'Assinatura', href: 'assinatura', icon: CreditCard },
   { name: 'Configurações', href: 'configuracoes', icon: Settings },
 ];
 

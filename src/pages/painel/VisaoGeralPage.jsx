@@ -197,7 +197,7 @@ function VisaoGeralPage() {
             // --- Query de Receita (com filtro "cancelado") ---
             let receitaStartDate, receitaEndDate, newTitulo;
             if (receitaPeriodo === 'hoje') {
-                receitaStartDate = hojeInicio; receitaEndDate = endOfDay(now); newTitulo = 'Receita (Hoje)';
+                receitaStartDate = hojeInicio; receitaEndDate = endOfDay(now); newTitulo = 'Receita Prevista (Hoje)';
             } else if (receitaPeriodo === 'semana') {
                 receitaStartDate = hojeInicio; receitaEndDate = endOfDay(addDays(now, 7)); newTitulo = 'Receita (7d)';
             } else { // 'mes'

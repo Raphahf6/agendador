@@ -1,7 +1,7 @@
 // frontend/src/components/BookingPagePreview.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Clock, DollarSign, Sparkles, ArrowRight } from 'lucide-react'; // Ícones necessários
+import { Clock, DollarSign, Sparkles, ArrowRight, ImageIcon } from 'lucide-react'; // Ícones necessários
 import { ImageWithFallback } from '@/ui/ImageWithFallback'; // Reutiliza seu componente de imagem
 import LoadingSpinner from './LoadingSpinner'; // Reutiliza seu spinner
 
@@ -92,7 +92,7 @@ function BookingPagePreview({ salaoId, nomeSalao, tagline, logoUrl }) {
             />
           ) : (
              <div className="w-16 h-16 rounded-full mb-3 bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
-                <Icon icon={Image} className="w-8 h-8"/>
+                <Icon icon={ImageIcon} className="w-8 h-8"/>
              </div>
           )}
           {/* Nome e Tagline vêm das props (estado do formulário) */}

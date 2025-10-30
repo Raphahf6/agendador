@@ -27,6 +27,7 @@ import { useRef } from 'react';
 import HorariosPage from './pages/painel/HorariosPage';
 import { Toaster } from 'react-hot-toast';
 import VisaoGeralPage from './pages/painel/VisaoGeralPage';
+import AssinaturaPage from './pages/painel/AssinaturaPage';
 // --- FIM DOS NOVOS IMPORTS ---
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
@@ -289,6 +290,7 @@ function App() {
                     <Route path="horarios" element={<HorariosPage />} />
                     <Route path="personalizacao" element={<PersonalizacaoPage />} />
                     <Route path="configuracoes" element={<ConfiguracoesPage />} />
+                    <Route path="assinatura" element={<AssinaturaPage />} />
 
                     {/* Rotas de Autenticação Aninhadas REMOVIDAS daqui: */}
                     {/* <Route path="login" element={<ProfissionalLoginPage />} /> */}
