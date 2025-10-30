@@ -1,51 +1,462 @@
 // frontend/src/pages/painel/CalendarioPage.jsx
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import HoralisFullCalendar from '@/components/HoralisFullCalendar'; // Assume que existe
+import HoralisFullCalendar from '@/components/HoralisFullCalendar';
 import { format } from 'date-fns';
-import { differenceInMinutes,isBefore } from 'date-fns'; // <<< IMPORTADO >>>
-import { Loader2, X, Clock, User, Phone, CheckCircle, ArrowLeft, Edit3, Trash2, Mail } from "lucide-react"; // Adicionado Ícones faltantes
+import { differenceInMinutes, isBefore, setHours, setMinutes, parse, addMinutes } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { auth, db } from '@/firebaseConfig';
 import { collection, onSnapshot } from "firebase/firestore";
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+import HoralisCalendar from '@/components/HoralisCalendar';
+import { 
+  Loader2, X, Clock, User, Phone, Mail, 
+  ChevronLeft, ChevronRight, Plus
+} from "lucide-react"; 
 
-// <<< DEFINIÇÕES DE COR (Para consistência) >>>
+// --- Configurações ---
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 const CIANO_COLOR_TEXT = 'text-cyan-600';
 const CIANO_COLOR_BG = 'bg-cyan-800';
 const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
 const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
+const HORALIS_EVENT_COLORS = ['#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'];
 
-// Helper Ícone Simples
 const Icon = ({ icon: IconComponent, className = "" }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// Cores para eventos (pode ajustar)
-const HORALIS_EVENT_COLORS = [
-  '#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'
-];
+// --- Hook customizado "DIY" para clique fora ---
+// ... (código idêntico) ...
+function useOnClickOutside(ref, handler) {
+  useEffect(() => {
+    const listener = (event) => {
+      if (!ref.current || ref.current.contains(event.target)) {
+        return;
+      }
+      handler(event);
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
+}
 
-// --- COMPONENTES MODAL ---
 
-// <<< MOVIDO PARA FORA: Modal de Detalhes >>>
+// --- SUB-COMPONENTE: HoralisCalendarHeader ---
+// ... (código idêntico) ...
+const HoralisCalendarHeader = ({
+  onToday,
+  onPrev,
+  onNext,
+  calendarTitle,
+  currentView,
+  onViewChange,
+  popoverDate,
+  onPopoverDateSelect,
+  isMobile
+}) => {
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const popoverRef = useRef(null);
+  useOnClickOutside(popoverRef, () => setIsPopoverOpen(false));
+
+  const handleDateSelect = (date) => {
+    onPopoverDateSelect(date);
+    setIsPopoverOpen(false);
+  };
+
+  return (
+    <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+      {/* Lado Esquerdo */}
+      <div className="flex items-center gap-3">
+        <button 
+          onClick={onToday}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+        >
+          Hoje
+        </button>
+        
+        {!isMobile && (
+          <div className="flex items-center">
+            <button 
+              onClick={onPrev} 
+              className="p-2 text-gray-500 rounded-full hover:bg-gray-100"
+              title="Anterior"
+            >
+              <Icon icon={ChevronLeft} className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={onNext} 
+              className="p-2 text-gray-500 rounded-full hover:bg-gray-100"
+              title="Próximo"
+            >
+              <Icon icon={ChevronRight} className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+        
+        {/* --- Container do Popover --- */}
+        <div className="relative" ref={popoverRef}>
+          <h2 
+            className="text-xl font-medium text-gray-800 ml-2 cursor-pointer hover:text-cyan-600 transition-colors"
+            title="Selecionar data"
+            onClick={() => setIsPopoverOpen(!isPopoverOpen)}
+          >
+            {calendarTitle}
+          </h2>
+
+          {isPopoverOpen && (
+            <div 
+              className="
+                absolute top-full left-0 mt-2 z-50 
+                bg-white rounded-xl shadow-lg border border-gray-200
+              "
+            >
+              <HoralisCalendar
+                selectedDate={popoverDate} 
+                onDateSelect={handleDateSelect}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lado Direito: Seletor de View */}
+      <div>
+        <select
+          value={currentView}
+          onChange={onViewChange}
+          className={`
+            py-2 pl-3 pr-8 text-sm font-medium text-gray-700 bg-white 
+            border border-gray-300 rounded-md shadow-sm 
+            focus:outline-none ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}
+          `}
+        >
+          {!isMobile && <option value="timeGridWeek">Semana</option>}
+          <option value="timeGridDay">Dia</option>
+          <option value="dayGridMonth">Mês</option>
+        </select>
+      </div>
+    </header>
+  );
+};
+
+
+// --- COMPONENTE PRINCIPAL DA PÁGINA ---
+
+function CalendarioPage() {
+  const [events, setEvents] = useState([]);
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { salaoId } = useParams();
+  const isInitialLoad = useRef(true);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [initialSlot, setInitialSlot] = useState(null);
+  const [initialDuration, setInitialDuration] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const calendarRef = useRef(null);
+  const [calendarTitle, setCalendarTitle] = useState('');
+  
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [currentView, setCurrentView] = useState(window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek');
+  
+  const [currentDate, setCurrentDate] = useState(new Date()); 
+
+  useEffect(() => {
+    // ... (lógica do 'checkMobile' idêntica) ...
+    const checkMobile = () => {
+      const mobileCheck = window.innerWidth < 768;
+      if (mobileCheck !== isMobile) {
+        setIsMobile(mobileCheck);
+        if (mobileCheck) {
+          setCurrentView('timeGridDay');
+          getCalendarApi()?.changeView('timeGridDay');
+        }
+      }
+    };
+
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [isMobile]);
+
+
+  // --- Carregamento de Eventos (onSnapshot) ---
+  useEffect(() => {
+    // ... (lógica de carregamento de eventos idêntica) ...
+    const currentUser = auth.currentUser;
+    if (!salaoId || !currentUser) {
+      setError("Autenticação ou ID do salão inválido."); setLoading(false); return;
+    }
+    setLoading(true); // Controla o loading geral
+    const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
+    const unsubscribe = onSnapshot(agendamentosRef, (querySnapshot) => {
+      const rawEvents = [];
+      querySnapshot.docChanges().forEach((change) => {
+        if (change.type === "added" && !isInitialLoad.current) {
+          const d = change.doc.data(); toast.success(`Novo: ${d.serviceName} - ${d.customerName}`, { icon: '✨' });
+        }
+        if (change.type === "removed" && !isInitialLoad.current) { toast('Agendamento removido.', { icon: '🗑️' }); }
+      });
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const startTime = data.startTime?.toDate(); const endTime = data.endTime?.toDate();
+        if (startTime && endTime) {
+          const colorIndex = Math.abs(doc.id.charCodeAt(0) % HORALIS_EVENT_COLORS.length);
+          rawEvents.push({
+            id: doc.id, title: `${data.serviceName || 'Serviço'} - ${data.customerName || 'Cliente'}`,
+            start: startTime, end: endTime, backgroundColor: HORALIS_EVENT_COLORS[colorIndex], borderColor: HORALIS_EVENT_COLORS[colorIndex],
+            extendedProps: { customerEmail: data.customerEmail,customerName: data.customerName, customerPhone: data.customerPhone, serviceName: data.serviceName, durationMinutes: data.durationMinutes, googleEventId: data.googleEventId }
+          });
+        }
+      });
+      setEvents(rawEvents); 
+      setLoading(false); // Só para de carregar quando os eventos chegam
+      isInitialLoad.current = false;
+    }, (err) => {
+      setError("Erro ao conectar à agenda."); setLoading(false); console.error(err);
+    });
+    return () => unsubscribe();
+  }, [salaoId]);
+  
+  // --- Carregamento de Serviços (onSnapshot) ---
+  useEffect(() => {
+    if (!salaoId) return;
+    const servicosRef = collection(db, 'cabeleireiros', salaoId, 'servicos');
+    const unsubscribe = onSnapshot(servicosRef, (querySnapshot) => {
+      const servicosList = [];
+      querySnapshot.forEach((doc) => {
+        servicosList.push({ id: doc.id, ...doc.data() });
+      });
+      setServices(servicosList);
+    }, (err) => {
+      console.error("Erro ao buscar serviços: ", err);
+      toast.error("Não foi possível carregar a lista de serviços.");
+    });
+    return () => unsubscribe();
+  }, [salaoId]);
+
+
+  // --- Handlers de Navegação ---
+  // ... (todas as funções handle... idênticas) ...
+  const getCalendarApi = () => {
+    if (calendarRef.current) {
+      return calendarRef.current.getApi();
+    }
+    return null;
+  };
+  const handleTodayClick = () => {
+    const api = getCalendarApi();
+    if (api) {
+      api.today();
+      setCurrentDate(new Date()); 
+    }
+  };
+  const handlePrevClick = () => {
+    const api = getCalendarApi();
+    if (api) api.prev();
+  };
+  const handleNextClick = () => {
+    const api = getCalendarApi();
+    if (api) api.next();
+  };
+  const handleViewChange = (e) => {
+    const newView = e.target.value;
+    const api = getCalendarApi();
+    if (api) {
+      api.changeView(newView);
+      setCurrentView(newView);
+    }
+  };
+  const handleDateSelect = (date) => {
+    if (!date) return;
+    const api = getCalendarApi();
+    if (api) {
+      api.gotoDate(date);
+    }
+    setCurrentDate(date);
+  };
+  const handleDatesSet = (dateInfo) => {
+    setCalendarTitle(dateInfo.view.title);
+    setCurrentDate(dateInfo.view.currentStart);
+    setCurrentView(dateInfo.view.type);
+  };
+
+  // --- Handlers de Interação ---
+  const handleEventClick = (clickInfo) => {
+    setSelectedEvent({
+      id: clickInfo.event.id, title: clickInfo.event.title, start: clickInfo.event.start, end: clickInfo.event.end,
+      backgroundColor: clickInfo.event.backgroundColor, extendedProps: clickInfo.event.extendedProps,
+    });
+    setIsDetailsModalOpen(true);
+  };
+  const handleDateClick = (dateInfo) => {
+    const api = getCalendarApi();
+    if (api && api.view.type === 'dayGridMonth') {
+      api.changeView('timeGridDay', dateInfo.date);
+      setCurrentView('timeGridDay');
+      return; 
+    }
+  };
+  const handleCreateClick = () => {
+    setInitialSlot(null);
+    setInitialDuration(30);
+    setIsManualModalOpen(true);
+  };
+  const handleTimeSelect = (selectInfo) => {
+    if (selectInfo.view.type === 'dayGridMonth') {
+      if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
+      return;
+    }
+    if (isBefore(selectInfo.start, new Date())) {
+      toast.error("Não é possível agendar em horários passados.");
+      if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
+      return;
+    }
+    const durationMinutes = differenceInMinutes(selectInfo.end, selectInfo.start);
+    setInitialSlot(selectInfo.start);
+    setInitialDuration(durationMinutes > 0 ? durationMinutes : null);
+    setIsManualModalOpen(true);
+    if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
+  };
+  const handleEventDrop = useCallback(async (dropInfo) => {
+    const { event } = dropInfo;
+    if (isBefore(event.start, new Date())) {
+      toast.error("Não é possível reagendar para o passado.");
+      dropInfo.revert(); return;
+    }
+    if (!window.confirm(`Reagendar "${event.title}" para ${format(event.start, 'dd/MM HH:mm')}?`)) {
+      dropInfo.revert(); return;
+    }
+    const toastId = toast.loading("Reagendando...");
+    try {
+      const token = await auth.currentUser.getIdToken();
+      await axios.patch(`${API_BASE_URL}/admin/calendario/${salaoId}/agendamentos/${event.id}`,
+        { new_start_time: event.start.toISOString() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success("Reagendado!", { id: toastId });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Falha ao reagendar.", { id: toastId });
+      dropInfo.revert();
+    }
+  }, [salaoId]);
+  const handleManualSaveSuccess = () => {
+    setIsManualModalOpen(false); setInitialSlot(null); setInitialDuration(null);
+  };
+
+  // --- Renderização ---
+  if (loading && isInitialLoad.current) { 
+    return (
+      <div className="flex flex-col items-center justify-center p-10 min-h-[400px]">
+        <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
+        <p className="text-gray-600">Carregando agenda...</p>
+      </div>
+    );
+  }
+  if (error) {
+    return <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>;
+  }
+
+  return (
+    <div className="flex h-screen font-sans bg-gray-50 overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden">
+        
+        <HoralisCalendarHeader
+          onToday={handleTodayClick}
+          onPrev={handlePrevClick}
+          onNext={handleNextClick}
+          calendarTitle={calendarTitle}
+          currentView={currentView}
+          onViewChange={handleViewChange}
+          popoverDate={currentDate}
+          onPopoverDateSelect={handleDateSelect}
+          isMobile={isMobile}
+        />
+
+        <div className="flex-1 p-4 overflow-auto"> 
+          <div className="h-full bg-white rounded-lg shadow-sm border border-gray-200">
+            <HoralisFullCalendar
+              calendarRef={calendarRef}
+              events={events}
+              editable={true}
+              eventDrop={handleEventDrop}
+              eventClick={handleEventClick}
+              dateClick={handleDateClick}
+              select={handleTimeSelect}
+              selectable={true}
+              selectMirror={true}
+              selectOverlap={false}
+              longPressDelay={250}
+              eventDurationEditable={false}
+              initialView={currentView}
+              datesSet={handleDatesSet}
+            />
+          </div>
+        </div>
+      </main>
+
+      <button
+        onClick={handleCreateClick}
+        className={`
+          fixed bottom-6 right-6 z-40
+          flex items-center justify-center
+          w-14 h-14 rounded-full shadow-lg
+          ${CIANO_COLOR_BG} ${CIANO_COLOR_BG_HOVER} text-white
+          transition-all duration-300 ease-in-out
+          transform hover:scale-105 hover:shadow-xl
+          focus:outline-none ${CIANO_RING_FOCUS} focus:ring-4
+        `}
+        title="Novo Agendamento"
+      >
+        <Icon icon={Plus} className="w-7 h-7" />
+      </button>
+
+      {/* --- Modais --- */}
+      <EventDetailsModal
+         isOpen={isDetailsModalOpen}
+         onClose={() => setIsDetailsModalOpen(false)}
+         event={selectedEvent}
+         salaoId={salaoId}
+         onCancelSuccess={() => setIsDetailsModalOpen(false)}
+       />
+       <ManualBookingModal
+         isOpen={isManualModalOpen}
+         onClose={() => { setIsManualModalOpen(false); setInitialSlot(null); setInitialDuration(null); }}
+         salaoId={salaoId}
+         initialDateTime={initialSlot} 
+         initialDuration={initialDuration}
+         onSaveSuccess={handleManualSaveSuccess}
+         events={events}
+         services={services} 
+       />
+    </div>
+  );
+}
+
+// --- Componente MODAL DE DETALHES (Sem alteração) ---
+// ... (código idêntico) ...
 const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   if (!isOpen || !event) return null;
 
-  // Usa ?? para fallback caso extendedProps não exista
   const extendedProps = event?.extendedProps ?? {};
   const {
     customerName,
     customerPhone,
     serviceName,
     durationMinutes,
-    customerEmail // Extrai customerEmail (será undefined se não existir em extendedProps)
+    customerEmail 
   } = extendedProps;
-  const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A"); // Calcula duração se não vier
+  const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A");
 
   const handleCancelAppointment = async () => {
     if (!window.confirm("Cancelar este agendamento?")) return;
@@ -57,7 +468,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success("Cancelado!", { id: toastId });
-      onCancelSuccess(); // Fecha modal (onSnapshot atualiza)
+      onCancelSuccess();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Falha ao cancelar.", { id: toastId });
     } finally { setIsLoading(false); }
@@ -66,8 +477,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden">
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center p-5 border-b" style={{ backgroundColor: event.backgroundColor || '#60A5FA' /* Azul fallback */ }}>
+        <div className="flex justify-between items-center p-5 border-b" style={{ backgroundColor: event.backgroundColor || '#60A5FA' }}>
           <h2 className="text-xl font-semibold text-white truncate pr-4">
             {event.title || 'Detalhes do Agendamento'}
           </h2>
@@ -75,7 +485,6 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
             <Icon icon={X} className="w-6 h-6" />
           </button>
         </div>
-        {/* Corpo */}
         <div className="p-5 space-y-4">
           <p className="text-sm font-medium text-gray-700">Detalhes:</p>
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -91,22 +500,19 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
               <Icon icon={User} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
               <span className="font-semibold text-gray-900">{customerName || 'Não Informado'}</span>
             </div>
-            {/* <<< ADICIONADO: E-mail (Condicional) >>> */}
             {customerEmail && (
               <div className="flex items-center gap-3">
                 <Icon icon={Mail} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
                 <span className="text-gray-600">{customerEmail}</span>
               </div>
             )}
-            {/* <<< FIM DA ADIÇÃO >>> */}
-            {customerPhone && ( // Mostra telefone apenas se existir
+            {customerPhone && (
               <div className="flex items-center gap-3">
                 <Icon icon={Phone} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
                 <span className="text-gray-600">{customerPhone}</span>
               </div>
             )}
           </div>
-          {/* Botões */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               onClick={handleCancelAppointment}
@@ -116,7 +522,6 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 stroke-current" /> : null}
               Cancelar Agendamento
             </button>
-             {/* Botão Reagendar removido - Usar Drag-and-Drop */}
           </div>
         </div>
       </div>
@@ -125,116 +530,250 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
 };
 
 
-// <<< MOVIDO PARA FORA: Modal de Agendamento Manual >>>
-const ManualBookingModal = ({ isOpen, onClose, salaoId, initialDateTime, initialDuration, onSaveSuccess }) => {
+// --- <<< Componente MODAL DE AGENDAMENTO (Nomes Corrigidos) >>> ---
+const ManualBookingModal = ({ 
+  isOpen, 
+  onClose, 
+  salaoId, 
+  initialDateTime, 
+  initialDuration, 
+  onSaveSuccess, 
+  events,
+  services
+}) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState(''); // <<< ADICIONADO: Estado para e-mail >>>
-  const [serviceName, setServiceName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  
+  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [duration, setDuration] = useState(initialDuration || 30);
+  
+  const [manualDate, setManualDate] = useState(new Date());
+  const [manualTime, setManualTime] = useState('09:00');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
-      // Reseta TUDO ao abrir
       setName('');
       setPhone('');
-      setCustomerEmail(''); // <<< ADICIONADO: Reset do e-mail >>>
-      setServiceName(initialDateTime ? `Agendamento - ${format(initialDateTime, 'dd/MM HH:mm')}` : 'Novo Agendamento');
-      setDuration(initialDuration || 30);
+      setCustomerEmail('');
       setError(null);
       setLoading(false);
+      setSelectedServiceId('');
+      
+      if (initialDateTime) {
+        setDuration(initialDuration || 30);
+      } else {
+        const proximaHora = setMinutes(setHours(new Date(), new Date().getHours() + 1), 0);
+        setDuration(initialDuration || 30);
+        setManualDate(proximaHora);
+        setManualTime(format(proximaHora, 'HH:mm'));
+      }
     }
   }, [isOpen, initialDateTime, initialDuration]);
+
+  // Handler para quando o <select> de serviço muda
+  const handleServiceChange = (e) => {
+    const serviceId = e.target.value;
+    setSelectedServiceId(serviceId);
+
+    if (serviceId) {
+      const service = services.find(s => s.id === serviceId);
+      if (service) {
+        // <<< CORREÇÃO: Usando 'duracao_minutos' >>>
+        setDuration(service.duracao_minutos); // Atualiza a duração automaticamente
+      }
+    } else {
+      setDuration(30);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    // Validações
-    if (!name.trim() || !serviceName.trim() || duration < 5) {
-      setError("Preencha nome, descrição e duração (mín. 5 min)."); return;
+
+    if (!name.trim() || !selectedServiceId) {
+      setError("Preencha o nome do cliente e selecione um serviço."); 
+      return;
     }
-    // <<< ADICIONADO: Validação opcional de e-mail (se preenchido) >>>
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const trimmedEmail = customerEmail.trim();
     if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
         setError("O formato do e-mail é inválido."); return;
     }
-
-
+    
+    // --- Determina a data/hora final ---
+    let finalDateTime;
+    if (initialDateTime) {
+      finalDateTime = initialDateTime;
+    } else {
+      try {
+        const [hour, minute] = manualTime.split(':').map(Number);
+        let combinedDate = setHours(setMinutes(manualDate, minute), hour);
+        
+        if (isBefore(combinedDate, new Date())) {
+          setError("Não é possível agendar em horários passados.");
+          return;
+        }
+        finalDateTime = combinedDate;
+      } catch (err) {
+        setError("Formato de hora inválido.");
+        return;
+      }
+    }
+    
     setLoading(true);
 
+    // --- Verificação de Conflito (lógica idêntica) ---
+    const proposedStartTime = finalDateTime;
+    const proposedEndTime = addMinutes(proposedStartTime, duration);
+
+    const hasConflict = events.some(event => {
+      const existingStartTime = event.start;
+      const existingEndTime = event.end;
+      return (proposedStartTime < existingEndTime) && (proposedEndTime > existingStartTime);
+    });
+
+    if (hasConflict) {
+      setError("Este horário já está ocupado. Por favor, escolha outro.");
+      setLoading(false);
+      return;
+    }
+    
+    const service = services.find(s => s.id === selectedServiceId);
+    if (!service) {
+      setError("Serviço selecionado não encontrado.");
+      setLoading(false);
+      return;
+    }
+    // <<< CORREÇÃO: Usando 'nome_servico' >>>
+    const serviceNameFromList = service.nome_servico;
+
+    // Continua para o salvamento
     try {
       const token = await auth.currentUser.getIdToken();
       const payload = {
         salao_id: salaoId,
-        start_time: initialDateTime.toISOString(),
+        start_time: finalDateTime.toISOString(),
         duration_minutes: duration,
         customer_name: name.trim(),
         customer_phone: phone.trim() || null,
-        customer_email: trimmedEmail || null, // <<< ADICIONADO: Envia e-mail ou null >>>
-        service_name: serviceName.trim(),
+        customer_email: trimmedEmail || null, 
+        service_name: serviceNameFromList, // <<< CORRIGIDO
+        // (Opcional) Enviar também o ID, preço, etc.
+        service_id: selectedServiceId,
+        service_price: service.preco, // <<< 'preco' está correto
       };
       await axios.post(`${API_BASE_URL}/admin/calendario/agendar`, payload, { headers: { Authorization: `Bearer ${token}` } });
-      onSaveSuccess(); // Fecha modal
+      onSaveSuccess();
     } catch (err) {
       setError(err.response?.data?.detail || "Falha ao salvar agendamento.");
     } finally {
-       setLoading(false);
+      setLoading(false);
     }
   };
 
   if (!isOpen) return null;
 
-  // --- JSX do Modal ---
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden">
-        {/* Cabeçalho */}
         <div className="flex justify-between items-center p-5 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-800">Agendamento Manual</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={loading}>
             <Icon icon={X} className="w-5 h-5" />
           </button>
         </div>
-        {/* Formulário */}
+        
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Horário */}
-          <p className={`text-sm font-semibold ${CIANO_COLOR_TEXT} bg-cyan-50 p-2 rounded border border-cyan-100`}>
-            Horário: {initialDateTime ? format(initialDateTime, 'dd/MM/yyyy HH:mm') : 'Indefinido'}
-          </p>
-          {/* Nome Cliente */}
+          
+          {initialDateTime ? (
+            <p className={`text-sm font-semibold ${CIANO_COLOR_TEXT} bg-cyan-50 p-2 rounded border border-cyan-100`}>
+              Horário: {format(initialDateTime, 'dd/MM/yyyy HH:mm')}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selecione a Data</label>
+              <div className="flex justify-center">
+                <HoralisCalendar
+                  selectedDate={manualDate}
+                  onDateSelect={setManualDate}
+                />
+              </div>
+              <div>
+                <label htmlFor="manual-time" className="block text-sm font-medium text-gray-700 mb-1">Selecione o Horário</label>
+                <input 
+                  type="time" 
+                  id="manual-time"
+                  value={manualTime}
+                  onChange={(e) => setManualTime(e.target.value)}
+                  className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`}
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label htmlFor="manual-name" className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
             <input name="name" id="manual-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} required placeholder="Nome do Cliente" />
           </div>
-
-          {/* <<< ADICIONADO: Campo E-mail Cliente >>> */}
           <div>
             <label htmlFor="manual-email" className="block text-sm font-medium text-gray-700 mb-1">E-mail do Cliente (Opcional)</label>
             <input name="email" id="manual-email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} placeholder="Para enviarmos e-mail de confirmação" />
           </div>
-          {/* <<< FIM DA ADIÇÃO >>> */}
-
-          {/* Telefone */}
           <div>
             <label htmlFor="manual-phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
             <input name="phone" id="manual-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} placeholder="(Opcional)" />
           </div>
-          {/* Descrição Serviço */}
+          
+          {/* --- Select de Serviço --- */}
           <div>
-            <label htmlFor="manual-serviceName" className="block text-sm font-medium text-gray-700 mb-1">Descrição do Serviço*</label>
-            <input name="serviceName" id="manual-serviceName" type="text" value={serviceName} onChange={(e) => setServiceName(e.target.value)} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} required placeholder="Ex: Corte Masculino" />
+            <label htmlFor="manual-serviceName" className="block text-sm font-medium text-gray-700 mb-1">Serviço*</label>
+            <select 
+              name="serviceName" 
+              id="manual-serviceName" 
+              value={selectedServiceId}
+              onChange={handleServiceChange}
+              className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} appearance-none bg-white`}
+              disabled={loading || services.length === 0}
+              required
+            >
+              <option value="">
+                {services.length === 0 ? "Carregando serviços..." : "Selecione um serviço"}
+              </option>
+              {services.map((service) => (
+                // <<< CORREÇÃO: Usando 'nome_servico' e 'preco' >>>
+                <option key={service.id} value={service.id}>
+                  {service.nome_servico} (R$ {service.preco || '0.00'})
+                </option>
+              ))}
+            </select>
           </div>
-          {/* Duração */}
+          
           <div>
             <label htmlFor="manual-duration" className="block text-sm font-medium text-gray-700 mb-1">Duração (min)*</label>
-            <input name="duration" id="manual-duration" type="number" value={duration} onChange={(e) => setDuration(Math.max(5, parseInt(e.target.value) || 0))} className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`} disabled={loading} required min="5"/>
+            <input 
+              name="duration" 
+              id="manual-duration" 
+              type="number" 
+              value={duration} 
+              onChange={(e) => setDuration(Math.max(5, parseInt(e.target.value) || 0))} 
+              className={`w-full border border-gray-300 rounded-md p-2 h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} bg-gray-50`} 
+              disabled={loading}
+              readOnly={selectedServiceId !== ''} // Trava se um serviço foi selecionado
+              required 
+              min="5"
+            />
+            {selectedServiceId !== '' && (
+              <p className="text-xs text-gray-500 mt-1">A duração é definida automaticamente pelo serviço.</p>
+            )}
           </div>
-          {/* Erro */}
+          
           {error && <p className="text-sm text-red-600 mt-2 text-center">{error}</p>}
-          {/* Botão Salvar */}
+          
           <div className="flex justify-end pt-4 border-t border-gray-100">
             <button type="submit" className={`flex items-center px-6 py-2.5 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors disabled:opacity-50`} disabled={loading}>
               {loading ? <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" /> : null}
@@ -247,186 +786,5 @@ const ManualBookingModal = ({ isOpen, onClose, salaoId, initialDateTime, initial
   );
 };
 
-// --- COMPONENTE PRINCIPAL DA PÁGINA ---
-
-function CalendarioPage() {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const { salaoId } = useParams();
-  const calendarRef = useRef(null);
-  const isInitialLoad = useRef(true);
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [initialSlot, setInitialSlot] = useState(null);
-  const [initialDuration, setInitialDuration] = useState(null); // <<< ESTADO ADICIONADO >>>
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-
-  // --- Carregamento de Eventos (onSnapshot) ---
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!salaoId || !currentUser) {
-      setError("Autenticação ou ID do salão inválido."); setLoading(false); return;
-    }
-    setLoading(true);
-    const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
-    const unsubscribe = onSnapshot(agendamentosRef, (querySnapshot) => {
-      const rawEvents = [];
-      querySnapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && !isInitialLoad.current) {
-          const d = change.doc.data(); toast.success(`Novo: ${d.serviceName} - ${d.customerName}`, { icon: '✨' });
-        }
-        if (change.type === "removed" && !isInitialLoad.current) { toast('Agendamento removido.', { icon: '🗑️' }); }
-      });
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const startTime = data.startTime?.toDate(); const endTime = data.endTime?.toDate();
-        if (startTime && endTime) {
-          const colorIndex = Math.abs(doc.id.charCodeAt(0) % HORALIS_EVENT_COLORS.length); // Cor mais consistente
-          rawEvents.push({
-            id: doc.id, title: `${data.serviceName || 'Serviço'} - ${data.customerName || 'Cliente'}`,
-            start: startTime, end: endTime, backgroundColor: HORALIS_EVENT_COLORS[colorIndex], borderColor: HORALIS_EVENT_COLORS[colorIndex],
-            extendedProps: { customerEmail: data.customerEmail,customerName: data.customerName, customerPhone: data.customerPhone, serviceName: data.serviceName, durationMinutes: data.durationMinutes, googleEventId: data.googleEventId }
-          });
-        }
-      });
-      setEvents(rawEvents); setLoading(false); isInitialLoad.current = false;
-    }, (err) => {
-      setError("Erro ao conectar à agenda."); setLoading(false); console.error(err);
-    });
-    return () => unsubscribe();
-  }, [salaoId]);
-
-  // --- Handlers de Interação ---
-  const handleEventClick = (clickInfo) => {
-    setSelectedEvent({
-      id: clickInfo.event.id, title: clickInfo.event.title, start: clickInfo.event.start, end: clickInfo.event.end,
-      backgroundColor: clickInfo.event.backgroundColor, extendedProps: clickInfo.event.extendedProps,
-    });
-    setIsDetailsModalOpen(true);
-  };
-
-  const handleDateClick = (dateInfo) => {
-    // <<< ADICIONADO: Verificação de Data Passada >>>
-    // Compara a data/hora clicada com a data/hora atual
-    if (isBefore(dateInfo.date, new Date())) {
-      toast.error("Não é possível agendar em horários passados."); // Mostra um aviso
-      return; // Impede a abertura do modal
-    }
-    // <<< FIM DA ADIÇÃO >>>
-
-    console.log("Slot vago clicado (dateClick):", dateInfo.dateStr);
-    setInitialSlot(dateInfo.date);
-    setInitialDuration(null);
-    setIsManualModalOpen(true);
-  };
-
-  const handleTimeSelect = (selectInfo) => {
-    // <<< ADICIONADO: Verificação de Data Passada >>>
-    // Compara a data/hora INICIAL da seleção com a data/hora atual
-    if (isBefore(selectInfo.start, new Date())) {
-      toast.error("Não é possível agendar em horários passados."); // Mostra um aviso
-      // Desseleciona visualmente
-      if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
-      return; // Impede a abertura do modal
-    }
-    // <<< FIM DA ADIÇÃO >>>
-
-    console.log("Período selecionado (select):", selectInfo.startStr, "a", selectInfo.endStr);
-    const durationMinutes = differenceInMinutes(selectInfo.end, selectInfo.start);
-    setInitialSlot(selectInfo.start);
-    setInitialDuration(durationMinutes > 0 ? durationMinutes : null);
-    setIsManualModalOpen(true);
-    if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
-  };
-
-  const handleEventDrop = useCallback(async (dropInfo) => {
-    const { event } = dropInfo;
-
-    // --- ADICIONADO: Verificação de Data Passada ---
-    // Checa se a nova data de início do evento é anterior à data/hora atual.
-    if (isBefore(event.start, new Date())) {
-        toast.error("Não é possível reagendar para o passado.");
-        dropInfo.revert(); // Reverte a ação visualmente, movendo o evento de volta.
-        return; // Impede a execução do resto da função.
-    }
-    // --- FIM DA ADIÇÃO ---
-
-    // O restante da função continua como antes:
-    if (!window.confirm(`Reagendar "${event.title}" para ${format(event.start, 'dd/MM HH:mm')}?`)) {
-      dropInfo.revert();
-      return;
-    }
-    const toastId = toast.loading("Reagendando...");
-    try {
-      const token = await auth.currentUser.getIdToken();
-      await axios.patch(`${API_BASE_URL}/admin/calendario/${salaoId}/agendamentos/${event.id}`,
-        { new_start_time: event.start.toISOString() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      toast.success("Reagendado!", { id: toastId }); // onSnapshot cuidará da atualização visual
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Falha ao reagendar.", { id: toastId });
-      dropInfo.revert(); // Reverte em caso de erro na API
-    }
-  }, [salaoId]);
- // --- <<< FIM DA ALTERAÇÃO >>> ---
-
-  const handleManualSaveSuccess = () => {
-    setIsManualModalOpen(false); setInitialSlot(null); setInitialDuration(null);
-  };
-
-  // --- Renderização ---
-  if (loading && isInitialLoad.current) { // Loading inicial
-    return (
-        <div className="flex flex-col items-center justify-center p-10 min-h-[400px]">
-            <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-            <p className="text-gray-600">Carregando agenda...</p>
-        </div>
-    );
-  }
-   if (error) { // Erro no carregamento inicial
-     return <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>;
-   }
-
-  return (
-    <div className="font-sans">
-      {/* <h1 className="text-2xl font-semibold text-gray-900 mb-6">Agenda Horalis</h1> */} {/* Título removido do layout */}
-
-      <HoralisFullCalendar
-        calendarRef={calendarRef}
-        events={events}
-        editable={true}
-        eventDrop={handleEventDrop}
-        eventClick={handleEventClick}
-        dateClick={handleDateClick} // Clique simples
-        select={handleTimeSelect}   // Seleção de período
-        selectable={true}
-        selectMirror={true}
-        selectOverlap={false}
-        longPressDelay={250}      // Otimização touch
-        eventDurationEditable={false} // Otimização touch
-        initialView="timeGridWeek" // Visão inicial
-      />
-
-      {/* Modais */}
-      <EventDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
-        event={selectedEvent}
-        salaoId={salaoId}
-        onCancelSuccess={() => setIsDetailsModalOpen(false)}
-      />
-      <ManualBookingModal
-        isOpen={isManualModalOpen}
-        onClose={() => { setIsManualModalOpen(false); setInitialSlot(null); setInitialDuration(null); }}
-        salaoId={salaoId}
-        initialDateTime={initialSlot}
-        initialDuration={initialDuration} // Passa a duração
-        onSaveSuccess={handleManualSaveSuccess}
-      />
-    </div>
-  );
-}
 
 export default CalendarioPage;

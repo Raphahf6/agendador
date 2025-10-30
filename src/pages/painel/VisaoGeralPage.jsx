@@ -5,23 +5,27 @@ import { auth, db } from '@/firebaseConfig';
 import {
     collection, query, where, getDocs, onSnapshot, orderBy, limit, Timestamp
 } from "firebase/firestore";
-import { format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow } from 'date-fns';
+// <<< MUDANÇA 1: Importando startOfMonth e endOfMonth >>>
+import {
+    format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow,
+    startOfMonth, endOfMonth
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
     Loader2, Calendar, Users, BarChart2, Bell, CheckCircle, AlertTriangle, TrendingUp, CalendarPlus,
-    Filter, Check, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Edit // Importado Copy e LinkIcon
+    Filter, Check, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Edit
 } from 'lucide-react';
 // Importa Recharts
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import toast from 'react-hot-toast';
 
 // --- DEFINIÇÕES DE COR (Baseado na sua Landing Page estável) ---
-const CIANO_TEXT_CLASS = 'text-cyan-800'; // Usando 800 como na sua Landing Page
+const CIANO_TEXT_CLASS = 'text-cyan-800';
 const CIANO_BG_CLASS = 'bg-cyan-800';
-const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900'; // 900 para hover
+const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900';
 const CIANO_LIGHT_BG = 'bg-cyan-50';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-800';
-const CIANO_FILL_COLOR = '#0E7490'; // Hex code para cyan-800
+const CIANO_FILL_COLOR = '#0E7490';
 
 // --- Helper Ícone Simples ---
 const Icon = ({ icon: IconComponent, className = "" }) => (
@@ -29,6 +33,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 );
 
 // --- Hook customizado para fechar dropdown ao clicar fora ---
+// ... (código idêntico) ...
 function useOnClickOutside(ref, handler) {
     useEffect(() => {
         const listener = (event) => {
@@ -48,6 +53,7 @@ function useOnClickOutside(ref, handler) {
 // --- Fim do Hook ---
 
 // --- Componente KpiCard (Com filtro customizado) ---
+// ... (código idêntico) ...
 const KpiCard = ({
     title,
     value,
@@ -57,7 +63,7 @@ const KpiCard = ({
     onFilterChange,
     filterOptions
 }) => {
-    
+
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const dropdownRef = useRef(null);
     useOnClickOutside(dropdownRef, () => setIsFilterOpen(false));
@@ -89,11 +95,10 @@ const KpiCard = ({
                                         <button
                                             key={option.value}
                                             onClick={() => handleFilterSelect(option.value)}
-                                            className={`w-full text-left flex items-center px-4 py-2 text-sm ${
-                                                filterPeriod === option.value
+                                            className={`w-full text-left flex items-center px-4 py-2 text-sm ${filterPeriod === option.value
                                                     ? `font-semibold text-cyan-900 ${CIANO_LIGHT_BG}`
                                                     : 'text-gray-700 hover:bg-gray-100'
-                                            }`}
+                                                }`}
                                         >
                                             {filterPeriod === option.value && (
                                                 <Icon icon={Check} className="w-4 h-4 mr-2 -ml-1" />
@@ -123,6 +128,7 @@ const KpiCard = ({
 // --- Fim KpiCard ---
 
 // --- Componente ProximoAgendamentoItem ---
+// ... (código idêntico) ...
 const ProximoAgendamentoItem = ({ agendamento }) => {
     const formattedTime = agendamento.startTime
         ? format(agendamento.startTime.toDate(), "dd/MM 'às' HH:mm", { locale: ptBR })
@@ -164,18 +170,19 @@ function VisaoGeralPage() {
     const receitaFilterOptions = [
         { value: 'hoje', label: 'Hoje' },
         { value: 'semana', label: 'Próx. 7 Dias' },
-        { value: 'mes', label: 'Próx. 30 Dias' }
+        // <<< MUDANÇA 1: Label do filtro 'mes' >>>
+        { value: 'mes', label: 'Mês Atual' }
     ];
 
     // --- fetchKpiData (com dados do gráfico e filtros) ---
     const fetchKpiData = useCallback(async () => {
         if (!salaoId || !auth.currentUser) return;
         setLoadingKpi(true); setLoadingChart(true);
-        // setError(null); // Não limpa erro para usuário ver
+        // setError(null);
 
         try {
             const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
-            const now = new Date();
+            const now = new Date(); // <-- Hora atual
             const hojeInicio = startOfDay(now);
             const amanhaInicio = startOfDay(addDays(now, 1));
             const prox7DiasFim = startOfDay(addDays(now, 7));
@@ -184,9 +191,16 @@ function VisaoGeralPage() {
 
             // --- Queries de Contagem (com filtro "cancelado") ---
             const hojeQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(hojeInicio)), where("startTime", "<", Timestamp.fromDate(amanhaInicio)), where("status", "!=", "cancelado"));
-            const prox7DiasQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(hojeInicio)), where("startTime", "<", Timestamp.fromDate(prox7DiasFim)), where("status", "!=", "cancelado"));
+
+            // <<< MUDANÇA 2: Query 'prox7DiasQuery' agora começa de 'now' >>>
+            const prox7DiasQuery = query(agendamentosRef,
+                where("startTime", ">=", Timestamp.fromDate(now)), // <-- Começa da hora atual
+                where("startTime", "<", Timestamp.fromDate(prox7DiasFim)),
+                where("status", "!=", "cancelado")
+            );
+
             const novos24hQuery = query(agendamentosRef, where("createdAt", ">=", Timestamp.fromDate(ultimas24h)), where("status", "!=", "cancelado"));
-            
+
             const [hojeSnapshot, prox7DiasSnapshot, novos24hSnapshot] = await Promise.all([
                 getDocs(hojeQuery), getDocs(prox7DiasQuery), getDocs(novos24hQuery)
             ]);
@@ -200,8 +214,12 @@ function VisaoGeralPage() {
                 receitaStartDate = hojeInicio; receitaEndDate = endOfDay(now); newTitulo = 'Receita Prevista (Hoje)';
             } else if (receitaPeriodo === 'semana') {
                 receitaStartDate = hojeInicio; receitaEndDate = endOfDay(addDays(now, 7)); newTitulo = 'Receita (7d)';
+
+                // <<< MUDANÇA 1: Lógica do filtro 'mes' >>>
             } else { // 'mes'
-                receitaStartDate = hojeInicio; receitaEndDate = endOfDay(addDays(now, 30)); newTitulo = 'Receita (30d)';
+                receitaStartDate = startOfMonth(now); // <-- Início do mês atual
+                receitaEndDate = endOfMonth(now);   // <-- Fim do mês atual
+                newTitulo = 'Receita (Mês Atual)';  // <-- Novo título
             }
             setReceitaTitulo(newTitulo);
 
@@ -223,9 +241,10 @@ function VisaoGeralPage() {
             setLoadingKpi(false);
 
             // --- Query para Gráfico (com filtro "cancelado") ---
+            // ... (lógica do gráfico idêntica) ...
             const chartQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(ultimos7DiasInicio)), where("startTime", "<=", Timestamp.fromDate(endOfDay(now))), where("status", "!=", "cancelado"));
             const chartSnapshot = await getDocs(chartQuery);
-            
+
             const diasDaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
             let diasArray = [];
             for (let i = 6; i >= 0; i--) {
@@ -242,7 +261,7 @@ function VisaoGeralPage() {
                 const diaIndex = diasArray.findIndex(d => d.fullDate === diaFormatado);
                 if (diaIndex !== -1) { diasArray[diaIndex].Agendamentos++; }
             });
-            
+
             setChartData7Days(diasArray);
             setLoadingChart(false);
         } catch (err) {
@@ -254,6 +273,7 @@ function VisaoGeralPage() {
     }, [salaoId, receitaPeriodo]);
 
     // --- Listener Próximos Agendamentos (com filtro "cancelado") ---
+    // ... (lógica idêntica, já começa de Timestamp.now()) ...
     useEffect(() => {
         if (!salaoId) return;
         setLoadingProximos(true);
@@ -282,8 +302,9 @@ function VisaoGeralPage() {
     useEffect(() => { fetchKpiData(); }, [fetchKpiData]);
 
     // --- Função Copiar Link ---
+    // ... (código idêntico) ...
     const copyLink = () => {
-        const publicUrl = `https://horalis.app/agendar/${salaoId}`; // <<< USANDO NOVO DOMÍNIO
+        const publicUrl = `https://horalis.app/agendar/${salaoId}`;
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
         navigator.clipboard.writeText(publicUrl).then(() => {
             setLinkCopied(true);
@@ -294,39 +315,34 @@ function VisaoGeralPage() {
             console.error('Erro ao copiar: ', err);
         });
     };
-    // Cleanup do timeout
     useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
 
     // --- Renderização ---
     return (
         <div className="font-sans space-y-6">
-            {/* <<< ALTERADO: Título e Botão Copiar Link lado a lado >>> */}
+            {/* Título e Botão Copiar Link */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <h2 className={`text-2xl font-bold text-gray-900 flex items-center ${CIANO_TEXT_CLASS}`}>
                     <Icon icon={BarChart2} className="w-6 h-6 mr-3" />
                     Visão Geral
                 </h2>
-                
-                {/* Botão Conciso de Copiar Link */}
+
                 <button
                     type="button"
                     onClick={copyLink}
-                    className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ease-in-out shadow-sm ${
-                        linkCopied
-                        ? 'bg-green-100 text-green-700' // Verde quando copiado
-                        : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}` // Ciano normal
-                    }`}
+                    className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ease-in-out shadow-sm ${linkCopied
+                            ? 'bg-green-100 text-green-700'
+                            : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
+                        }`}
                 >
-                    <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-2"/>
+                    <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-2" />
                     {linkCopied ? "Link Copiado!" : "Link de Agendamentos"}
                 </button>
             </div>
-            {/* <<< FIM DA ALTERAÇÃO >>> */}
-
 
             {error && (
                 <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 flex items-center gap-2">
-                    <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0"/> <p>{error}</p>
+                    <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" /> <p>{error}</p>
                 </div>
             )}
 
@@ -342,8 +358,6 @@ function VisaoGeralPage() {
                 <KpiCard title="Agend. Próx. 7 Dias" value={kpiData.prox7dias} icon={CalendarDays} isLoading={loadingKpi} />
                 <KpiCard title="Novos Agend. (24h)" value={kpiData.novos24h} icon={Users} isLoading={loadingKpi} />
             </div>
-
-            {/* <<< REMOVIDO: Card "Ações Rápidas" >>> */}
 
             {/* 2. Gráfico e Próximos Agendamentos (Grid de 2 colunas) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -375,7 +389,7 @@ function VisaoGeralPage() {
                 {/* Coluna Próximos Agendamentos */}
                 <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
-                        <Icon icon={Bell} className={`w-5 h-5 mr-2 ${CIANO_TEXT_CLASS}`}/>
+                        <Icon icon={Bell} className={`w-5 h-5 mr-2 ${CIANO_TEXT_CLASS}`} />
                         Próximos Agendamentos
                     </h3>
                     {loadingProximos ? (

@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useParams, useNavigate} from 'react-route
 import { cn } from "@/lib/utils";
 import {
   Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon, // LayoutDashboard removido (não usado)
-  LayoutDashboard,CreditCard
+  LayoutDashboard,CreditCard,BarChart2
 } from 'lucide-react';
 import axios from 'axios';
 // import { ImageWithFallback } from '@/ui/ImageWithFallback'; // <<< REMOVIDO: Não usaremos mais a imagem >>>
@@ -15,7 +15,7 @@ import { auth } from '@/firebaseConfig';
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 const navigation = [
-  { name: 'Visão Geral', href: 'visaoGeral', icon: LayoutDashboard },
+  { name: 'Visão Geral', href: 'visaoGeral', icon: BarChart2 },
   { name: 'Calendário', href: 'calendario', icon: Calendar },
   { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
   { name: 'Horario de Funcionamento', href: 'horarios', icon: TimerIcon },
