@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X } from 'lucide-react';
+import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone } from 'lucide-react';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
@@ -335,6 +335,7 @@ export function LandingPage() {
                   { icon: Calendar, title: 'Integração com Google', description: 'Todos os agendamentos vão direto para sua Google Agenda.' },
                   { icon: Clock, title: 'Economize Tempo', description: 'Nunca mais perca tempo anotando agendamentos manualmente.' },
                   { icon: Users, title: 'Experiência do Cliente', description: 'Eleve a experiência do seu cliente com um sistema de agendamentos feito sob medida.' },
+                   { icon: Smartphone, title: 'Responsividade', description: 'Sistema totalmente responsivo podendo utilizar tanto no celular como no computador' },
                 ].map((benefit, index) => (
                   <div key={index} className="flex gap-4 p-4 rounded-xl bg-white border border-gray-200 hover:bg-white transition-all hover:shadow-md">
                     <div className={`flex-shrink-0 w-12 h-12 rounded-lg ${CIANO_BG_CLASS} flex items-center justify-center text-white`}>
