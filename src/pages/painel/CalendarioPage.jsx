@@ -340,10 +340,22 @@ function CalendarioPage() {
     if (calendarRef.current) { calendarRef.current.getApi().unselect(); }
   };
 
-  const handleEventDrop = useCallback(async (dropInfo) => { // Reagendamento
+  const handleEventDrop = useCallback(async (dropInfo) => {
     const { event } = dropInfo;
+
+    // --- ADICIONADO: Verificação de Data Passada ---
+    // Checa se a nova data de início do evento é anterior à data/hora atual.
+    if (isBefore(event.start, new Date())) {
+        toast.error("Não é possível reagendar para o passado.");
+        dropInfo.revert(); // Reverte a ação visualmente, movendo o evento de volta.
+        return; // Impede a execução do resto da função.
+    }
+    // --- FIM DA ADIÇÃO ---
+
+    // O restante da função continua como antes:
     if (!window.confirm(`Reagendar "${event.title}" para ${format(event.start, 'dd/MM HH:mm')}?`)) {
-      dropInfo.revert(); return;
+      dropInfo.revert();
+      return;
     }
     const toastId = toast.loading("Reagendando...");
     try {
@@ -352,12 +364,13 @@ function CalendarioPage() {
         { new_start_time: event.start.toISOString() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success("Reagendado!", { id: toastId }); // onSnapshot atualiza
+      toast.success("Reagendado!", { id: toastId }); // onSnapshot cuidará da atualização visual
     } catch (err) {
       toast.error(err.response?.data?.detail || "Falha ao reagendar.", { id: toastId });
-      dropInfo.revert();
+      dropInfo.revert(); // Reverte em caso de erro na API
     }
   }, [salaoId]);
+ // --- <<< FIM DA ALTERAÇÃO >>> ---
 
   const handleManualSaveSuccess = () => {
     setIsManualModalOpen(false); setInitialSlot(null); setInitialDuration(null);

@@ -14,7 +14,7 @@ const CIANO_BORDER_CLASS = 'border-cyan-800';
 
 // Helper Ícone
 const Icon = ({ icon: IconComponent, className = "" }) => (
-  <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+  <IconComponent className={`stroke-current ${className}`} aria-hidden="truehttps://wa.me/5511936200327?text=Ol%C3%A1,%20Gostaria%20de%20saber%20mais%20sobre%20o%20horalis" />
 );
 
 // Componente Card de Serviço (Simplificado para o Preview)

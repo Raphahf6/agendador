@@ -116,7 +116,7 @@ export function LandingPage() {
                   rel="noopener noreferrer"
                   className={`inline-flex items-center justify-center px-8 py-4 text-base font-medium text-white ${CIANO_BG_CLASS} rounded-lg shadow-md ${CIANO_BG_HOVER_CLASS} hover:shadow-lg transition-all transform hover:scale-105`}
                 >
-                  Quero Cadastrar Meu Salão
+                  Quero Cadastrar Meu Comercio
                   {renderIcon(ArrowRight, "ml-2 w-5 h-5")}
                 </a>
               </div>
