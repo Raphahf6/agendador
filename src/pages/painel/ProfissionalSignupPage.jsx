@@ -14,7 +14,7 @@ const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // --- <<< INICIALIZAÇÃO DO MERCADO PAGO >>> ---
 // (Coloque sua Public Key aqui, encontrada no painel do MP)
-initMercadoPago(MERCADO_PAGO_PUBLIC_KEY, {
+initMercadoPago("APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311", {
   locale: 'pt-BR'
 });
 // --- <<< FIM DA INICIALIZAÇÃO >>> ---
