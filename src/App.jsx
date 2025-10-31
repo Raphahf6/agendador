@@ -11,6 +11,7 @@ import HoralisCalendar from './components/HoralisCalendar';
 import { LandingPage } from './pages/LandingPage';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import { ArrowLeft } from 'lucide-react';
+import ClienteDetailPage from './pages/painel/ClienteDetailPage';
 
 // --- Imports do NOVO PAINEL ---
 import PainelLayout from './pages/painel/PainelLayout';
@@ -28,6 +29,7 @@ import HorariosPage from './pages/painel/HorariosPage';
 import { Toaster } from 'react-hot-toast';
 import VisaoGeralPage from './pages/painel/VisaoGeralPage';
 import AssinaturaPage from './pages/painel/AssinaturaPage';
+import ClientesPage from './pages/painel/ClientesPage';
 // --- FIM DOS NOVOS IMPORTS ---
 
 // --- Componente SalonScheduler (COMPLETO e SEM 'user') ---
@@ -281,11 +283,13 @@ function App() {
                 {/* --- ROTA DO PAINEL PROTEGIDA (Pai) --- */}
                 {/* Removido o login e cadastro daqui. Se não estiver logado, o ProtectedRoute interno irá redirecionar para /login */}
                 <Route path="/painel/:salaoId" element={<PainelLayout />}>
+                <Route path="clientes/:clienteId" element={<ClienteDetailPage />} />
                     {/* SUB-ROTAS (Renderizadas dentro do PainelLayout) */}
                     {/* Estas rotas agora são /painel/:salaoId/calendario */}
                     <Route index element={<Navigate to="visaoGeral" replace />} />
                     <Route path="visaoGeral" element={<VisaoGeralPage />} />
                     <Route path="calendario" element={<CalendarioPage />} />
+                    <Route path="clientes" element={<ClientesPage />} />
                     <Route path="servicos" element={<ServicosPage />} />
                     <Route path="horarios" element={<HorariosPage />} />
                     <Route path="personalizacao" element={<PersonalizacaoPage />} />

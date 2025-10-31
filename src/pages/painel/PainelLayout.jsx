@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-rout
 import { cn } from "@/lib/utils";
 import {
   Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
-  LayoutDashboard, CreditCard, BarChart2
+  LayoutDashboard, CreditCard, BarChart2, Users
 } from 'lucide-react';
 import axios from 'axios';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -20,6 +20,7 @@ const navigation = [
   { name: 'Visão Geral', href: 'visaoGeral', icon: BarChart2 },
   { name: 'Calendário', href: 'calendario', icon: Calendar },
   { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
+  { name: 'Meus Clientes', href: 'clientes', icon: Users },
   { name: 'Horario de Funcionamento', href: 'horarios', icon: TimerIcon },
   { name: 'Pagina de Agendamento e Personalização', href: 'personalizacao', icon: Palette },
   { name: 'Assinatura', href: 'assinatura', icon: CreditCard },
@@ -117,14 +118,7 @@ function PainelLayout() {
   const isCurrent = (pathSuffix) => location.pathname === `/painel/${salaoId}/${pathSuffix}`;
 
   // Renderização condicional (Loading/Error)
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <LoadingSpinner />
-        <p className="ml-3 text-gray-600">Carregando painel...</p>
-      </div>
-    );
-  }
+ 
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-red-50 p-4">

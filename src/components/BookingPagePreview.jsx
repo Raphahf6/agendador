@@ -69,7 +69,7 @@ function BookingPagePreview({ salaoId, nomeSalao, tagline, logoUrl }) {
             setServices([]); // Garante array vazio
         }
       } catch (err) {
-        if (isMounted) { setError("Erro ao carregar serviços para preview."); console.error(err); }
+        if (isMounted) { setError("Verifique se você tem serviços cadastrados."); console.error(err); }
       } finally {
         if (isMounted) setLoading(false);
       }
