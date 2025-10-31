@@ -273,7 +273,7 @@ function App() {
                 {/* O Login do Profissional agora está em /login */}
                 <Route path="/login" element={<ProfissionalLoginPage />} />
                 {/* O Cadastro do Profissional agora está em /cadastro */}
-                <Route path="/cadastro" element={<ProfissionalSignupPage />} />
+    
 
                 {/* Rota de Agendamento (Para o cliente final) */}
                 <Route path="/agendar/:salaoId" element={<SalonScheduler />} />

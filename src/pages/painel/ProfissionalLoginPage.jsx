@@ -174,13 +174,7 @@ function ProfissionalLoginPage() {
             </button>
 
             {/* 7. Link de Cadastro */}
-            <div className="text-center text-sm text-gray-600 pt-4 border-t border-gray-100"> {/* Diminuído padding top */}
-              Não tem uma conta?{' '}
-               {/* <<< ALTERADO: Link ciano >>> */}
-              <Link to="/cadastro" className={`font-semibold ${CIANO_COLOR_TEXT} hover:underline`}>
-                Cadastre-se aqui <Icon icon={ArrowRight} className="w-4 h-4 inline" />
-              </Link>
-            </div>
+            
           </form>
         </div>
       </div>
