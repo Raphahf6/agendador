@@ -2,13 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { format, isBefore, startOfToday, parseISO } from 'date-fns';
-import { Clock, User, Phone, DollarSign, Mail, Loader2, ArrowRight, CreditCard, Copy } from 'lucide-react';
+// REMOVIDO: CreditCard
+import { Clock, User, Phone, DollarSign, Mail, Loader2, ArrowRight, Copy } from 'lucide-react';
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
 
-// <<< initMercadoPago FOI REMOVIDO DAQUI >>>
-// (SDK é inicializado no App.jsx/SalonScheduler)
-import { CardPayment } from '@mercadopago/sdk-react';
+// REMOVIDO: import { CardPayment } from '@mercadopago/sdk-react';
 import { QRCodeCanvas } from 'qrcode.react';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
@@ -29,7 +28,7 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess 
 
   // Polling para verificar o status do pagamento
   useEffect(() => {
-    if (!pixData.payment_id || !salaoId || !agendamentoId) {
+    if (!pixData?.payment_id || !salaoId || !agendamentoId) {
       console.warn("[PIX Polling] IDs ausentes. Polling não iniciado.");
       return;
     }
@@ -56,7 +55,7 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess 
 
     return () => clearInterval(intervalId);
 
-  }, [pixData.payment_id, salaoId, agendamentoId, onPaymentSuccess]);
+  }, [pixData?.payment_id, salaoId, agendamentoId, onPaymentSuccess]);
 
   return (
     <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
@@ -94,15 +93,16 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess 
 // --- COMPONENTE PRINCIPAL ---
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists }) {
 
-  // --- <<< LÓGICA DO FLUXO INTELIGENTE >>> ---
+  // --- LÓGICA DO FLUXO INTELIGENTE ---
   // Define se o pagamento é obrigatório
   const requiresPayment = publicKeyExists && sinalValor > 0;
   const sinalAmount = sinalValor || 0;
-  // --- <<< FIM DA LÓGICA >>> ---
+  // --- FIM DA LÓGICA ---
 
   // --- Estados do Fluxo ---
-  const [step, setStep] = useState(1); // 1 = Dados, 2 = Escolha Pagamento, 3 = Pagamento
-  const [paymentMethod, setPaymentMethod] = useState(null);
+  // ALTERADO: step 1 = Dados, step 2 = Pagamento PIX (Direto)
+  const [step, setStep] = useState(1);
+  // REMOVIDO: const [paymentMethod, setPaymentMethod] = useState(null);
   const [pixData, setPixData] = useState(null);
   const [agendamentoIdPendente, setAgendamentoIdPendente] = useState(null);
 
@@ -118,13 +118,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [confirmCustomerPhone, setConfirmCustomerPhone] = useState('');
-  const [customerCpf, setCustomerCpf] = useState(''); // Obrigatório apenas se 'requiresPayment'
+  const [customerCpf, setCustomerCpf] = useState('');
   const [validationError, setValidationError] = useState('');
   const [paymentError, setPaymentError] = useState(null);
 
-  // --- NOVO: EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA DO MERCADO PAGO ---
+  // --- EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA DO MERCADO PAGO ---
   useEffect(() => {
-    // Verifica se o script já existe para evitar duplicação em desenvolvimento
     const existingScript = document.querySelector('script[src="https://www.mercadopago.com/v2/security.js"]');
     if (existingScript) {
       console.log("MP Security Script já presente.");
@@ -133,9 +132,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
     const script = document.createElement('script');
     script.src = "https://www.mercadopago.com/v2/security.js";
-    // view="checkout" é crucial para o motor antifraude
     script.setAttribute('view', 'checkout');
-    // output="deviceId" define a variável global window.deviceId, facilitando a captura
     script.setAttribute('output', 'deviceId');
     script.onload = () => {
       console.log("MP Security Script carregado e Device ID gerado.");
@@ -153,9 +150,9 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       }
     };
   }, []);
-  // --- FIM DO NOVO EFEITO ---
+  // --- FIM DO EFEITO ---
 
-  // --- <<< CORREÇÃO: Validação Condicional do CPF >>> ---
+  // --- Validação Condicional do CPF ---
   const isFormValid =
     selectedSlot &&
     customerName.trim().length > 2 &&
@@ -165,13 +162,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     // CPF só é obrigatório se o pagamento for exigido
     (!requiresPayment || (requiresPayment && customerCpf.replace(/\D/g, '').length === 11)) &&
     !isBooking;
-  // --- <<< FIM DA CORREÇÃO >>> ---
 
   const serviceName = selectedService?.nome_servico || 'Serviço';
   const serviceDuration = selectedService?.duracao_minutos || 0;
   const servicePrice = selectedService?.preco || 0;
 
-  // --- Lógica de busca de horários (sem alteração) ---
+  // --- Lógica de busca de horários (mantida) ---
   useEffect(() => {
     let isMounted = true;
     const fetchSlots = async () => {
@@ -203,7 +199,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     return () => { isMounted = false; };
   }, [selectedDate, selectedService?.id, salaoId]);
 
-  // --- Handle DateSelect (sem alteração) ---
+  // --- Handle DateSelect (mantido) ---
   const handleDateSelect = (date) => {
     if (isBefore(date, startOfToday())) return;
     setSelectedDate(date);
@@ -211,7 +207,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     setValidationError('');
   };
 
-  // --- <<< FUNÇÃO DE AGENDAMENTO GRATUITO (FLUXO ANTIGO) >>> ---
+  // --- FUNÇÃO DE AGENDAMENTO GRATUITO (FLUXO ANTIGO) ---
   const handleFreeBooking = async () => {
     setIsBooking(true);
     setValidationError('');
@@ -220,7 +216,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     try {
       const startTimeISO = selectedSlot.toISOString();
 
-      // Chama o endpoint ANTIGO E GRATUITO
       await axios.post(`${API_BASE_URL}/agendamentos`, {
         salao_id: salaoId,
         service_id: selectedService.id,
@@ -232,26 +227,47 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
       toast.success("Agendamento confirmado!", { id: toastId });
 
-      // Chama a tela de sucesso (sem dados de pagamento)
       onAppointmentSuccess({
         serviceName,
         startTime: startTimeISO,
         customerName: customerName.trim(),
-        paymentStatus: 'free', // Status customizado para "gratuito"
+        paymentStatus: 'free',
         paymentData: null
       });
 
     } catch (error) {
-      // Erro 409 (Conflito de Horário) ou 500
       toast.error(error.response?.data?.detail || 'Erro ao agendar. Tente novamente.', { id: toastId });
       setValidationError(`Erro: ${error.response?.data?.detail || 'Tente novamente.'}`);
-      setIsBooking(false); // Permite tentar de novo
+      setIsBooking(false);
     }
   };
-  // --- <<< FIM DO FLUXO GRATUITO >>> ---
+  // --- FIM DO FLUXO GRATUITO ---
 
+  // --- FUNÇÃO: GERAÇÃO DIRETA DO PIX ---
+  const handleGeneratePix = async () => {
+    setIsBooking(true);
+    setPaymentError(null);
+    setStep(2); // Vai direto para o passo de exibição do PIX
 
-  // --- <<< FUNÇÃO PRINCIPAL DE PROSSEGUIR (FLUXO INTELIGENTE) >>> ---
+    try {
+      const payload = createBasePayload('pix');
+      const response = await axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, payload);
+
+      setPixData(response.data.payment_data);
+      setAgendamentoIdPendente(response.data.payment_data.agendamento_id_ref);
+
+    } catch (err) {
+      console.error("Erro ao gerar PIX:", err.response);
+      const detail = err.response?.data?.detail || "Não foi possível gerar o PIX.";
+      setPaymentError(detail);
+      setStep(1); // Volta para o passo de dados se falhar
+    } finally {
+      setIsBooking(false);
+    }
+  };
+  // --- FIM DA GERAÇÃO PIX ---
+
+  // --- FUNÇÃO PRINCIPAL DE PROSSEGUIR (FLUXO INTELIGENTE) ---
   const handleProceed = (e) => {
     e.preventDefault();
     setValidationError('');
@@ -269,42 +285,14 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
     // --- Bifurcação da Lógica ---
     if (requiresPayment) {
-      // 1. FLUXO PAGO: Avança para a seleção de pagamento
-      setStep(2);
+      // 1. FLUXO PAGO: Vai direto para a Geração do PIX
+      handleGeneratePix();
     } else {
       // 2. FLUXO GRATUITO: Chama o agendamento direto (endpoint antigo)
       handleFreeBooking();
     }
   };
-  // --- <<< FIM DA FUNÇÃO >>> ---
-
-  // --- ETAPA 2: Seleção do Método (só é chamado se requiresPayment=true) ---
-  const handleSelectPaymentMethod = async (method) => {
-    setPaymentMethod(method);
-    setStep(3);
-
-    if (method === 'pix') {
-      setIsBooking(true);
-      setPaymentError(null);
-
-      try {
-        // Chamada que usa o payload base, agora com o Device ID (se disponível)
-        const payload = createBasePayload('pix');
-        const response = await axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, payload);
-
-        setPixData(response.data.payment_data);
-        setAgendamentoIdPendente(response.data.payment_data.agendamento_id_ref);
-
-      } catch (err) {
-        console.error("Erro ao gerar PIX:", err.response);
-        const detail = err.response?.data?.detail || "Não foi possível gerar o PIX.";
-        setPaymentError(detail);
-        setStep(2);
-      } finally {
-        setIsBooking(false);
-      }
-    }
-  };
+  // --- FIM DA FUNÇÃO ---
 
   // --- Helper: Cria o payload base (AGORA COM DEVICE ID) ---
   const createBasePayload = (paymentMethodId) => {
@@ -312,7 +300,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID;
 
     if (!deviceId) {
-      // Mantém o aviso, mas agora ele só deve ocorrer se o script falhar
       console.warn("MP Device ID não encontrado. O risco de fraude aumenta. Checar carregamento do script.");
     }
 
@@ -325,7 +312,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       customer_phone: customerPhone.replace(/\D/g, ''),
       payment_method_id: paymentMethodId,
       transaction_amount: sinalAmount,
-      // <<< CHAVE CORRETA PARA O DEVICE ID NO PAYLOAD JSON >>>
       device_session_id: deviceId || null,
       payer: {
         email: customerEmail.trim(),
@@ -336,56 +322,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       }
     };
   };
-
-  // --- ETAPA 3: Submissão do Cartão (sem alteração na função, usa o payload com Device ID) ---
-  const handleCardPaymentSubmit = async (formData) => {
-    setIsBooking(true);
-    setPaymentError(null);
-
-    // O payload base agora inclui o device_session_id
-    const basePayload = createBasePayload(formData.payment_method_id);
-
-    const finalPayload = {
-      ...basePayload,
-      token: formData.token,
-      issuer_id: formData.issuer_id,
-      installments: formData.installments,
-    };
-
-    return new Promise((resolve, reject) => {
-      axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, finalPayload)
-        .then((response) => {
-          // SUCESSO (Cartão aprovado)
-          setIsBooking(false);
-          onAppointmentSuccess({
-            serviceName,
-            startTime: selectedSlot.toISOString(),
-            customerName: customerName.trim(),
-            paymentStatus: response.data.status, // 'approved'
-            paymentData: null
-          });
-          resolve();
-        })
-        .catch((err) => {
-          // ERRO (Cartão Rejeitado, Horário Ocupado, etc.)
-          setIsBooking(false);
-          const detail = err.response?.data?.detail || "Não foi possível processar seu pagamento.";
-          setPaymentError(detail);
-          setStep(2);
-          reject();
-        });
-    });
-  };
-
-  // Configuração do Brick de Cartão
-  const cardPaymentBrickCustomization = {
-    visual: { style: { theme: 'default' } },
-    paymentMethods: {
-      creditCard: 'all',
-      debitCard: 'all',
-      bankTransfer: 'all'
-    },
-  };
+  // REMOVIDO: handleCardPaymentSubmit e cardPaymentBrickCustomization
 
   const handleCopyPix = (code) => {
     navigator.clipboard.writeText(code).then(() => {
@@ -412,7 +349,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
               <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
               <span>Duração: {serviceDuration} min</span>
             </div>
-            {/* <<< MUDANÇA: Mostra "Sinal" apenas se o pagamento for obrigatório >>> */}
+            {/* Mostra "Sinal" apenas se o pagamento for obrigatório */}
             {requiresPayment && (
               <div className="flex items-center gap-1.5">
                 <Icon icon={DollarSign} className="w-4 h-4 text-gray-400" />
@@ -450,10 +387,10 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                       key={slotDate.toISOString()}
                       onClick={() => { if (!isDisabled) { setSelectedSlot(slotDate); setValidationError(''); } }}
                       className={`p-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${CIANO_RING_FOCUS} ${isDisabled
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          : isSelected
-                            ? `${CIANO_COLOR_BG} text-white shadow-md`
-                            : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : isSelected
+                          ? `${CIANO_COLOR_BG} text-white shadow-md`
+                          : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
                         }`}
                       disabled={loadingSlots || isBooking || isDisabled}
                     >
@@ -508,14 +445,14 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                 <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="confirmCustomerPhone" type="tel" required placeholder="Digite novamente"
                   className={`appearance-none block w-full pl-9 pr-3 py-2 border rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone
-                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                      : `border-gray-300 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : `border-gray-300 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`
                     }`}
                   value={confirmCustomerPhone} onChange={(e) => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} />
               </div>
             </div>
 
-            {/* <<< CORREÇÃO: Campo CPF (Renderização Condicional) >>> */}
+            {/* Campo CPF (Renderização Condicional) */}
             {requiresPayment && (
               <div>
                 <label htmlFor="customerCpf" className="block text-xs font-medium text-gray-600 mb-1"> Seu CPF (para o pagamento)* </label>
@@ -527,7 +464,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                 </div>
               </div>
             )}
-            {/* --- <<< FIM DA CORREÇÃO >>> --- */}
 
             {validationError && (<p className="text-xs text-red-600 text-center mt-2">{validationError}</p>)}
           </div>
@@ -535,9 +471,10 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       </div>
 
 
-      {/* --- ETAPA 2: ESCOLHA DO PAGAMENTO --- */}
+      {/* REMOVIDO: ETAPA 2 DE ESCOLHA DE PAGAMENTO */}
+      {/* ETAPA 2: EXECUÇÃO DO PAGAMENTO (APENAS PIX) */}
       <div style={{ display: step === 2 ? 'block' : 'none' }}>
-        <h3 className="text-gray-700 font-medium text-lg mb-4 text-center">4. Escolha como pagar o sinal</h3>
+        <h3 className="text-gray-700 font-medium text-lg mb-4 text-center">4. Finalizar Pagamento via PIX</h3>
 
         <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-100 text-sm">
           <div className="flex justify-between items-center border-b pb-2">
@@ -556,61 +493,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           </div>
         )}
 
-        <div className="space-y-4">
-          <button
-            onClick={() => handleSelectPaymentMethod('card')}
-            className="w-full flex items-center justify-center p-4 bg-white border border-gray-300 rounded-lg shadow-sm hover:border-cyan-600 hover:bg-cyan-50"
-          >
-            <Icon icon={CreditCard} className="w-5 h-5 mr-3 text-cyan-700" />
-            <span className="text-base font-semibold text-gray-800">Cartão de Crédito ou Débito</span>
-          </button>
-          <button
-            onClick={() => handleSelectPaymentMethod('pix')}
-            className="w-full flex items-center justify-center p-4 bg-white border border-gray-300 rounded-lg shadow-sm hover:border-cyan-600 hover:bg-cyan-50"
-          >
-            <Icon icon={Copy} className="w-5 h-5 mr-3 text-cyan-700" />
-            <span className="text-base font-semibold text-gray-800">PIX (Copia e Cola / QR Code)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* --- ETAPA 3: EXECUÇÃO DO PAGAMENTO --- */}
-      <div style={{ display: step === 3 ? 'block' : 'none' }}>
-
-        {/* Caso 1: Cartão */}
-        {paymentMethod === 'card' && (
-          <div id="card-payment-brick-container">
-            {isBooking && (
-              <div className="relative h-64 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
-              </div>
-            )}
-            <div style={{ display: isBooking ? 'none' : 'block' }}>
-              <CardPayment
-                initialization={{
-                  amount: sinalAmount,
-                  payer: {
-                    email: customerEmail,
-                    identification: {
-                      type: 'CPF',
-                      number: customerCpf.replace(/\D/g, '')
-                    },
-                  },
-                }}
-                customization={cardPaymentBrickCustomization}
-                onSubmit={handleCardPaymentSubmit}
-                onError={(error) => {
-                  console.error("Erro no Brick de Cartão:", error);
-                  setPaymentError(error.message || "Erro ao processar cartão.");
-                }}
-                onReady={() => console.log("Brick de Cartão pronto.")}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Caso 2: PIX */}
-        {paymentMethod === 'pix' && pixData && !isBooking && (
+        {/* Caso: PIX */}
+        {pixData && !isBooking ? (
           <PixPayment
             pixData={pixData}
             salaoId={salaoId}
@@ -624,8 +508,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
               paymentData: pixData
             })}
           />
-        )}
-        {paymentMethod === 'pix' && isBooking && (
+        ) : (
           <div className="relative h-64 flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
             <p className="text-sm text-gray-600 ml-2">Gerando PIX...</p>
@@ -639,21 +522,20 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         <div className="max-w-md mx-auto">
           {/* Botão do Passo 1 (Inteligente) */}
           <button
-            onClick={handleProceed} // <<< CHAMA A NOVA FUNÇÃO DE BIFURCAÇÃO >>>
+            onClick={handleProceed}
             style={{ display: step === 1 ? 'flex' : 'none' }}
             className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-md flex items-center justify-center ${isFormValid
-                ? `${CIANO_COLOR_BG} ${CIANO_COLOR_BG_HOVER}`
-                : 'bg-gray-400 cursor-not-allowed'
+              ? `${CIANO_COLOR_BG} ${CIANO_COLOR_BG_HOVER}`
+              : 'bg-gray-400 cursor-not-allowed'
               }`}
             disabled={!isFormValid || isBooking}
           >
             {isBooking ? (
               <Loader2 className="w-5 h-5 animate-spin stroke-current" />
             ) : (
-              // <<< MUDANÇA: Texto do botão muda >>>
               requiresPayment ? (
                 <>
-                  Ir para Pagamento (R$ {sinalAmount.toFixed(2).replace('.', ',')})
+                  Ir para Pagamento PIX (R$ {sinalAmount.toFixed(2).replace('.', ',')})
                   <Icon icon={ArrowRight} className="w-5 h-5 ml-2" />
                 </>
               ) : (
@@ -662,15 +544,15 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             )}
           </button>
 
-          {/* Botão "Voltar" do Passo 2 e 3 */}
+          {/* Botão "Voltar" do Passo 2 (Pagamento) */}
           <button
             onClick={() => {
-              setStep(step === 3 ? 2 : 1);
+              setStep(1); // Sempre volta para o passo 1
               setPaymentError(null);
               setPixData(null);
               setAgendamentoIdPendente(null);
             }}
-            style={{ display: step > 1 ? 'flex' : 'none' }}
+            style={{ display: step === 2 ? 'flex' : 'none' }}
             className={`w-full py-3 rounded-lg text-gray-700 font-bold bg-gray-200 hover:bg-gray-300 transition duration-300 ease-in-out shadow-sm flex items-center justify-center`}
             disabled={isBooking}
           >
