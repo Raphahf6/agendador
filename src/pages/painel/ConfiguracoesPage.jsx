@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
-import { Settings, Loader2, Save, Lock, Mail, AlertTriangle, CheckCircle, ExternalLink, XCircle, Key, DollarSign } from 'lucide-react'; // Adicionado DollarSign
+import { Settings, Loader2, Save, Lock, Mail, AlertTriangle, CheckCircle, ExternalLink, XCircle, Key, DollarSign } from 'lucide-react';
 import { auth, db } from '@/firebaseConfig';
 import { doc, getDoc, updateDoc } from "firebase/firestore"; 
 import axios from 'axios';
@@ -29,22 +29,26 @@ function ConfiguracoesPage() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     
-    // <<< ESTADOS PARA PAGAMENTO >>>
+    // Estados para Pagamento
     const [mpPublicKey, setMpPublicKey] = useState('');
-    const [sinalValor, setSinalValor] = useState(0); // Valor do Sinal
+    const [sinalValor, setSinalValor] = useState(0); 
     const [isSavingPagamento, setIsSavingPagamento] = useState(false);
-    // --- Fim dos Estados ---
 
     // Estados de UI
     const [loading, setLoading] = useState(true);
     const [isSavingPassword, setIsSavingPassword] = useState(false); 
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
+    
+    // Estados de Sincronização
     const [isSyncEnabled, setIsSyncEnabled] = useState(false);
     const [isSyncLoading, setIsSyncLoading] = useState(false);
+    const [isMpSyncEnabled, setIsMpSyncEnabled] = useState(false);
+    const [isMpSyncLoading, setIsMpSyncLoading] = useState(false);
+    
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // --- Lógica de Busca (MODIFICADA para incluir a Chave Pública e Sinal) ---
+    // --- Lógica de Busca (Leitura do DB) ---
     const fetchUserData = useCallback(async () => {
          setLoading(true); setError(null); setSuccess(null);
          const currentUser = auth.currentUser;
@@ -59,11 +63,19 @@ function ConfiguracoesPage() {
                  const data = docSnap.data();
                  setIsSyncEnabled(data.google_sync_enabled === true);
                  
-                 // Carrega os dados de pagamento
+                 // Carrega dados de pagamento
                  setMpPublicKey(data.mp_public_key || '');
-                 setSinalValor(data.sinal_valor || 0); // Carrega o valor do sinal
+                 setSinalValor(data.sinal_valor || 0); 
+                 setIsMpSyncEnabled(data.mp_sync_enabled === true);
                  
-             } else { console.warn("Documento do salão não encontrado."); }
+             } else { 
+                 // <<< CORREÇÃO CRÍTICA: TRATAMENTO DE DOCUMENTO AUSENTE >>>
+                 console.error("Documento do salão não encontrado. Verifique o ID na URL."); 
+                 setError("Configurações não puderam ser carregadas. Salão não encontrado."); 
+                 setLoading(false);
+                 return; // Sai da função para evitar o crash
+                 // <<< FIM DA CORREÇÃO >>>
+             }
 
              // Verifica params da URL (Sincronização Google)
              if (searchParams.get('sync') === 'success') {
@@ -74,11 +86,26 @@ function ConfiguracoesPage() {
                  setError("Falha ao sincronizar com Google Calendar.");
                  searchParams.delete('sync'); setSearchParams(searchParams);
              }
-         } catch (err) { setError("Não foi possível carregar as configurações.");
+             
+             // Verifica params da URL (Mercado Pago)
+             if (searchParams.get('mp_sync') === 'success') {
+                 setSuccess("Conta do MercadoPago conectada com sucesso!");
+                 setIsMpSyncEnabled(true);
+                 searchParams.delete('mp_sync'); setSearchParams(searchParams);
+             } else if (searchParams.get('mp_sync') === 'error') {
+                 setError("Falha ao conectar com o MercadoPago.");
+                 searchParams.delete('mp_sync'); setSearchParams(searchParams);
+             }
+
+         } catch (err) { 
+             console.error("Erro ao carregar configurações:", err);
+             setError("Não foi possível carregar as configurações. Verifique suas Regras de Segurança do Firestore (Leitura).");
          } finally { setLoading(false); }
     }, [salaoId, searchParams, setSearchParams]);
 
     useEffect(() => { fetchUserData(); }, [fetchUserData]);
+
+    // --- FUNÇÕES DE SALVAMENTO ---
 
     // --- Lógica de Alteração de Senha (Sem alteração) ---
     const handleSubmitPassword = async (e) => {
@@ -106,16 +133,15 @@ function ConfiguracoesPage() {
          } finally { setIsSavingPassword(false); }
     };
     
-    // --- LÓGICA: Salvar Configurações de Pagamento (MODIFICADA) ---
+    // <<< CORREÇÃO: Função Salvar Pagamentos REINTEGRADA >>>
     const handleSavePagamentos = async (e) => {
         e.preventDefault();
         setIsSavingPagamento(true);
         setError(null); setSuccess(null);
         
         const key = mpPublicKey.trim();
-        const valor = parseFloat(sinalValor);
+        const valor = parseFloat(sinalValor) || 0.0;
 
-        // Validação da chave
         if (key && !key.startsWith('APP_USR-') && !key.startsWith('TEST-')) {
              setError("Chave pública do MercadoPago inválida. Deve começar com 'APP_USR-' ou 'TEST-'.");
              toast.error("Chave pública inválida.");
@@ -131,24 +157,28 @@ function ConfiguracoesPage() {
         }
 
         try {
-            const salaoDocRef = doc(db, 'cabeleireiros', salaoId);
-            await updateDoc(salaoDocRef, {
-                mp_public_key: key,
-                sinal_valor: valor // Salva o valor numérico
-            });
+            // Chama o endpoint seguro do Backend
+            const token = await auth.currentUser.getIdToken();
+            await axios.patch(`${API_BASE_URL}/admin/configuracoes/pagamento/${salaoId}`, 
+                {
+                    mp_public_key: key,
+                    sinal_valor: valor
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
 
             setSuccess("Configurações de pagamento salvas!");
             toast.success("Configurações de pagamento salvas!");
 
         } catch (err) {
             console.error("Erro ao salvar configurações de pagamento:", err);
-            setError("Falha ao salvar as configurações. Verifique suas regras de segurança do Firestore.");
+            setError(err.response?.data?.detail || "Falha ao salvar as configurações.");
             toast.error("Falha ao salvar configurações.");
         } finally {
             setIsSavingPagamento(false);
         }
     };
-    // --- FIM DA LÓGICA ---
+    // <<< FIM DA REINTEGRAÇÃO >>>
 
 
     // --- Lógica: Sincronização Google (Sem alteração) ---
@@ -173,14 +203,13 @@ function ConfiguracoesPage() {
          }
     };
 
-    // --- Lógica Desconectar Sincronização (Sem alteração) ---
-    const handleDisableSync = async () => {
-        if (!window.confirm("Tem certeza que deseja desconectar o Google Calendar? Você pode reconectar depois.")) {
+    // --- Lógica Desconectar Sincronização Google (Sem alteração) ---
+    const handleDisableGoogleSync = async () => {
+        if (!window.confirm("Tem certeza que deseja desconectar o Google Calendar?")) {
             return;
         }
         setIsSyncLoading(true); 
-        setError(null);
-        setSuccess(null);
+        setError(null); setSuccess(null);
 
         try {
             const currentUser = auth.currentUser;
@@ -204,6 +233,69 @@ function ConfiguracoesPage() {
             setIsSyncLoading(false);
         }
     };
+    
+    // <<< REINTEGRAÇÃO: Lógica Conectar Mercado Pago (OAuth) >>>
+    const handleMercadoPagoSync = async () => {
+        setIsMpSyncLoading(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error("Sessão expirada.");
+            const token = await currentUser.getIdToken();
+
+            const response = await axios.get(`${API_BASE_URL}/admin/mercadopago/auth/start`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            const { authorization_url } = response.data;
+            
+            if (authorization_url) {
+                window.location.href = authorization_url;
+            } else {
+                throw new Error("URL de autorização do MercadoPago não recebida.");
+            }
+        } catch (err) {
+            console.error("Erro ao iniciar conexão MercadoPago:", err);
+            setError(err.response?.data?.detail || "Não foi possível iniciar a conexão com o MercadoPago.");
+            toast.error("Erro ao iniciar conexão com MP.");
+            setIsMpSyncLoading(false);
+        }
+    };
+
+    // <<< REINTEGRAÇÃO: Lógica Desconectar Mercado Pago (OAuth) >>>
+    const handleDisableMercadoPagoSync = async () => {
+        if (!window.confirm("Tem certeza que deseja desconectar sua conta do MercadoPago? Isso impedirá que você receba pagamentos de sinal.")) {
+            return;
+        }
+        setIsMpSyncLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error("Sessão expirada.");
+            const token = await currentUser.getIdToken();
+
+            await axios.patch(`${API_BASE_URL}/admin/mercadopago/disconnect/${salaoId}`,
+                {}, 
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setIsMpSyncEnabled(false);
+            setSuccess("Conta do MercadoPago desconectada.");
+            toast.success("Conta do MercadoPago desconectada.");
+
+        } catch (err) {
+            console.error("Erro ao desconectar MercadoPago:", err);
+            setError(err.response?.data?.detail || "Não foi possível desconectar o MercadoPago.");
+            toast.error("Falha ao desconectar MP.");
+        } finally {
+            setIsMpSyncLoading(false);
+        }
+    };
+    // <<< FIM DA REINTEGRAÇÃO >>>
+
 
     // --- Renderização Loading/Error ---
     if (loading) {
@@ -235,7 +327,7 @@ function ConfiguracoesPage() {
                  </div>
             )}
 
-            {/* --- SEÇÃO GOOGLE CALENDAR (Sem alteração) --- */}
+            {/* --- SEÇÃO GOOGLE CALENDAR (Sincronização) --- */}
             <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4 pb-3 border-b border-gray-100">
                     Sincronização com Google Calendar
@@ -248,12 +340,12 @@ function ConfiguracoesPage() {
                             Sua agenda Horalis está conectada ao seu Google Calendar.
                         </p>
                         <button
-                            onClick={handleDisableSync}
+                            onClick={handleDisableGoogleSync}
                             disabled={isSyncLoading}
                             className="inline-flex items-center justify-center px-4 py-1.5 bg-red-600 text-white rounded-md text-xs font-medium shadow-sm hover:bg-red-700 transition-colors disabled:opacity-50"
                         >
                             {isSyncLoading ? <Loader2 className="w-4 h-4 animate-spin stroke-current" /> : <Icon icon={XCircle} className="w-4 h-4 mr-1"/>}
-                            {isSyncLoading ? 'Desconectando...' : 'Desconectar'}
+                            {isSyncLoading ? 'Desconectando...' : 'Desconectar Google'}
                         </button>
                     </div>
                 ) : (
@@ -278,54 +370,83 @@ function ConfiguracoesPage() {
                 )}
             </div>
             
-            {/* --- CARD DE PAGAMENTOS (MODIFICADO) --- */}
+            {/* --- CARD DE PAGAMENTOS (MODIFICADO PARA OAUTH) --- */}
             <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                  <form onSubmit={handleSavePagamentos}>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-4 pb-3 border-b border-gray-100">Configurações de Pagamento (MercadoPago)</h3>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4 pb-3 border-b border-gray-100">Conexão de Pagamento (MercadoPago)</h3>
                     <div className="space-y-4">
-                        <p className="text-sm text-gray-600">
-                            Para aceitar pagamentos de sinal dos seus clientes, conecte sua conta do MercadoPago.
-                        </p>
                         
-                        {/* Campo Chave Pública */}
-                        <div>
-                            <label htmlFor="mpPublicKey" className="block text-sm font-medium text-gray-700 mb-1">Chave Pública (Public Key)*</label>
-                            <div className="relative">
-                                <Icon icon={Key} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"/>
-                                <input id="mpPublicKey" type="text" required 
-                                       value={mpPublicKey} 
-                                       onChange={(e) => setMpPublicKey(e.target.value)}
-                                       className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
-                                       disabled={isSavingPagamento} 
-                                       placeholder="APP_USR-..."
-                                />
+                        {isMpSyncEnabled ? (
+                            // Estado Conectado (Ação de Desconectar)
+                            <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                                <Icon icon={CheckCircle} className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                                <p className="font-semibold text-green-800">Conta MercadoPago Conectada!</p>
+                                <p className="text-sm text-gray-600 mt-1 mb-4">
+                                    Seu sistema está pronto para receber pagamentos de sinal.
+                                </p>
+                                <button
+                                    onClick={handleDisableMercadoPagoSync}
+                                    type="button" // Garante que não é um submit de formulário
+                                    disabled={isMpSyncLoading}
+                                    className="inline-flex items-center justify-center px-4 py-1.5 bg-red-600 text-white rounded-md text-xs font-medium shadow-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+                                >
+                                    {isMpSyncLoading ? <Loader2 className="w-4 h-4 animate-spin stroke-current" /> : <Icon icon={XCircle} className="w-4 h-4 mr-1"/>}
+                                    {isMpSyncLoading ? 'Desconectando...' : 'Desconectar MercadoPago'}
+                                </button>
+                            </div>
+                        ) : (
+                             // Estado Desconectado (Ação de Conectar)
+                            <div className="text-center p-4 border border-gray-100 rounded-lg">
+                                <p className="text-gray-600 mb-5 text-sm leading-relaxed">
+                                    Conecte sua conta do MercadoPago para gerenciar seus pagamentos de sinal.
+                                </p>
+                                <button
+                                    onClick={handleMercadoPagoSync}
+                                    type="button" // Garante que não é um submit de formulário
+                                    disabled={isMpSyncLoading}
+                                    className={`inline-flex items-center justify-center w-full max-w-xs mx-auto px-6 py-3 bg-blue-500 text-white rounded-lg shadow-sm hover:bg-blue-600 transition-colors disabled:opacity-50`}
+                                >
+                                    {isMpSyncLoading ? (
+                                        <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" />
+                                    ) : (
+                                        <Icon icon={Key} className="w-5 h-5 mr-2" />
+                                    )}
+                                    {isMpSyncLoading ? 'Aguardando MP...' : 'Conectar com MercadoPago'}
+                                </button>
+                            </div>
+                        )}
+                        
+                        {/* Campo Valor do Sinal (Ainda é relevante mesmo desconectado) */}
+                        <div className="pt-4 border-t border-gray-100">
+                            <h4 className="text-lg font-semibold text-gray-800 mb-3">Valor do Sinal</h4>
+                            <p className="text-sm text-gray-600 mb-4">
+                                Defina um valor (R$) que será cobrado no agendamento para evitar faltas (no-show).
+                            </p>
+                            <div>
+                                <label htmlFor="sinalValor" className="block text-sm font-medium text-gray-700 mb-1">Valor do Sinal (R$)*</label>
+                                <div className="relative max-w-xs">
+                                    <Icon icon={DollarSign} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"/>
+                                    <input 
+                                        id="sinalValor" 
+                                        type="number" 
+                                        step="0.01" 
+                                        min="0"
+                                        required 
+                                        value={sinalValor} 
+                                        onChange={(e) => setSinalValor(e.target.valueAsNumber || 0)}
+                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
+                                        disabled={isSavingPagamento} 
+                                        placeholder="Ex: 10.50"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Se o valor for **0.00**, o agendamento será gratuito (mesmo com a conta conectada).
+                                </p>
                             </div>
                         </div>
-                        
-                        {/* <<< NOVO CAMPO: Valor do Sinal >>> */}
-                        <div>
-                            <label htmlFor="sinalValor" className="block text-sm font-medium text-gray-700 mb-1">Valor do Sinal (R$)*</label>
-                            <div className="relative">
-                                <Icon icon={DollarSign} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"/>
-                                <input 
-                                    id="sinalValor" 
-                                    type="number" 
-                                    step="0.01" 
-                                    min="0"
-                                    required 
-                                    value={sinalValor} 
-                                    onChange={(e) => setSinalValor(e.target.valueAsNumber || 0)}
-                                    className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
-                                    disabled={isSavingPagamento} 
-                                    placeholder="Ex: 10.50"
-                                />
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">Digite 0 para não exigir sinal. (Ex: 10.00 para R$ 10,00)</p>
-                        </div>
-                        {/* <<< FIM DO NOVO CAMPO >>> */}
 
                     </div>
-
+                    {/* Botão Salvar (Para o valor do Sinal) */}
                     <div className="flex justify-end pt-6 border-t border-gray-100 mt-6">
                         <button
                             type="submit"
@@ -333,7 +454,7 @@ function ConfiguracoesPage() {
                             disabled={isSavingPagamento}
                         >
                             {isSavingPagamento ? ( <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" /> ) : ( <Icon icon={Save} className="w-5 h-5 mr-2" /> )}
-                            {isSavingPagamento ? 'Salvando...' : 'Salvar Configurações'}
+                            {isSavingPagamento ? 'Salvando...' : 'Salvar Valor do Sinal'}
                         </button>
                     </div>
                  </form>
