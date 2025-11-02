@@ -21,7 +21,10 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 );
 
 function ConfiguracoesPage() {
-    const { salaoId } = useParams();
+    // --- CORREÇÃO CRÍTICA AQUI ---
+    const { salaoId: rawSalaoId } = useParams();
+    // Garante que qualquer espaço extra (como o '%20') seja removido
+    const salaoId = rawSalaoId ? rawSalaoId.trim() : null;
     
     // Estados de Autenticação e Senha
     const [email, setEmail] = useState('');
