@@ -183,6 +183,11 @@ function SignupModalContent({ closeModal, isModalOpen, renderIcon }) {
     setError(null);
     setPaymentError(null);
 
+    const deviceId = document.getElementById('__mpoffline_device_id')?.value;
+    if (!deviceId) {
+        console.warn("MP Device ID não encontrado. O risco de fraude aumenta.");
+    }
+
     const formattedWhatsapp = `+55${whatsapp.replace(/\D/g, '')}`;
     const payload = {
       email, password, nome_salao: nomeSalao.trim(), numero_whatsapp: formattedWhatsapp,

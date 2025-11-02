@@ -4,10 +4,10 @@ import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-rout
 import { cn } from "@/lib/utils";
 import {
   Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
-  LayoutDashboard, CreditCard, BarChart2, Users
+  LayoutDashboard, CreditCard, BarChart2, Users, Send
 } from 'lucide-react';
 import axios from 'axios';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner'; 
 // <<< MUDANÇAS AQUI >>>
 import { signOut, onAuthStateChanged } from "firebase/auth"; // Importa o onAuthStateChanged
 import { auth } from '@/firebaseConfig';
@@ -21,6 +21,7 @@ const navigation = [
   { name: 'Calendário', href: 'calendario', icon: Calendar },
   { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
   { name: 'Meus Clientes', href: 'clientes', icon: Users },
+  { name: 'Marketing', href: 'marketing', icon: Send },
   { name: 'Horario de Funcionamento', href: 'horarios', icon: TimerIcon },
   { name: 'Pagina de Agendamento e Personalização', href: 'personalizacao', icon: Palette },
   { name: 'Assinatura', href: 'assinatura', icon: CreditCard },

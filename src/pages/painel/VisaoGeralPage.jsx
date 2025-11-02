@@ -5,21 +5,19 @@ import { auth, db } from '@/firebaseConfig';
 import {
     collection, query, where, getDocs, onSnapshot, orderBy, limit, Timestamp
 } from "firebase/firestore";
-// <<< MUDANÇA 1: Importando startOfMonth e endOfMonth >>>
-import {
-    format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow,
-    startOfMonth, endOfMonth
-} from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-    Loader2, Calendar, Users, BarChart2, Bell, CheckCircle, AlertTriangle, TrendingUp, CalendarPlus,
-    Filter, Check, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Edit
+    Loader2, Calendar, Users, BarChart2, Bell, CheckCircle, AlertTriangle, TrendingUp, CalendarDays,
+    Filter, Check, Link as LinkIcon, Edit, UserPlus 
 } from 'lucide-react';
 // Importa Recharts
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import toast from 'react-hot-toast';
+import axios from 'axios';
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// --- DEFINIÇÕES DE COR (Baseado na sua Landing Page estável) ---
+// --- DEFINIÇÕES DE COR (idênticas) ---
 const CIANO_TEXT_CLASS = 'text-cyan-800';
 const CIANO_BG_CLASS = 'bg-cyan-800';
 const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900';
@@ -27,13 +25,12 @@ const CIANO_LIGHT_BG = 'bg-cyan-50';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-800';
 const CIANO_FILL_COLOR = '#0E7490';
 
-// --- Helper Ícone Simples ---
+// --- Helper Ícone Simples (idêntico) ---
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- Hook customizado para fechar dropdown ao clicar fora ---
-// ... (código idêntico) ...
+// --- Hook customizado para fechar dropdown ao clicar fora (idêntico) ---
 function useOnClickOutside(ref, handler) {
     useEffect(() => {
         const listener = (event) => {
@@ -52,10 +49,60 @@ function useOnClickOutside(ref, handler) {
 }
 // --- Fim do Hook ---
 
-// --- Componente KpiCard (Com filtro customizado) ---
-// ... (código idêntico) ...
+// --- Componente ChartFilter (idêntico) ---
+const ChartFilter = ({ currentPeriod, onPeriodChange, filterOptions }) => {
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const dropdownRef = useRef(null);
+    useOnClickOutside(dropdownRef, () => setIsFilterOpen(false));
+
+    const handleFilterSelect = (value) => {
+        onPeriodChange(value);
+        setIsFilterOpen(false);
+    };
+
+    const currentLabel = filterOptions.find(opt => opt.value === currentPeriod)?.label || 'Período';
+
+    return (
+        <div className="relative inline-block text-left" ref={dropdownRef}>
+            <button
+                type="button"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center text-sm font-semibold transition-colors rounded-lg px-2 py-1 ${CIANO_LIGHT_BG} ${CIANO_TEXT_CLASS} hover:bg-cyan-100`}
+                aria-expanded={isFilterOpen}
+            >
+                <Icon icon={Filter} className="w-4 h-4 mr-1" />
+                {currentLabel}
+            </button>
+            {isFilterOpen && (
+                <div className="origin-top-right absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 focus:outline-none">
+                    <div className="py-1">
+                        {filterOptions.map((option) => (
+                            <button
+                                key={option.value}
+                                onClick={() => handleFilterSelect(option.value)}
+                                className={`w-full text-left flex items-center px-4 py-2 text-sm ${
+                                    currentPeriod === option.value
+                                        ? `font-semibold text-cyan-900 ${CIANO_LIGHT_BG}`
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                            >
+                                {currentPeriod === option.value && (
+                                    <Icon icon={Check} className="w-4 h-4 mr-2 -ml-1" />
+                                )}
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+// --- Fim ChartFilter ---
+
+// --- Componente KpiCard (CORRIGIDO: Mostra o rótulo completo do filtro) ---
 const KpiCard = ({
-    title,
+    title, // Este é o título BASE (ex: "Novos Clientes")
     value,
     icon: IconComp,
     isLoading,
@@ -63,27 +110,40 @@ const KpiCard = ({
     onFilterChange,
     filterOptions
 }) => {
-
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const dropdownRef = useRef(null);
     useOnClickOutside(dropdownRef, () => setIsFilterOpen(false));
     const hasFilter = typeof onFilterChange === 'function';
+
+    // <<< CORREÇÃO AQUI: Obtém o rótulo do filtro ativo ou usa o Título base >>>
+    // Se o período for definido, mostramos o RÓTULO DO FILTRO (ex: "Hoje", "Próx. 7 Dias")
+    const currentLabel = filterOptions?.find(opt => opt.value === filterPeriod)?.label || title;
 
     const handleFilterSelect = (value) => {
         onFilterChange(value);
         setIsFilterOpen(false);
     };
 
+    // Obter o rótulo principal para o title do card (ex: "Agendamentos em Foco")
+    const mainTitle = title;
+
+
     return (
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between min-h-[100px]">
             <div className="flex justify-between items-start">
-                <p className="text-sm text-gray-500">{title}</p>
+                {/* Título Principal Fixo + Rótulo do Filtro */}
+                <p className="text-sm text-gray-500">
+                    <span className="font-semibold text-gray-700">{mainTitle}</span>
+                    {hasFilter && `: ${currentLabel}`}
+                </p>
+                
                 {hasFilter && (
                     <div className="relative inline-block text-left" ref={dropdownRef}>
-                        <button
+                         <button
                             type="button"
                             onClick={() => setIsFilterOpen(!isFilterOpen)}
                             className="h-6 w-6 text-gray-400 hover:text-gray-700 -mt-1 -mr-1 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                            title="Filtrar período"
                         >
                             <Icon icon={Filter} className="w-4 h-4" />
                             <span className="sr-only">Filtrar período</span>
@@ -95,10 +155,11 @@ const KpiCard = ({
                                         <button
                                             key={option.value}
                                             onClick={() => handleFilterSelect(option.value)}
-                                            className={`w-full text-left flex items-center px-4 py-2 text-sm ${filterPeriod === option.value
+                                            className={`w-full text-left flex items-center px-4 py-2 text-sm ${
+                                                filterPeriod === option.value
                                                     ? `font-semibold text-cyan-900 ${CIANO_LIGHT_BG}`
                                                     : 'text-gray-700 hover:bg-gray-100'
-                                                }`}
+                                            }`}
                                         >
                                             {filterPeriod === option.value && (
                                                 <Icon icon={Check} className="w-4 h-4 mr-2 -ml-1" />
@@ -127,11 +188,10 @@ const KpiCard = ({
 };
 // --- Fim KpiCard ---
 
-// --- Componente ProximoAgendamentoItem ---
-// ... (código idêntico) ...
+// --- Componente ProximoAgendamentoItem (idêntico) ---
 const ProximoAgendamentoItem = ({ agendamento }) => {
     const formattedTime = agendamento.startTime
-        ? format(agendamento.startTime.toDate(), "dd/MM 'às' HH:mm", { locale: ptBR })
+        ? format(agendamento.startTime.toDate(), "dd/MM 'às' HH:mm', 'yy", { locale: ptBR })
         : 'Data inválida';
 
     return (
@@ -153,258 +213,291 @@ const ProximoAgendamentoItem = ({ agendamento }) => {
 
 // --- Componente Principal da Página ---
 function VisaoGeralPage() {
-    const { salaoId } = useParams();
-    const navigate = useNavigate();
-    const [kpiData, setKpiData] = useState({ hoje: null, prox7dias: null, novos24h: null, receitaEstimada: null });
-    const [proximosAgendamentos, setProximosAgendamentos] = useState([]);
-    const [chartData7Days, setChartData7Days] = useState([]);
-    const [loadingKpi, setLoadingKpi] = useState(true);
-    const [loadingProximos, setLoadingProximos] = useState(true);
-    const [loadingChart, setLoadingChart] = useState(true);
-    const [error, setError] = useState(null);
-    const [receitaPeriodo, setReceitaPeriodo] = useState('hoje');
-    const [receitaTitulo, setReceitaTitulo] = useState('Receita Estimada (Hoje)');
-    const [linkCopied, setLinkCopied] = useState(false);
-    const copyTimeoutRef = useRef(null);
+	const { salaoId } = useParams();
+	const navigate = useNavigate();
+	const [agendamentosFoco, setAgendamentosFoco] = useState('hoje');
+	const [kpiData, setKpiData] = useState({ 
+        receitaEstimada: null,
+        agendamentosFocoValor: null,
+        novosClientesValor: null,
+        hoje: null,
+        prox7dias: null,
+        novos24h: null
+    });
+    
+	const [proximosAgendamentos, setProximosAgendamentos] = useState([]);
+	const [novosClientesPeriodo, setNovosClientesPeriodo] = useState('hoje');
+	const [agendamentosPeriodo, setAgendamentosPeriodo] = useState(7);
+	const [chartData, setChartData] = useState([]);
+	const [loadingKpi, setLoadingKpi] = useState(true);
+	const [loadingProximos, setLoadingProximos] = useState(true);
+	const [loadingChart, setLoadingChart] = useState(true);
+	const [error, setError] = useState(null);
+	const [receitaPeriodo, setReceitaPeriodo] = useState('hoje');
+	const [receitaTitulo, setReceitaTitulo] = useState('Receita Estimada');
+	const [linkCopied, setLinkCopied] = useState(false);
+	const copyTimeoutRef = useRef(null);
 
-    const receitaFilterOptions = [
+    // --- Opções de Filtro ---
+	const receitaFilterOptions = [
+		{ value: 'hoje', label: 'Hoje' },
+		{ value: 'semana', label: 'Próx. 7 Dias' },
+		{ value: 'mes', label: 'Mês Atual' }
+	];
+    const agendamentosFilterOptions = [
+		{ value: 7, label: 'Últimos 7 Dias' },
+		{ value: 15, label: 'Últimos 15 Dias' },
+		{ value: 30, label: 'Últimos 30 Dias' },
+	];
+    const novosClientesFilterOptions = [
         { value: 'hoje', label: 'Hoje' },
-        { value: 'semana', label: 'Próx. 7 Dias' },
-        // <<< MUDANÇA 1: Label do filtro 'mes' >>>
-        { value: 'mes', label: 'Mês Atual' }
+        { value: '7dias', label: 'Últimos 7 Dias' },
+        { value: '30dias', label: 'Últimos 30 Dias' }
     ];
 
-    // --- fetchKpiData (com dados do gráfico e filtros) ---
-    const fetchKpiData = useCallback(async () => {
-        if (!salaoId || !auth.currentUser) return;
-        setLoadingKpi(true); setLoadingChart(true);
-        // setError(null);
+	// --- fetchKpiData ---
+	const fetchKpiData = useCallback(async () => {
+		if (!salaoId || !auth.currentUser) return;
+		setLoadingKpi(true); 
+        setLoadingChart(true);
 
-        try {
-            const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
-            const now = new Date(); // <-- Hora atual
-            const hojeInicio = startOfDay(now);
-            const amanhaInicio = startOfDay(addDays(now, 1));
-            const prox7DiasFim = startOfDay(addDays(now, 7));
-            const ultimas24h = subDays(now, 1);
-            const ultimos7DiasInicio = startOfDay(subDays(now, 6));
-
-            // --- Queries de Contagem (com filtro "cancelado") ---
-            const hojeQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(hojeInicio)), where("startTime", "<", Timestamp.fromDate(amanhaInicio)), where("status", "!=", "cancelado"));
-
-            // <<< MUDANÇA 2: Query 'prox7DiasQuery' agora começa de 'now' >>>
-            const prox7DiasQuery = query(agendamentosRef,
-                where("startTime", ">=", Timestamp.fromDate(now)), // <-- Começa da hora atual
-                where("startTime", "<", Timestamp.fromDate(prox7DiasFim)),
-                where("status", "!=", "cancelado")
-            );
-
-            const novos24hQuery = query(agendamentosRef, where("createdAt", ">=", Timestamp.fromDate(ultimas24h)), where("status", "!=", "cancelado"));
-
-            const [hojeSnapshot, prox7DiasSnapshot, novos24hSnapshot] = await Promise.all([
-                getDocs(hojeQuery), getDocs(prox7DiasQuery), getDocs(novos24hQuery)
-            ]);
-            const countHoje = hojeSnapshot.size;
-            const countProx7Dias = prox7DiasSnapshot.size;
-            const countNovos24h = novos24hSnapshot.size;
-
-            // --- Query de Receita (com filtro "cancelado") ---
-            let receitaStartDate, receitaEndDate, newTitulo;
-            if (receitaPeriodo === 'hoje') {
-                receitaStartDate = hojeInicio; receitaEndDate = endOfDay(now); newTitulo = 'Receita Prevista (Hoje)';
-            } else if (receitaPeriodo === 'semana') {
-                receitaStartDate = hojeInicio; receitaEndDate = endOfDay(addDays(now, 7)); newTitulo = 'Receita (7d)';
-
-                // <<< MUDANÇA 1: Lógica do filtro 'mes' >>>
-            } else { // 'mes'
-                receitaStartDate = startOfMonth(now); // <-- Início do mês atual
-                receitaEndDate = endOfMonth(now);   // <-- Fim do mês atual
-                newTitulo = 'Receita (Mês Atual)';  // <-- Novo título
-            }
-            setReceitaTitulo(newTitulo);
-
-            const receitaQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(receitaStartDate)), where("startTime", "<=", Timestamp.fromDate(receitaEndDate)), where("status", "!=", "cancelado"));
-            const receitaSnapshot = await getDocs(receitaQuery);
-            let receitaEstimada = 0;
-            receitaSnapshot.forEach(doc => {
-                const data = doc.data();
-                if (data.servicePrice != null && typeof data.servicePrice === 'number') {
-                    receitaEstimada += data.servicePrice;
-                }
+		try {
+            const token = await auth.currentUser.getIdToken();
+            
+            const response = await axios.get(`${API_BASE_URL}/admin/dashboard-data/${salaoId}`, {
+                params: {
+                    agendamentos_foco_periodo: agendamentosFoco,
+                    novos_clientes_periodo: novosClientesPeriodo,
+                    agendamentos_grafico_dias: agendamentosPeriodo,
+                    receita_periodo: receitaPeriodo,
+                },
+                headers: { Authorization: `Bearer ${token}` }
             });
-            const receitaFormatada = receitaEstimada.toFixed(2).replace('.', ',');
 
-            setKpiData({
-                hoje: countHoje, prox7dias: countProx7Dias, novos24h: countNovos24h,
-                receitaEstimada: receitaFormatada,
-            });
+            const data = response.data;
+
+			// --- ATUALIZAÇÃO DOS ESTADOS ---
+			setKpiData(prev => ({
+				...prev,
+                receitaEstimada: data.receita_estimada,
+                agendamentosFocoValor: data.agendamentos_foco_valor,
+                novosClientesValor: data.novos_clientes_valor,
+			}));
+            
+            setChartData(data.chart_data);
+            
             setLoadingKpi(false);
-
-            // --- Query para Gráfico (com filtro "cancelado") ---
-            // ... (lógica do gráfico idêntica) ...
-            const chartQuery = query(agendamentosRef, where("startTime", ">=", Timestamp.fromDate(ultimos7DiasInicio)), where("startTime", "<=", Timestamp.fromDate(endOfDay(now))), where("status", "!=", "cancelado"));
-            const chartSnapshot = await getDocs(chartQuery);
-
-            const diasDaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            let diasArray = [];
-            for (let i = 6; i >= 0; i--) {
-                const data = subDays(now, i);
-                diasArray.push({
-                    name: diasDaSemana[data.getDay()],
-                    Agendamentos: 0,
-                    fullDate: format(data, 'yyyy-MM-dd')
-                });
-            }
-            chartSnapshot.forEach(doc => {
-                const dataAgendamento = doc.data().startTime.toDate();
-                const diaFormatado = format(dataAgendamento, 'yyyy-MM-dd');
-                const diaIndex = diasArray.findIndex(d => d.fullDate === diaFormatado);
-                if (diaIndex !== -1) { diasArray[diaIndex].Agendamentos++; }
-            });
-
-            setChartData7Days(diasArray);
             setLoadingChart(false);
-        } catch (err) {
-            console.error("Erro ao buscar dados do Dashboard:", err);
-            if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário. Verifique o console de debug (F12) para o link de criação do índice."); }
-            else { setError("Não foi possível carregar os dados do dashboard."); }
-            setLoadingKpi(false); setLoadingChart(false);
-        }
-    }, [salaoId, receitaPeriodo]);
 
-    // --- Listener Próximos Agendamentos (com filtro "cancelado") ---
-    // ... (lógica idêntica, já começa de Timestamp.now()) ...
-    useEffect(() => {
-        if (!salaoId) return;
-        setLoadingProximos(true);
-        const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
-        const q = query(
-            agendamentosRef,
-            where("startTime", ">=", Timestamp.now()),
-            where("status", "!=", "cancelado"),
-            orderBy("startTime", "asc"),
-            limit(5)
-        );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const proximos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setProximosAgendamentos(proximos);
-            setLoadingProximos(false);
-        }, (err) => {
-            console.error("Erro no listener de próximos agendamentos:", err);
-            if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário para 'Próximos Agendamentos'. Verifique o console."); }
-            else { setError("Erro ao carregar próximos agendamentos."); }
-            setLoadingProximos(false);
-        });
-        return () => unsubscribe();
-    }, [salaoId]);
+		} catch (err) {
+			console.error("Erro ao buscar dados do Dashboard:", err);
+			if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário."); }
+			else if (err.response?.status === 403) { setError("Acesso negado. Assinatura pendente ou expirada."); }
+			else { setError(err.response?.data?.detail || "Não foi possível carregar os dados do dashboard."); }
+			
+            setLoadingKpi(false); 
+            setLoadingChart(false);
+		}
+	}, [salaoId, receitaPeriodo, agendamentosPeriodo, agendamentosFoco, novosClientesPeriodo]);
 
-    // Busca KPIs
-    useEffect(() => { fetchKpiData(); }, [fetchKpiData]);
+	// --- Listener Próximos Agendamentos (onSnapshot) ---
+	useEffect(() => {
+		if (!salaoId) return;
+		setLoadingProximos(true);
+		const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
+		const q = query(
+			agendamentosRef,
+			where("startTime", ">=", Timestamp.now()),
+			where("status", "!=", "cancelado"),
+			orderBy("startTime", "asc"),
+			limit(5)
+		);
+		const unsubscribe = onSnapshot(q, (snapshot) => {
+			const proximos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+			setProximosAgendamentos(proximos);
+			setLoadingProximos(false);
+		}, (err) => {
+			console.error("Erro no listener de próximos agendamentos:", err);
+			if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário para 'Próximos Agendamentos'. Verifique o console."); }
+			else { setError("Erro ao carregar próximos agendamentos."); }
+			setLoadingProximos(false);
+		});
+		return () => unsubscribe();
+	}, [salaoId]);
 
-    // --- Função Copiar Link ---
-    // ... (código idêntico) ...
-    const copyLink = () => {
-        const publicUrl = `https://horalis.app/agendar/${salaoId}`;
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-        navigator.clipboard.writeText(publicUrl).then(() => {
-            setLinkCopied(true);
-            toast.success("Link público copiado!");
-            copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
-        }).catch(err => {
-            toast.error('Erro ao copiar link.');
-            console.error('Erro ao copiar: ', err);
-        });
+	// Busca KPIs e Gráfico
+	useEffect(() => { 
+        fetchKpiData(); 
+    }, [fetchKpiData]);
+
+	// --- Função Copiar Link (idêntica) ---
+	const copyLink = () => {
+		const publicUrl = `https://horalis.app/agendar/${salaoId}`;
+		if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+		navigator.clipboard.writeText(publicUrl).then(() => {
+			setLinkCopied(true);
+			toast.success("Link público copiado!");
+			copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
+		}).catch(err => {
+			toast.error('Erro ao copiar link.');
+			console.error('Erro ao copiar: ', err);
+		});
+	};
+	useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
+
+    // --- Helper para o Título do KPI Consolidado ---
+    const getAgendamentosFocoTitle = () => {
+        // Isso aqui não é mais usado para o título principal, mas podemos manter para o label do filtro.
+        const option = [
+            { value: 'hoje', label: 'Agendamentos Hoje' },
+            { value: 'prox7dias', label: 'Próx. 7 Dias' },
+            { value: 'novos24h', label: 'Novos Agend. (24h)' }
+        ].find(opt => opt.value === agendamentosFoco);
+        return option ? option.label : 'Agendamentos';
     };
-    useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
 
-    // --- Renderização ---
-    return (
-        <div className="font-sans space-y-6">
-            {/* Título e Botão Copiar Link */}
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <h2 className={`text-2xl font-bold text-gray-900 flex items-center ${CIANO_TEXT_CLASS}`}>
-                    <Icon icon={BarChart2} className="w-6 h-6 mr-3" />
-                    Visão Geral
-                </h2>
 
-                <button
-                    type="button"
-                    onClick={copyLink}
-                    className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ease-in-out shadow-sm ${linkCopied
-                            ? 'bg-green-100 text-green-700'
-                            : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
-                        }`}
-                >
-                    <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-2" />
-                    {linkCopied ? "Link Copiado!" : "Link de Agendamentos"}
-                </button>
-            </div>
+	// --- Renderização ---
+	return (
+		<div className="font-sans space-y-6">
+			{/* Título e Botão Copiar Link */}
+			<div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+				<h2 className={`text-2xl font-bold text-gray-900 flex items-center ${CIANO_TEXT_CLASS}`}>
+					<Icon icon={BarChart2} className="w-6 h-6 mr-3" />
+					Visão Geral
+				</h2>
+				
+				<button
+					type="button"
+					onClick={copyLink}
+					className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ease-in-out shadow-sm ${
+						linkCopied
+						? 'bg-green-100 text-green-700'
+						: `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
+					}`}
+				>
+					<Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-2"/>
+					{linkCopied ? "Link Copiado!" : "Link de Agendamentos"}
+				</button>
+			</div>
 
-            {error && (
-                <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 flex items-center gap-2">
-                    <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" /> <p>{error}</p>
-                </div>
-            )}
+			{error && (
+				<div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 flex items-center gap-2">
+					<Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0"/> <p>{error}</p>
+				</div>
+			)}
 
-            {/* 1. KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                <KpiCard title="Agendamentos Hoje" value={kpiData.hoje} icon={Calendar} isLoading={loadingKpi} />
+			{/* 1. KPIs (4 COLUNAS) */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                
+                {/* 1. KPI CONSOLIDADO DE AGENDAMENTOS */}
                 <KpiCard
-                    title={receitaTitulo}
-                    value={kpiData.receitaEstimada !== null ? `R$ ${kpiData.receitaEstimada}` : null}
-                    icon={TrendingUp} isLoading={loadingKpi}
-                    filterPeriod={receitaPeriodo} onFilterChange={setReceitaPeriodo} filterOptions={receitaFilterOptions}
+                    // <<< CORREÇÃO: Título Fixo para o KPI Consolidado >>>
+                    title="Agendamentos em Foco"
+                    // <<< FIM DA CORREÇÃO >>>
+                    value={kpiData.agendamentosFocoValor}
+                    icon={CalendarDays}
+                    isLoading={loadingKpi}
+                    filterPeriod={agendamentosFoco}
+                    onFilterChange={setAgendamentosFoco}
+                    filterOptions={[
+                        { value: 'hoje', label: 'Hoje' },
+                        { value: 'prox7dias', label: 'Próx. 7 Dias' },
+                        { value: 'novos24h', label: 'Novos (24h)' }
+                    ]}
                 />
-                <KpiCard title="Agend. Próx. 7 Dias" value={kpiData.prox7dias} icon={CalendarDays} isLoading={loadingKpi} />
-                <KpiCard title="Novos Agend. (24h)" value={kpiData.novos24h} icon={Users} isLoading={loadingKpi} />
-            </div>
 
-            {/* 2. Gráfico e Próximos Agendamentos (Grid de 2 colunas) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				{/* 2. KPI RECEITA (Mantido) */}
+				<KpiCard
+					title={receitaTitulo}
+					value={kpiData.receitaEstimada !== null ? `R$ ${kpiData.receitaEstimada}` : null}
+					icon={TrendingUp} isLoading={loadingKpi}
+					filterPeriod={receitaPeriodo} onFilterChange={setReceitaPeriodo} filterOptions={receitaFilterOptions}
+				/>
+                
+                {/* 3. NOVO KPI CLIENTES */}
+                <KpiCard
+                    // <<< CORREÇÃO: Título Fixo para KPI de Clientes >>>
+                    title="Novos Clientes"
+                    // <<< FIM DA CORREÇÃO >>>
+                    value={kpiData.novosClientesValor}
+                    icon={UserPlus}
+                    isLoading={loadingKpi}
+                    filterPeriod={novosClientesPeriodo}
+                    onFilterChange={setNovosClientesPeriodo}
+                    filterOptions={novosClientesFilterOptions}
+                />
+
+                {/* 4. Coluna extra (Total no Mês) */}
+                <KpiCard 
+                    // <<< CORREÇÃO: Título Fixo Simples >>>
+                    title="Total no Mês" 
+                    // <<< FIM DA CORREÇÃO >>>
+                    value={kpiData.novos24h} icon={Users} isLoading={loadingKpi} /> 
+                
+			</div>
+
+			{/* 2. Gráfico e Próximos Agendamentos (Grid de 2 colunas) */}
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Coluna Gráfico */}
-                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Agendamentos (Últimos 7 Dias)</h3>
-                    {loadingChart ? (
-                        <div className="flex justify-center items-center h-64 sm:h-80">
-                            <Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} />
-                        </div>
-                    ) : (
-                        <div className="w-full h-64 sm:h-80">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData7Days} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                                    <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '8px' }}
-                                        labelStyle={{ color: '#000', fontWeight: 'bold' }}
-                                    />
-                                    <Bar dataKey="Agendamentos" fill={CIANO_FILL_COLOR} radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </div>
+                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        {/* Removemos o filtro daqui, pois está no ChartFilter */}
+                        <h3 className="text-lg font-semibold text-gray-800">Agendamentos Históricos</h3>
+                        
+                        {/* Filtro do Gráfico (idêntico) */}
+                        <ChartFilter
+                            currentPeriod={agendamentosPeriodo}
+                            onPeriodChange={setAgendamentosPeriodo}
+                            filterOptions={agendamentosFilterOptions}
+                        />
+                    </div>
 
-                {/* Coluna Próximos Agendamentos */}
-                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
-                        <Icon icon={Bell} className={`w-5 h-5 mr-2 ${CIANO_TEXT_CLASS}`} />
-                        Próximos Agendamentos
-                    </h3>
-                    {loadingProximos ? (
-                        <div className="flex justify-center py-4"> <Loader2 className={`w-6 h-6 animate-spin ${CIANO_TEXT_CLASS}`} /> </div>
-                    ) : proximosAgendamentos.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">Nenhum agendamento futuro.</p>
-                    ) : (
-                        <ul className="space-y-1 max-h-[340px] overflow-y-auto">
-                            {proximosAgendamentos.map(agd => <ProximoAgendamentoItem key={agd.id} agendamento={agd} />)}
-                        </ul>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+					{loadingChart ? (
+						<div className="flex justify-center items-center h-64 sm:h-80">
+							<Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} />
+						</div>
+					) : chartData.length === 0 ? (
+						<div className="flex justify-center items-center h-64 sm:h-80 text-gray-500">
+							<p>Nenhum agendamento encontrado para este período.</p>
+						</div>
+					) : (
+						<div className="w-full h-64 sm:h-80">
+							<ResponsiveContainer width="100%" height="100%">
+								<BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+									<CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+									<XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+									<YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} />
+									<Tooltip
+										contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '8px' }}
+										labelStyle={{ color: '#000', fontWeight: 'bold' }}
+									/>
+									<Bar dataKey="Agendamentos" fill={CIANO_FILL_COLOR} radius={[4, 4, 0, 0]} />
+								</BarChart>
+							</ResponsiveContainer>
+						</div>
+					)}
+				</div>
+
+				{/* Coluna Próximos Agendamentos */}
+				<div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+					<h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+						<Icon icon={Bell} className={`w-5 h-5 mr-2 ${CIANO_TEXT_CLASS}`}/>
+						Próximos Agendamentos
+					</h3>
+					{loadingProximos ? (
+						<div className="flex justify-center py-4"> <Loader2 className={`w-6 h-6 animate-spin ${CIANO_TEXT_CLASS}`} /> </div>
+					) : proximosAgendamentos.length === 0 ? (
+						<p className="text-sm text-gray-500 text-center py-4">Nenhum agendamento futuro.</p>
+					) : (
+						<ul className="space-y-1 max-h-[340px] overflow-y-auto">
+							{proximosAgendamentos.map(agd => <ProximoAgendamentoItem key={agd.id} agendamento={agd} />)}
+						</ul>
+					)}
+				</div>
+			</div>
+		</div>
+	);
 }
 
 export default VisaoGeralPage;
