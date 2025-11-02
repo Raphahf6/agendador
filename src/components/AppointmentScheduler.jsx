@@ -105,6 +105,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [paymentMethod, setPaymentMethod] = useState(null); 
   const [pixData, setPixData] = useState(null); 
   const [agendamentoIdPendente, setAgendamentoIdPendente] = useState(null); 
+  const [deviceId, setDeviceId] = useState(null)
   
   const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -273,11 +274,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   };
 
   // --- Helper: Cria o payload base (só é usado no fluxo pago) ---
-  const createBasePayload = (paymentMethodId) => {
-    const deviceId = document.getElementById('__mpoffline_device_id')?.value;
-    if (!deviceId) {
-        console.warn("MP Device ID não encontrado. O risco de fraude aumenta.");
+  const createBasePayload = (paymentMethodId, currentDeviceId) => {
+    // Note: currentDeviceId deve vir do estado ou ser passado.
+    if (!currentDeviceId) {
+        console.warn("Payload criado sem Device ID.");
     }
+    
     return {
         salao_id: salaoId,
         service_id: selectedService.id,
@@ -293,16 +295,30 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             type: 'CPF',
             number: customerCpf.replace(/\D/g, '')
           }
-        }
+        },
+        // <<< CORREÇÃO: Envia o deviceId que estava dando erro >>>
+        device_id: currentDeviceId 
+        // <<< FIM DA CORREÇÃO >>>
     };
   };
 
   // --- ETAPA 3: Submissão do Cartão (só é chamado se requiresPayment=true) ---
-  const handleCardPaymentSubmit = async (formData) => {
+ const handleCardPaymentSubmit = async (formData) => {
     setIsBooking(true);
     setPaymentError(null);
 
-    const basePayload = createBasePayload(formData.payment_method_id);
+    // <<< CORREÇÃO CRÍTICA: O Device ID DEVE ser capturado aqui se o Brick estiver sendo usado >>>
+    const deviceIdInput = document.getElementById('security_code')?.form?.querySelector('#security_code').form.querySelector('input[name="__mpoffline_device_id"]');
+    const finalDeviceId = deviceIdInput ? deviceIdInput.value : deviceId;
+
+    if (!finalDeviceId) {
+        toast.error("Erro crítico: ID anti-fraude ausente. Tente recarregar a página.");
+        setIsBooking(false);
+        return;
+    }
+    // --- FIM DA CAPTURA ---
+
+    const basePayload = createBasePayload(formData.payment_method_id, finalDeviceId); 
     
     const finalPayload = {
         ...basePayload,
@@ -314,19 +330,17 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     return new Promise((resolve, reject) => {
         axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, finalPayload)
             .then((response) => {
-                // SUCESSO (Cartão aprovado)
                 setIsBooking(false);
                 onAppointmentSuccess({
                     serviceName, 
                     startTime: selectedSlot.toISOString(), 
                     customerName: customerName.trim(),
-                    paymentStatus: response.data.status, // 'approved'
+                    paymentStatus: response.data.status,
                     paymentData: null
                 });
                 resolve(); 
             })
             .catch((err) => {
-                // ERRO (Cartão Rejeitado, Horário Ocupado, etc.)
                 setIsBooking(false);
                 const detail = err.response?.data?.detail || "Não foi possível processar seu pagamento.";
                 setPaymentError(detail);
