@@ -6,12 +6,12 @@ import { Routes, Route, useParams, Navigate, Link as RouterLink, useLocation, us
 import ServiceList from './components/ServiceList';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import ConfirmationPage from './components/ConfirmationPage';
-import HoralisCalendar from './components/HoralisCalendar'; 
+import HoralisCalendar from './components/HoralisCalendar';
 
 // Imports da Landing Page
 import { LandingPage } from './pages/LandingPage';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
-import { ArrowLeft, Loader2 } from 'lucide-react'; 
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import ClienteDetailPage from './pages/painel/ClienteDetailPage';
 import MarketingPage from './pages/painel/MarketingPage';
 
@@ -55,7 +55,7 @@ function ProtectedPanelRoute({ children, user, location }) {
         // <<< CORREÇÃO AQUI >>>
         // O estado 'from' deve ser a string do pathname, e não o objeto 'location' inteiro.
         return <Navigate
-            to={`/login`} 
+            to={`/login`}
             state={{ from: location.pathname }} // Passa a STRING do pathname
             replace
         />;
@@ -74,19 +74,44 @@ function SalonScheduler() {
     const { salaoId } = useParams();
     const [selectedService, setSelectedService] = useState(null);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
+    const [deviceId, setDeviceId] = useState(null);
     const [salonDetails, setSalonDetails] = useState({
-        nome_salao: '', 
-        tagline: '', 
+        nome_salao: '',
+        tagline: '',
         url_logo: '',
-        mp_public_key: null, 
-        sinal_valor: 0 
+        mp_public_key: null,
+        sinal_valor: 0
     });
     const [loadingSalonData, setLoadingSalonData] = useState(true);
     const [errorSalon, setErrorSalon] = useState(null);
     const navigate = useNavigate();
 
     // Estado de controle do SDK de Pagamento
-    const [sdkReady, setSdkReady] = useState(false); 
+    const [sdkReady, setSdkReady] = useState(false);
+
+    useEffect(() => {
+        // Esta função tenta capturar o ID anti-fraude uma vez
+        const captureDeviceId = () => {
+            const deviceIdElement = document.querySelector('input[name="__mpoffline_device_id"]');
+            if (deviceIdElement && deviceIdElement.value) {
+                setDeviceId(deviceIdElement.value);
+                console.log("Device ID capturado:", deviceIdElement.value);
+                return true;
+            }
+            return false;
+        };
+
+        if (salonDetails.mp_public_key && salonDetails.sinal_valor > 0) {
+            // Se o SDK já está inicializado, damos um tempo para o MP carregar o campo no DOM
+            const interval = setInterval(() => {
+                if (captureDeviceId()) {
+                    clearInterval(interval);
+                }
+            }, 500);
+            return () => clearInterval(interval);
+        }
+    }, [sdkReady, salonDetails.mp_public_key, salonDetails.sinal_valor]);
+    // --- Fim da Captura ---
 
     // --- Funções Handle (Callbacks) ---
     const handleDataLoaded = useCallback((details, error = null) => {
@@ -94,17 +119,17 @@ function SalonScheduler() {
         if (error) {
             setErrorSalon(error);
             setSalonDetails(prev => ({ ...prev, nome_salao: 'Erro ao Carregar' }));
-            setSdkReady(false); 
+            setSdkReady(false);
             return;
-        } 
-        
+        }
+
         if (details && typeof details === 'object') {
             setSalonDetails(prev => ({
                 ...prev,
                 nome_salao: details.nome_salao,
                 tagline: details.tagline,
                 url_logo: details.url_logo,
-                mp_public_key: details.mp_public_key, 
+                mp_public_key: details.mp_public_key,
                 sinal_valor: details.sinal_valor
             }));
             setErrorSalon(null);
@@ -130,7 +155,7 @@ function SalonScheduler() {
                 setSdkReady(true); // Libera a renderização
             }
             // --- FIM DA INICIALIZAÇÃO ---
-            
+
         } else {
             console.error("handleDataLoaded: Detalhes inválidos!", details);
             setErrorSalon("Erro inesperado.");
@@ -190,6 +215,7 @@ function SalonScheduler() {
                     onAppointmentSuccess={handleAppointmentSuccess}
                     sinalValor={salonDetails.sinal_valor || 0}
                     publicKeyExists={!!salonDetails.mp_public_key}
+                    deviceId={deviceId} // <<< PASSA A PROP DEVICE ID
                 />;
             } else {
                 return (
@@ -201,12 +227,20 @@ function SalonScheduler() {
             }
         }
         // Fallback: mostra a lista de serviços
-        return <ServiceList
-            salaoId={salaoId}
-            onDataLoaded={handleDataLoaded} 
-            onServiceClick={handleServiceSelect}
-        />;
+        return (
+
+
+            <ServiceList
+                salaoId={salaoId}
+                onDataLoaded={handleDataLoaded}
+                onServiceClick={handleServiceSelect}
+            />
+
+        );
     };
+
+
+
 
     // --- RETURN Principal ---
     return (
@@ -221,7 +255,7 @@ function SalonScheduler() {
                                     onClick={handleBackFromScheduler}
                                     className="text-gray-600 hover:text-gray-900 font-medium flex items-center p-2 rounded transition-colors hover:bg-gray-200 text-sm"
                                 >
-                                    <Icon icon={ArrowLeft} className="h-4 w-4 mr-1"/>
+                                    <Icon icon={ArrowLeft} className="h-4 w-4 mr-1" />
                                     Voltar
                                 </button>
                             </div>
@@ -286,7 +320,7 @@ function App() {
 
     return (
         <div className="relative min-h-screen">
-            <Toaster 
+            <Toaster
                 position="top-right"
                 reverseOrder={false}
                 toastOptions={{
@@ -300,14 +334,14 @@ function App() {
 
                 {/* --- ROTAS DE AUTENTICAÇÃO PÚBLICA --- */}
                 <Route path="/login" element={<ProfissionalLoginPage />} />
-                <Route path="/cadastro" element={<ProfissionalSignupPage />} /> 
+                <Route path="/cadastro" element={<ProfissionalSignupPage />} />
 
                 {/* Rota de Agendamento (Pública) */}
                 <Route path="/agendar/:salaoId" element={<SalonScheduler />} />
 
                 {/* --- ROTA DO PAINEL PROTEGIDA (Pai) --- */}
-                <Route 
-                    path="/painel/:salaoId" 
+                <Route
+                    path="/painel/:salaoId"
                     element={
                         <ProtectedPanelRoute user={user} location={location}>
                             <PainelLayout />
@@ -331,6 +365,6 @@ function App() {
             </Routes>
         </div>
     );
-} 
+}
 
 export default App;
