@@ -5,11 +5,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from "@/lib/utils"; // Importa o utilitário 'cn' do shadcn
-
-// <<< DEFINIÇÕES DE COR >>>
-const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-600';
+import { cn } from "@/lib/utils";
 
 // Helper Ícone Simples
 const Icon = ({ icon: IconComponent, className = "" }) => (
@@ -21,14 +17,14 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
  * Props:
  * - selectedDate (Date): A data atualmente selecionada.
  * - onDateSelect (function): Função chamada quando uma data é clicada.
- * - REMOVIDO: styleOptions
+ * - primaryColor (string): A cor primária em HEX do salão (ex: '#A020F0').
  */
-// <<< ALTERADO: Removido styleOptions das props >>>
-function HoralisCalendar({ selectedDate, onDateSelect }) {
-  const [displayDate, setDisplayDate] = useState(selectedDate || new Date());
+function HoralisCalendar({ selectedDate, onDateSelect, primaryColor }) {
 
-  // <<< REMOVIDO: Cores dinâmicas >>>
-  // const corPrimaria = styleOptions?.cor_primaria || '#6366F1';
+  // Define a cor primária ou usa um fallback seguro
+  const primary = primaryColor || '#0E7490';
+
+  const [displayDate, setDisplayDate] = useState(selectedDate || new Date());
 
   const goToNextMonth = () => setDisplayDate(addMonths(displayDate, 1));
   const goToPreviousMonth = () => setDisplayDate(subMonths(displayDate, 1));
@@ -42,7 +38,7 @@ function HoralisCalendar({ selectedDate, onDateSelect }) {
 
   return (
     // Container principal: fundo branco, sombra, borda, fonte
-    <div className="w-full max-w-sm mx-auto bg-white rounded-xl shadow-md border border-gray-100 p-4 font-sans"> {/* Ajustado shadow */}
+    <div className="w-full max-w-sm mx-auto bg-white rounded-xl shadow-md border border-gray-100 p-4 font-sans">
 
       {/* 1. Cabeçalho */}
       <div className="flex items-center justify-between mb-4">
@@ -50,14 +46,14 @@ function HoralisCalendar({ selectedDate, onDateSelect }) {
         <button
           type="button"
           onClick={goToPreviousMonth}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300" // Adicionado focus ring
+          className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300"
           aria-label="Mês anterior"
         >
           <Icon icon={ChevronLeft} className="w-5 h-5" />
         </button>
 
-        {/* <<< ALTERADO: Título Mês/Ano (Ciano) >>> */}
-        <div className={`text-lg font-semibold ${CIANO_COLOR_TEXT} capitalize`}>
+        {/* Título Mês/Ano: Usa a primaryColor */}
+        <div className={`text-lg font-semibold capitalize`} style={{ color: primary }}>
           {format(displayDate, 'MMMM yyyy', { locale: ptBR })}
         </div>
 
@@ -65,7 +61,7 @@ function HoralisCalendar({ selectedDate, onDateSelect }) {
         <button
           type="button"
           onClick={goToNextMonth}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300" // Adicionado focus ring
+          className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300"
           aria-label="Próximo mês"
         >
           <Icon icon={ChevronRight} className="w-5 h-5" />
@@ -73,7 +69,7 @@ function HoralisCalendar({ selectedDate, onDateSelect }) {
       </div>
 
       {/* 2. Corpo: Grid dos Dias */}
-      <div className="grid grid-cols-7 gap-y-1 text-center"> {/* Adicionado text-center */}
+      <div className="grid grid-cols-7 gap-y-1 text-center">
         {/* Cabeçalho Dias Semana */}
         {weekDaysHeader.map((day) => (
           <div key={day} className="text-xs font-medium text-gray-400 uppercase pt-1 pb-2">
@@ -91,21 +87,31 @@ function HoralisCalendar({ selectedDate, onDateSelect }) {
           const isSelected = isSameDay(day, selectedDate || null);
           const isCurrentDay = isToday(day);
 
+          // Define o estilo customizado
+          const customStyle = {
+            // Fundo e texto quando selecionado
+            backgroundColor: isSelected ? primary : undefined,
+            color: isSelected ? 'white' : (isCurrentDay && !isSelected ? primary : 'inherit'),
+            // Fundo claro para o dia de hoje
+            backgroundColor: isCurrentDay && !isSelected ? primary + '15' : isSelected ? primary : undefined,
+            fontWeight: isCurrentDay ? '600' : '500',
+            // Foco
+            '--tw-ring-color': primary,
+          };
+
           return (
-            <div key={day.toISOString()} className="flex justify-center items-center h-10"> {/* Adicionado h-10 */}
+            <div key={day.toISOString()} className="flex justify-center items-center h-10">
               <button
                 type="button"
                 onClick={() => onDateSelect(day)}
                 className={cn(
-                  "h-9 w-9 flex items-center justify-center rounded-full text-sm font-medium transition-all duration-150 ease-in-out",
-                  // Estilo Padrão
-                  "text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-1",
-                  // Estilo "Hoje" (se não selecionado) - Usando Ciano para o texto
-                  !isSelected && isCurrentDay && `bg-cyan-50 ${CIANO_COLOR_TEXT} font-semibold`,
-                  // <<< ALTERADO: Estilo "Selecionado" (Ciano) >>>
-                  isSelected && `${CIANO_COLOR_BG} text-white shadow-md hover:bg-opacity-90`
+                  "h-9 w-9 flex items-center justify-center rounded-full text-sm transition-all duration-150 ease-in-out",
+                  "text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1",
+                  // Sobrepõe o estilo nativo com a cor primária
+                  isSelected && `text-white shadow-md hover:opacity-90`,
+                  isCurrentDay && !isSelected && 'border border-transparent'
                 )}
-                 // <<< REMOVIDO: style={isSelected ? { backgroundColor: corPrimaria } : {}} >>>
+                style={customStyle}
               >
                 {format(day, 'd')}
               </button>

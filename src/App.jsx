@@ -90,7 +90,7 @@ function SalonScheduler() {
     const [loadingSalonData, setLoadingSalonData] = useState(true);
     const [errorSalon, setErrorSalon] = useState(null);
     const [sdkReady, setSdkReady] = useState(false);
-    
+
     // NOVO ESTADO: Controla a visibilidade e o fade-out do splash screen
     const [showSplash, setShowSplash] = useState(true);
     const [isFadingOut, setIsFadingOut] = useState(false);
@@ -110,16 +110,16 @@ function SalonScheduler() {
                 const hideTimer = setTimeout(() => {
                     setShowSplash(false);
                 }, fadeOutDuration);
-                
+
                 return () => clearTimeout(hideTimer);
 
             }, minDuration); // Atraso de 2 segundos
-            
+
             return () => clearTimeout(minDurationTimer);
         }
         // Se loadingSalonData falhou, desativamos o splash imediatamente para mostrar o erro.
         if (errorSalon && showSplash) {
-             setShowSplash(false);
+            setShowSplash(false);
         }
 
     }, [loadingSalonData, showSplash, errorSalon]);
@@ -184,7 +184,7 @@ function SalonScheduler() {
             console.error("handleDataLoaded: Detalhes inválidos!", details);
             setErrorSalon("Erro inesperado.");
             setSdkReady(false);
-            
+
         }
     }, [applyThemeColors]);
 
@@ -247,7 +247,7 @@ function SalonScheduler() {
             // Este erro só é visível se o showSplash já tiver sido desativado pelo useEffect
             return <p className="p-4 text-center text-red-600">{errorSalon}</p>;
         }
-        
+
         if (appointmentConfirmed) {
             return <ConfirmationPage
                 appointmentDetails={appointmentConfirmed}
@@ -276,7 +276,7 @@ function SalonScheduler() {
                 );
             }
         }
-        
+
         // Renderiza ServiceList sempre que estiver na tela inicial, 
         // permitindo que o onDataLoaded dispare o fetch inicial.
         return (
@@ -294,32 +294,32 @@ function SalonScheduler() {
         <>
             {/* O Full Screen Splash só é montado se showSplash for true */}
             {showSplash && <FullScreenLoading />}
-            
+
             {/* O conteúdo principal da aplicação só fica visível quando o splash sumir.
                 A opacidade garante o fade-in/fade-out suave. */}
-            <div 
+            <div
                 className={`w-full min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 py-8 px-4 sm:px-6 lg:px-8 transition-opacity duration-500 ${showSplash ? 'opacity-0' : 'opacity-100'}`}
                 style={{ pointerEvents: showSplash ? 'none' : 'auto' }}
             >
                 {/* CARD CONTAINER PREMIUM */}
                 <div className="w-full max-w-3xl mx-auto">
                     <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-                        
+
                         {/* CABEÇALHO PREMIUM - Separado visualmente */}
                         {!appointmentConfirmed && (
                             <header className="relative w-full bg-white">
                                 {/* Background decorativo com gradiente */}
-                                <div 
+                                <div
                                     className="absolute inset-0 opacity-5"
                                     style={{
                                         background: `linear-gradient(135deg, ${salonDetails.cor_primaria || '#0E7490'} 0%, transparent 100%)`
                                     }}
                                 />
-                                
+
                                 <div className="relative">
                                     {/* Botão Voltar: CORREÇÃO DO Z-INDEX */}
                                     {selectedService && (
-                                        <div className="absolute top-6 left-4 sm:left-8 z-50"> 
+                                        <div className="absolute top-6 left-4 sm:left-8 z-50">
                                             <button
                                                 onClick={handleBackFromScheduler}
                                                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-x-1 border border-gray-100"
@@ -343,7 +343,7 @@ function SalonScheduler() {
                                                 {/* Logo com efeito premium */}
                                                 {salonDetails.url_logo && (
                                                     <div className="relative mb-6">
-                                                        <div 
+                                                        <div
                                                             className="absolute inset-0 rounded-full blur-2xl opacity-20"
                                                             style={{ backgroundColor: salonDetails.cor_primaria }}
                                                         />
@@ -370,7 +370,7 @@ function SalonScheduler() {
                                                 {/* Separador decorativo */}
                                                 <div className="flex items-center gap-3 mb-8">
                                                     <div className="h-px w-12 bg-gradient-to-r from-transparent to-gray-300" />
-                                                    <div 
+                                                    <div
                                                         className="w-2 h-2 rounded-full"
                                                         style={{ backgroundColor: salonDetails.cor_primaria }}
                                                     />
@@ -379,7 +379,7 @@ function SalonScheduler() {
 
                                                 {/* Título da Seção de Serviços */}
                                                 <div className="w-full">
-                                                    <h2 
+                                                    <h2
                                                         className="mb-2 tracking-tight"
                                                         style={{ color: salonDetails.cor_primaria || '#0E7490' }}
                                                     >
@@ -398,10 +398,10 @@ function SalonScheduler() {
                                         // Antigo: <div className="h-32 flex items-center justify-center">...</div>
                                         // NOVO: Usando HourglassLoading para o loading de dados
                                         <div className="h-32 flex items-center justify-center">
-                                            <HourglassLoading message="Carregando dados..." primaryColor={salonDetails.cor_primaria} size="w-8 h-8"/>
+                                            <HourglassLoading message="Carregando dados..." primaryColor={salonDetails.cor_primaria} size="w-8 h-8" />
                                         </div>
                                     )}
-                                    
+
                                     {!showSplash && errorSalon && !selectedService && (
                                         <p className="text-red-600 text-center py-8">Erro ao carregar.</p>
                                     )}

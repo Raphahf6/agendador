@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const FullScreenLoading = () => {
     // COR FIXA para evitar a transição visual. Usaremos um cinza escuro neutro (gray-700).
-    const fixedSplashColor = '#4B5563';
+    const fixedSplashColor = 'rgb(8 145 178)';
     const [showSplash, setShowSplash] = useState(true);
     const [isFadingOut, setIsFadingOut] = useState(false);
 

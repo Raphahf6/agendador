@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { format, isBefore, startOfToday, parseISO } from 'date-fns';
-import { Clock, User, Phone, DollarSign, Mail, Loader2, ArrowRight, Copy } from 'lucide-react';
+import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy } from 'lucide-react';
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -348,8 +348,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             {/* Mostra "Sinal" apenas se o pagamento for obrigatório */}
             {requiresPayment && (
               <div className="flex items-center gap-1.5">
-                <Icon icon={DollarSign} className="w-4 h-4 text-gray-400" />
-                <span style={{ color: primary }}>Sinal de Reserva: R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
+               
+                <span className=' gap-4 text-sm text-gray-500 font-light'>Sinal de Reserva: R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
               </div>
             )}
 
@@ -362,6 +362,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           <HoralisCalendar
             selectedDate={selectedDate}
             onDateSelect={handleDateSelect}
+            primaryColor={primary}
           />
         </div>
 
