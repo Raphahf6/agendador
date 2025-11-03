@@ -1,20 +1,121 @@
 // frontend/src/pages/painel/PainelLayout.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import {
   Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
-  LayoutDashboard, CreditCard, BarChart2, Users, Send
+  BarChart2, CreditCard, Users, Send, Loader2
 } from 'lucide-react';
 import axios from 'axios';
-import LoadingSpinner from '@/components/LoadingSpinner'; 
-// <<< MUDANÇAS AQUI >>>
-import { signOut, onAuthStateChanged } from "firebase/auth"; // Importa o onAuthStateChanged
+// import LoadingSpinner from '@/components/LoadingSpinner'; // Não precisamos dele se usarmos o Contexto para travar a tela
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from '@/firebaseConfig';
-import toast from 'react-hot-toast'; // Importa o toast para avisos
-// <<< FIM DAS MUDANÇAS >>>
+import toast from 'react-hot-toast';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+
+// ----------------------------------------------------
+// --- 1. CONTEXTO GLOBAL DE DADOS DO SALÃO (Para evitar props drilling e otimizar re-renders) ---
+// ----------------------------------------------------
+const SalonContext = createContext({
+  salonDetails: null,
+  loading: true,
+  error: null,
+  salaoId: null
+});
+
+// Hook customizado para consumir o contexto
+export const useSalon = () => useContext(SalonContext);
+
+// ----------------------------------------------------
+// --- 2. PROVEDOR DE DADOS DO SALÃO ---
+// ----------------------------------------------------
+function SalonProvider({ children }) {
+  const { salaoId } = useParams();
+  const [salonDetails, setSalonDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!salaoId) {
+      setError("ID do salão não fornecido na URL.");
+      setLoading(false);
+      return;
+    }
+
+    // Listener de autenticação (bloqueio inicial)
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // Usuário deslogado, redireciona imediatamente
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      // Usuário logado, agora buscamos os detalhes do salão
+      try {
+        const token = await user.getIdToken();
+        const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data) {
+          setSalonDetails(response.data);
+        } else {
+          throw new Error("Resposta de dados incompleta.");
+        }
+
+      } catch (err) {
+        console.error("Erro ao buscar dados do salão:", err);
+
+        if (err.response?.status === 403) {
+          toast.error("Sua assinatura não está ativa. Redirecionando...");
+          navigate(`/painel/${salaoId}/assinatura`, { replace: true });
+        } else if (err.response?.status === 401) {
+          toast.error("Sessão inválida. Faça login novamente.");
+          signOut(auth);
+        } else {
+          setError(err.response?.data?.detail || "Não foi possível carregar os dados do salão.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Cleanup do listener de autenticação
+    return () => unsubscribe();
+  }, [salaoId, navigate]);
+
+  // Renderização de Loading / Erro (Tela de Bloqueio Central)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-red-50 p-4">
+        <p className="text-red-700 text-center">{error}</p>
+      </div>
+    );
+  }
+
+  // Passa os dados para o resto da aplicação
+  const contextValue = { salonDetails, loading: false, error: null, salaoId };
+
+  return (
+    <SalonContext.Provider value={contextValue}>
+      {children}
+    </SalonContext.Provider>
+  );
+}
+// ----------------------------------------------------
+// --- FIM DO PROVEDOR ---
+// ----------------------------------------------------
+
 
 const navigation = [
   { name: 'Visão Geral', href: 'visaoGeral', icon: BarChart2 },
@@ -34,13 +135,11 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 );
 
 
-function PainelLayout() {
+function PainelLayoutComponent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
-  const { salaoId } = useParams();
-  const [salonDetails, setSalonDetails] = useState(null);
-  const [loading, setLoading] = useState(true); // Este agora é o loading principal
-  const [error, setError] = useState(null);
+  // Obtemos os dados do contexto
+  const { salaoId, salonDetails } = useSalon();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -54,82 +153,11 @@ function PainelLayout() {
     }
   };
 
-  // --- <<< MUDANÇA CRÍTICA: useEffect agora verifica Auth + Assinatura >>> ---
-  useEffect(() => {
-    if (!salaoId) {
-      setError("ID do salão não fornecido na URL.");
-      setLoading(false);
-      return;
-    }
-
-    // 1. Inicia o listener do Firebase Auth para saber QUEM está logado
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // 2. Usuário está logado. Vamos buscar seus dados protegidos.
-        setLoading(true);
-        setError(null);
-        try {
-          const token = await user.getIdToken();
-
-          // 3. CHAMA O ENDPOINT PROTEGIDO
-          // (Que agora verifica o status da assinatura no backend)
-          const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-
-          if (response.data) {
-            // 4. SUCESSO: Assinatura 'active' ou 'trialing' válida
-            setSalonDetails(response.data);
-          } else {
-            throw new Error("Formato de resposta inesperado.");
-          }
-        } catch (err) {
-          console.error("Erro ao buscar dados do salão:", err.response);
-
-          // 5. FALHA: Captura o erro 403 (Assinatura não ativa)
-          if (err.response?.status === 403) {
-            toast.error("Sua assinatura não está ativa. Por favor, complete o pagamento.");
-            // Redireciona IMEDIATAMENTE para a página de assinatura
-            navigate(`/painel/${salaoId}/assinatura`, { replace: true });
-          } else {
-            // Outro erro (ex: 404, 500)
-            setError(err.response?.data?.detail || "Não foi possível carregar os dados do salão.");
-            // Se o token for inválido, desloga
-            if (err.response?.status === 401) {
-              handleLogout();
-            }
-          }
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        // 6. Usuário NÃO está logado
-        console.log("Nenhum usuário logado, redirecionando para /login...");
-        navigate('/login', { replace: true });
-      }
-    });
-
-    // Cleanup do listener
-    return () => unsubscribe();
-
-  }, [salaoId, navigate]); // Adiciona 'navigate' às dependências
-  // --- <<< FIM DA MUDANÇA >>> ---
-
-
   const isCurrent = (pathSuffix) => location.pathname === `/painel/${salaoId}/${pathSuffix}`;
 
-  // Renderização condicional (Loading/Error)
- 
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-red-50 p-4">
-        <p className="text-red-700 text-center">{error}</p>
-      </div>
-    );
-  }
+  // Os checks de loading/error foram movidos para o SalonProvider
+  // Se chegamos aqui, os dados estão carregados
 
-  // Se não está carregando e não deu erro, os 'salonDetails' existem
-  // e o usuário está "active", então podemos renderizar o painel.
   return (
     <div className="min-h-screen flex flex-col font-sans">
       {/* Sidebar Mobile */}
@@ -154,7 +182,7 @@ function PainelLayout() {
             <div className="flex-shrink-0 px-4 pt-5 pb-4 border-b border-gray-200">
               <h1 className="text-2xl font-bold text-gray-900">Horalis</h1>
               <p className="text-sm text-gray-500 mt-1 truncate">
-                {salonDetails?.nome_salao || 'Carregando...'}
+                {salonDetails?.nome_salao || 'Carregado'}
               </p>
             </div>
             {/* Navegação (Mobile) */}
@@ -203,7 +231,7 @@ function PainelLayout() {
             <div className="flex flex-col">
               <h1 className="text-2xl font-bold text-gray-900">Horalis</h1>
               <p className="text-sm text-gray-500 mt-0.5 truncate" title={salonDetails?.nome_salao}>
-                {salonDetails?.nome_salao || 'Carregando...'}
+                {salonDetails?.nome_salao || 'Horalis'}
               </p>
             </div>
           </div>
@@ -268,5 +296,13 @@ function PainelLayout() {
     </div>
   )
 }
+
+// O componente principal PainelLayout (exportado) agora usa o Provedor
+// Você deve usar este componente na sua rota principal (ex: App.js ou index.js)
+const PainelLayout = () => (
+  <SalonProvider>
+    <PainelLayoutComponent />
+  </SalonProvider>
+);
 
 export default PainelLayout;

@@ -1,10 +1,11 @@
 // frontend/src/pages/painel/HorariosPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+// REMOVIDO: { useParams }
 import axios from 'axios';
-// import { Card } from '@/ui/card'; // Usaremos div com Tailwind
-import { Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react'; // Trocado Clock por CalendarDays
+import { Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
+// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
+import { useSalon } from './PainelLayout';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -29,7 +30,9 @@ const DIAS_DA_SEMANA = [
 ];
 
 function HorariosPage() {
-    const { salaoId } = useParams();
+    // NOVO: Obtém salaoId do contexto
+    const { salaoId } = useSalon();
+
     const [diasTrabalho, setDiasTrabalho] = useState([]);
     const [horarioInicio, setHorarioInicio] = useState("09:00");
     const [horarioFim, setHorarioFim] = useState("18:00");
@@ -39,10 +42,12 @@ function HorariosPage() {
 
     // --- Lógica de Busca (GET) ---
     const fetchHorarios = useCallback(async () => {
-        // ... (lógica fetchHorarios existente, sem alterações funcionais) ...
-        if (!salaoId) { setError("ID do Salão inválido."); setLoading(false); return; }
+        // Bloqueia a execução se o salaoId ainda não estiver carregado
+        if (!salaoId) { setLoading(false); return; }
+
         const currentUser = auth.currentUser;
         if (!currentUser) { setError("Sessão expirada."); setLoading(false); return; }
+
         const token = await currentUser.getIdToken();
         setLoading(true); setError(null);
         try {
@@ -56,11 +61,16 @@ function HorariosPage() {
         } catch (err) {
             setError("Não foi possível carregar os horários.");
         } finally { setLoading(false); }
-    }, [salaoId]);
+    }, [salaoId]); // Depende APENAS do salaoId
 
-    useEffect(() => { fetchHorarios(); }, [fetchHorarios]);
+    useEffect(() => {
+        // Dispara a busca quando o salaoId estiver pronto
+        if (salaoId) {
+            fetchHorarios();
+        }
+    }, [fetchHorarios, salaoId]);
 
-    // --- Lógica de Manipulação do Formulário ---
+    // --- Lógica de Manipulação do Formulário (mantida) ---
     const handleToggle = (dbKey) => {
         setDiasTrabalho(prev =>
             prev.includes(dbKey) ? prev.filter(key => key !== dbKey) : [...prev, dbKey]
@@ -71,13 +81,16 @@ function HorariosPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true); setError(null);
-        // Validações...
+
+        // Validação e Bloqueio
+        if (!salaoId) { setError("Erro: ID do salão não carregado."); setIsSaving(false); return; }
         if (diasTrabalho.length === 0) { setError("Selecione pelo menos um dia de trabalho."); setIsSaving(false); return; }
         if (horarioInicio >= horarioFim) { setError("Horário de início deve ser anterior ao de fim."); setIsSaving(false); return; }
 
         try {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("Sessão expirada.");
+
             const token = await currentUser.getIdToken();
             // Busca dados completos
             const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -89,8 +102,9 @@ function HorariosPage() {
             };
             // Envia PUT
             await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
-            // Adiciona um feedback visual de sucesso (ex: toast ou alert simples)
-            alert("Horários salvos com sucesso!"); // Pode substituir por toast
+
+            // Usa toast em vez de alert
+            alert("Horários salvos com sucesso!");
 
         } catch (err) {
             setError("Falha ao salvar horários.");
@@ -98,16 +112,16 @@ function HorariosPage() {
     };
 
     // --- Renderização Loading/Error ---
-    if (loading) {
+    // Adicionamos !salaoId na condição de loading
+    if (loading || !salaoId) {
         return (
-            // <<< ALTERADO: Card e Spinner Ciano >>>
             <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
                 <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-                <p className="text-gray-600">Carregando horários...</p>
+                <p className="text-gray-600">{!salaoId ? 'Aguardando dados do painel...' : 'Carregando horários...'}</p>
             </div>
         );
     }
-    if (error && !isSaving) { // Não mostra erro geral durante o salvamento
+    if (error && !isSaving) {
         return (
             <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 font-sans flex items-center gap-2">
                 <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" />
@@ -118,15 +132,12 @@ function HorariosPage() {
 
     // --- Renderização Principal ---
     return (
-        // Adicionado font-sans
         <div className="max-w-3xl mx-auto font-sans">
-            {/* <<< ALTERADO: Título com Ícone Ciano >>> */}
             <h2 className={`text-2xl font-bold text-gray-900 mb-6 flex items-center ${CIANO_COLOR_TEXT}`}>
                 <Icon icon={CalendarDays} className="w-6 h-6 mr-3" />
                 Configurar Horário de Funcionamento
             </h2>
 
-            {/* <<< ALTERADO: Card com bg-white, shadow-sm, border >>> */}
             <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                 <form onSubmit={handleSubmit}>
 
@@ -134,7 +145,6 @@ function HorariosPage() {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-gray-100">
                         <p className="font-semibold text-gray-700 mb-2 sm:mb-0">Horário Padrão:</p>
                         <div className="flex space-x-3 items-center">
-                            {/* <<< ALTERADO: Inputs com Foco Ciano >>> */}
                             <input
                                 type="time" value={horarioInicio} onChange={(e) => setHorarioInicio(e.target.value)}
                                 className={`border border-gray-300 rounded-md p-2 text-center text-sm h-10 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`}
@@ -150,13 +160,12 @@ function HorariosPage() {
                     </div>
 
                     {/* Dias da Semana */}
-                    <div className="space-y-3"> {/* Ajustado space */}
+                    <div className="space-y-3">
                         <p className="font-semibold text-gray-700 mb-3">Dias de Trabalho:</p>
                         {DIAS_DA_SEMANA.map((item) => {
                             const isChecked = diasTrabalho.includes(item.dbKey);
                             return (
-                                // <<< ALTERADO: Layout e Estilo do Toggle >>>
-                                <div key={item.dbKey} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"> {/* Adicionado hover sutil */}
+                                <div key={item.dbKey} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
                                     <label htmlFor={`toggle-${item.dbKey}`} className={`font-medium cursor-pointer ${isChecked ? 'text-gray-800' : 'text-gray-500'}`}>
                                         {item.name}
                                     </label>
@@ -165,13 +174,13 @@ function HorariosPage() {
                                         <input
                                             type="checkbox"
                                             id={`toggle-${item.dbKey}`}
-                                            className="sr-only peer" // Esconde o input original
+                                            className="sr-only peer"
                                             checked={isChecked}
                                             onChange={() => handleToggle(item.dbKey)}
                                             disabled={isSaving}
                                         />
-                                        {/* Fundo do toggle - AGORA COM A COR CIANO CORRETA NO CHECKED */}
-                                        <div className={`w-11 h-6 bg-gray-300 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 ${CIANO_RING_FOCUS} peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600`}></div> {/* <<< CORREÇÃO AQUI: peer-checked:bg-cyan-600 >>> */}
+                                        {/* Fundo do toggle */}
+                                        <div className={`w-11 h-6 bg-gray-300 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 ${CIANO_RING_FOCUS} peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600`}></div>
                                     </label>
                                 </div>
                             );
@@ -185,7 +194,6 @@ function HorariosPage() {
                     <div className="flex justify-end pt-6 border-t border-gray-100 mt-6">
                         <button
                             type="submit"
-                            // <<< ALTERADO: Botão Ciano >>>
                             className={`flex items-center px-6 py-2.5 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors disabled:opacity-50`}
                             disabled={isSaving}
                         >

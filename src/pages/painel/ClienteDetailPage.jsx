@@ -4,14 +4,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
+import {
     User, Mail, Phone, Clock, Loader2, ArrowLeft, Calendar, DollarSign, Send, X, AlertTriangle,
     MessageSquare, Tag, CheckCircle, Trash2, Edit3, Clock10, CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// OBS: Certifique-se de importar o objeto 'auth' para obter o token JWT no modal de agendamento.
-import { auth } from '@/firebaseConfig'; // Assumindo que auth está disponível
+import { auth } from '@/firebaseConfig';
+// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
+import { useSalon } from './PainelLayout';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 const CIANO_TEXT_CLASS = 'text-cyan-800';
@@ -22,7 +23,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- COMPONENTE AUXILIAR 1: MODAL DE E-MAIL PROMOCIONAL ---
+// --- COMPONENTE AUXILIAR 1: MODAL DE E-MAIL PROMOCIONAL (Mantido) ---
 const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, customerEmail, salonName }) => {
     const [subject, setSubject] = useState(`Oferta Exclusiva para você, ${customerName}!`);
     const [message, setMessage] = useState('');
@@ -37,7 +38,7 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
 
         setLoading(true);
         const toastId = toast.loading("Enviando e-mail promocional...");
-        
+
         try {
             const token = await auth.currentUser.getIdToken();
             await axios.post(`${API_BASE_URL}/admin/clientes/enviar-promocional`, {
@@ -46,9 +47,9 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
                 subject: subject.trim(),
                 message: message.trim(),
             }, { headers: { Authorization: `Bearer ${token}` } });
-            
+
             toast.success("E-mail promocional enviado!", { id: toastId });
-            onClose(); 
+            onClose();
             setSubject(`Oferta Exclusiva para você, ${customerName}!`);
             setMessage('');
 
@@ -81,7 +82,7 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
             </div>
         );
     }
-
+    // ... (renderização do modal)
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
             <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden">
@@ -95,7 +96,7 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
                         <Icon icon={X} className="w-6 h-6" />
                     </button>
                 </div>
-                
+
                 {/* Formulário */}
                 <form onSubmit={handleSubmit} className="p-5 space-y-4">
                     <p className="text-sm text-gray-600">
@@ -116,7 +117,7 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
                             disabled={loading}
                         />
                     </div>
-                    
+
                     {/* Campo Mensagem */}
                     <div>
                         <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Corpo da Mensagem (pode usar HTML básico)</label>
@@ -141,7 +142,7 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
                             className={`flex items-center px-6 py-2.5 text-sm font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
                             disabled={loading}
                         >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Icon icon={Send} className="w-4 h-4 mr-2" />}
                             {loading ? 'Enviando...' : 'Enviar Agora'}
                         </button>
                     </div>
@@ -153,25 +154,25 @@ const EmailPromoModal = ({ isOpen, onClose, clienteId, salaoId, customerName, cu
 // --- FIM DO MODAL DE E-MAIL PROMOCIONAL ---
 
 
-// --- COMPONENTE AUXILIAR 2: MODAL DE AGENDAMENTO DE SERVIÇO DIRETO ---
+// --- COMPONENTE AUXILIAR 2: MODAL DE AGENDAMENTO DE SERVIÇO DIRETO (Mantido) ---
 const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSuccess }) => {
     const [services, setServices] = useState([]);
     const [selectedServiceId, setSelectedServiceId] = useState('');
     const [duration, setDuration] = useState(30);
     const [initialDateTime, setInitialDateTime] = useState(''); // Data e Hora como string
-    
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Fetch da lista de serviços
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && salaoId) {
             setLoading(true);
             const fetchServices = async () => {
                 try {
                     const token = await auth.currentUser.getIdToken();
                     const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
-                    setServices(response.data.servicos || []); 
+                    setServices(response.data.servicos || []);
                 } catch (err) {
                     setError("Falha ao carregar a lista de serviços.");
                 } finally {
@@ -192,7 +193,7 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
             setDuration(30);
         }
     };
-    
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
@@ -202,29 +203,26 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
             setError("Selecione o serviço e preencha a data/hora.");
             return;
         }
+        if (!salaoId) {
+            setError("Erro de contexto: ID do salão não carregado.");
+            return;
+        }
 
         setLoading(true);
         const toastId = toast.loading("Agendando serviço...");
-        
+
         try {
             const token = await auth.currentUser.getIdToken();
-            
-            // --- CORREÇÃO DO FUSO HORÁRIO AQUI ---
-            // 1. Cria um objeto Date a partir da string de data/hora local
-            const localDate = new Date(initialDateTime); 
-            
-            // 2. Converte para o formato ISO 8601 UTC (ex: "2025-11-02T01:20:00.000Z")
-            // Isso garante que o *momento exato* selecionado seja salvo corretamente,
-            // independentemente do fuso horário do usuário.
-            const startTimeISO = localDate.toISOString(); 
-            // ------------------------------------
-            
+
+            // CORREÇÃO DO FUSO HORÁRIO AQUI: garante que a data local seja enviada como ISO UTC.
+            const localDate = new Date(initialDateTime);
+            const startTimeISO = localDate.toISOString();
+
             const service = services.find(s => s.id === selectedServiceId);
-            
+
             const payload = {
                 salao_id: salaoId,
-                // AGORA É UM FORMATO ISO UTC CORRETO
-                start_time: startTimeISO, 
+                start_time: startTimeISO,
                 duration_minutes: duration,
                 customer_name: cliente.nome,
                 customer_phone: cliente.whatsapp,
@@ -232,15 +230,15 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                 service_name: service.nome_servico,
                 service_id: selectedServiceId,
                 service_price: service.preco || 0.00,
-                cliente_id: cliente.id 
+                cliente_id: cliente.id
             };
 
-            await axios.post(`${API_BASE_URL}/admin/calendario/agendar`, payload, { 
-                headers: { Authorization: `Bearer ${token}` } 
+            await axios.post(`${API_BASE_URL}/admin/calendario/agendar`, payload, {
+                headers: { Authorization: `Bearer ${token}` }
             });
 
             toast.success("Agendamento criado e e-mail enviado!", { id: toastId });
-            onSaveSuccess(); // Força a recarga da timeline
+            onSaveSuccess();
             onClose();
 
         } catch (err) {
@@ -253,7 +251,7 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
     };
 
     if (!isOpen) return null;
-    
+
     // Pega a data/hora mínima (agora)
     const now = new Date();
     const isoDateNow = format(now, "yyyy-MM-dd'T'HH:mm");
@@ -269,9 +267,9 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                         <Icon icon={X} className="w-5 h-5" />
                     </button>
                 </div>
-                
+
                 <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-                    
+
                     {/* Cliente */}
                     <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-100">
                         <p className="text-sm font-semibold text-cyan-800">Cliente: {cliente.nome}</p>
@@ -280,8 +278,8 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                     {/* Serviço */}
                     <div>
                         <label htmlFor="service" className="block text-sm font-medium text-gray-700 mb-1">Serviço*</label>
-                        <select 
-                            id="service" 
+                        <select
+                            id="service"
                             value={selectedServiceId}
                             onChange={handleServiceChange}
                             className="w-full border border-gray-300 rounded-lg p-2 h-10 focus:ring-cyan-500 focus:border-cyan-500 bg-white"
@@ -299,12 +297,12 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                         </select>
                         {services.length === 0 && !loading && <p className="text-sm text-red-500 mt-1">Nenhum serviço encontrado. Verifique a tela de Meus Serviços.</p>}
                     </div>
-                    
+
                     {/* Data e Hora */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label htmlFor="datetime" className="block text-sm font-medium text-gray-700 mb-1">Data e Hora*</label>
-                            <input 
+                            <input
                                 type="datetime-local"
                                 id="datetime"
                                 value={initialDateTime}
@@ -316,7 +314,7 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                         </div>
                         <div>
                             <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">Duração (min)</label>
-                            <input 
+                            <input
                                 type="number"
                                 id="duration"
                                 value={duration}
@@ -327,10 +325,10 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
                     </div>
 
                     {error && <p className="text-sm text-red-600 mt-2 text-center">{error}</p>}
-                    
+
                     {/* Botão Salvar */}
                     <div className="flex justify-end pt-4 border-t border-gray-100">
-                        <button 
+                        <button
                             type="submit"
                             className={`flex items-center px-6 py-2.5 text-sm font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
                             disabled={loading || !selectedServiceId || !initialDateTime}
@@ -348,33 +346,43 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
 
 
 function ClienteDetailPage() {
-    const { salaoId, clienteId } = useParams();
+    // REMOÇÃO: Não precisamos mais do salaoId via useParams!
+    // NOVO: Obtemos o salaoId via contexto
+    const { salaoId } = useSalon();
+    const { clienteId } = useParams(); // clienteId AINDA é necessário via useParams
+
     const navigate = useNavigate();
-    const [data, setData] = useState(null); 
+    const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-    const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false); 
-    
+    const [isAgendamentoModalOpen, setIsAgendamentoModalOpen] = useState(false);
+
     // Estados para o formulário de Notas
     const [novaNota, setNovaNota] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
-    
+
+    // Função para forçar recarga da timeline (chamando fetchDetails)
     const setTimelineNeedsRefresh = useCallback(() => {
-        // Recarregar os dados para atualizar o timeline
-        if (!loading) { // Só recarrega se não estiver já carregando
-            fetchDetails(); 
+        if (!loading) {
+            fetchDetails();
         }
-    }, [loading]); 
+    }, [loading]);
 
 
-    // Fetch dos detalhes e histórico (AGORA REUTILIZÁVEL)
+    // Fetch dos detalhes e histórico
     const fetchDetails = useCallback(async () => {
-        const URL = `${API_BASE_URL}/admin/clientes/${salaoId}/detalhes-crm/${clienteId}`; 
+        // Bloqueia se o ID do salão ainda não estiver no contexto
+        if (!salaoId) {
+            setLoading(false);
+            return;
+        }
+
+        const URL = `${API_BASE_URL}/admin/clientes/${salaoId}/detalhes-crm/${clienteId}`;
         setLoading(true);
         setError(null);
         try {
-            const token = await auth.currentUser.getIdToken(); // Token para a rota protegida
+            const token = await auth.currentUser.getIdToken();
             const response = await axios.get(URL, { headers: { Authorization: `Bearer ${token}` } });
             const apiData = response.data;
 
@@ -384,12 +392,12 @@ function ClienteDetailPage() {
                 data_evento: item.data_evento ? parseISO(item.data_evento) : null,
             }));
 
-            // Calcula o gasto total
+            // Calcula o gasto total e visitas
             const totalGasto = mappedTimeline
                 .filter(item => item.tipo === 'Agendamento')
                 .reduce((total, item) => total + (item.dados.servicePrice || 0), 0)
                 .toFixed(2).replace('.', ',');
-                
+
             const totalVisitas = mappedTimeline
                 .filter(item => item.tipo === 'Agendamento' && item.dados.status !== 'cancelado')
                 .length;
@@ -397,7 +405,7 @@ function ClienteDetailPage() {
 
             setData({
                 cliente: apiData.cliente,
-                timeline: mappedTimeline, // O novo array unificado
+                timeline: mappedTimeline,
                 totalGasto: totalGasto,
                 totalVisitas: totalVisitas
             });
@@ -409,20 +417,27 @@ function ClienteDetailPage() {
             setLoading(false);
         }
     }, [salaoId, clienteId]);
-    
-    // Dispara o fetch na montagem 
-    useEffect(() => {
-        fetchDetails();
-    }, [fetchDetails]); 
 
-    // --- LÓGICA DE SALVAR NOTA (AGORA COM ATUALIZAÇÃO LOCAL) ---
+    // Dispara o fetch na montagem ou quando salaoId/clienteId muda
+    useEffect(() => {
+        if (salaoId && clienteId) {
+            fetchDetails();
+        }
+    }, [fetchDetails, salaoId, clienteId]);
+
+    // --- LÓGICA DE SALVAR NOTA ---
     const handleSaveNote = async (e) => {
         e.preventDefault();
-        
+
         if (!novaNota.trim() || novaNota.trim().length < 5) {
             toast.error("A nota precisa ter pelo menos 5 caracteres.");
             return;
         }
+        if (!salaoId) {
+            toast.error("Erro: ID do salão não carregado.");
+            return;
+        }
+
         const notaTexto = novaNota.trim();
 
         setIsSavingNote(true);
@@ -435,22 +450,22 @@ function ClienteDetailPage() {
                 salao_id: salaoId,
                 nota_texto: notaTexto,
             }, { headers: { Authorization: `Bearer ${token}` } });
-            
+
             const savedNote = response.data; // O backend já retorna o TimelineItem
-            
+
             // --- ATUALIZAÇÃO LOCAL (UX Rápida) ---
             const newTimelineItem = {
                 ...savedNote,
                 data_evento: parseISO(savedNote.data_evento), // Converte a string ISO
             };
-            
+
             setData(prevData => ({
                 ...prevData,
-                // Adiciona o novo item e reordena a timeline
+                // Adiciona o novo item e reordena a timeline (Assumindo que o item retornado é o mais recente)
                 timeline: [newTimelineItem, ...prevData.timeline].sort((a, b) => b.data_evento - a.data_evento)
             }));
             // --- FIM DA ATUALIZAÇÃO LOCAL ---
-            
+
             toast.success("Nota salva com sucesso!", { id: toastId });
             setNovaNota(''); // Limpa o campo
 
@@ -464,7 +479,7 @@ function ClienteDetailPage() {
 
 
     // --- Renderização de Status ---
-    if (loading) {
+    if (loading || !salaoId || !clienteId) {
         return <div className="flex justify-center py-10"><Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} /></div>;
     }
     if (error) {
@@ -475,7 +490,9 @@ function ClienteDetailPage() {
     }
 
     const { cliente, timeline, totalGasto, totalVisitas } = data;
-    const salonName = "Studio Horalis"; // Placeholder seguro
+    // Usamos o nome do salão do contexto se ele estiver disponível
+    // Caso contrário, usamos um placeholder seguro (você deve ajustar para usar o nome do salão do contexto do PainelLayout)
+    const salonName = "Studio Horalis";
 
 
     return (
@@ -489,7 +506,7 @@ function ClienteDetailPage() {
                     <Icon icon={ArrowLeft} className="w-5 h-5 mr-2" /> Voltar para a lista
                 </button>
             </div>
-            
+
             {/* Título e Ações */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-3xl font-bold text-gray-900 flex items-center">
@@ -531,7 +548,7 @@ function ClienteDetailPage() {
                         Cliente desde: {cliente.data_cadastro ? format(parseISO(cliente.data_cadastro), 'dd/MM/yyyy') : 'N/A'}
                     </p>
                 </div>
-                
+
                 {/* 2. KPIs de Histórico */}
                 <div className="bg-white p-6 rounded-lg shadow border border-gray-200 space-y-3">
                     <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Métricas de Fidelidade</h3>
@@ -550,7 +567,7 @@ function ClienteDetailPage() {
                         </span>
                     </div>
                 </div>
-                
+
                 {/* 3. Formulário de Notas Manuais */}
                 <form onSubmit={handleSaveNote} className="bg-white p-6 rounded-lg shadow border border-gray-200 space-y-3">
                     <h3 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Adicionar Nota Interna</h3>
@@ -566,7 +583,7 @@ function ClienteDetailPage() {
                         <button
                             type="submit"
                             className={`flex items-center px-4 py-2 text-sm font-semibold text-white ${CIANO_BG_CLASS} rounded-lg ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
-                            disabled={isSavingNote || novaNota.trim().length < 5} 
+                            disabled={isSavingNote || novaNota.trim().length < 5}
                         >
                             {isSavingNote ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Icon icon={Tag} className="w-4 h-4 mr-2" />}
                             {isSavingNote ? 'Salvando...' : 'Salvar Nota'}
@@ -578,24 +595,23 @@ function ClienteDetailPage() {
             {/* Histórico de Agendamentos (Timeline) */}
             <div className="pt-4">
                 <h3 className="text-2xl font-bold text-gray-900 mb-4">Timeline de Interações</h3>
-                
+
                 <div className="space-y-4">
                     {timeline.length > 0 ? (
                         timeline.map((item) => (
                             <div key={item.id} className="flex space-x-4">
-                                
+
                                 {/* Ícone e Linha do Tempo */}
                                 <div className="flex flex-col items-center">
                                     {/* Ícone */}
-                                    <div className={`p-2 rounded-full text-white shadow-md ${
-                                        item.tipo === 'Agendamento' ? 'bg-cyan-600' : 
-                                        item.tipo === 'NotaManual' ? 'bg-indigo-600' :
-                                        'bg-green-600'
-                                    }`}>
+                                    <div className={`p-2 rounded-full text-white shadow-md ${item.tipo === 'Agendamento' ? 'bg-cyan-600' :
+                                            item.tipo === 'NotaManual' ? 'bg-indigo-600' :
+                                                'bg-green-600'
+                                        }`}>
                                         <Icon icon={
-                                            item.tipo === 'Agendamento' ? Calendar : 
-                                            item.tipo === 'NotaManual' ? MessageSquare :
-                                            Send
+                                            item.tipo === 'Agendamento' ? Calendar :
+                                                item.tipo === 'NotaManual' ? MessageSquare :
+                                                    Send
                                         } className="w-5 h-5" />
                                     </div>
                                     {/* Linha (apenas se não for o último) */}
@@ -608,18 +624,18 @@ function ClienteDetailPage() {
                                 <div className="flex-1 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                                     <div className="flex justify-between items-start">
                                         <p className="text-sm font-semibold text-gray-900">
-                                            {item.tipo === 'Agendamento' ? 
-                                                item.dados.status === 'cancelado' ? `Agendamento Cancelado (${item.dados.serviceName})` : `Agendamento: ${item.dados.serviceName}` : 
-                                            item.tipo === 'NotaManual' ? 
-                                                `Nota Manual (por ${item.dados.enviado_por?.split('@')[0] || 'Admin'})` : 
-                                            `E-mail Enviado: ${item.dados.assunto || 'Promoção'}`
+                                            {item.tipo === 'Agendamento' ?
+                                                item.dados.status === 'cancelado' ? `Agendamento Cancelado (${item.dados.serviceName})` : `Agendamento: ${item.dados.serviceName}` :
+                                                item.tipo === 'NotaManual' ?
+                                                    `Nota Manual (por ${item.dados.enviado_por?.split('@')[0] || 'Admin'})` :
+                                                    `E-mail Enviado: ${item.dados.assunto || item.dados.message_preview || 'N/A'}`
                                             }
                                         </p>
                                         <p className="text-xs text-gray-500 whitespace-nowrap">
                                             {item.data_evento ? format(item.data_evento, 'dd/MM/yyyy HH:mm') : 'Data Indisponível'}
                                         </p>
                                     </div>
-                                    
+
                                     {/* Detalhes específicos do conteúdo */}
                                     <div className="mt-2 text-sm text-gray-700 space-y-1">
                                         {item.tipo === 'Agendamento' ? (
@@ -638,7 +654,7 @@ function ClienteDetailPage() {
                     )}
                 </div>
             </div>
-            
+
             {/* --- Renderiza o Modal de E-mail --- */}
             {isEmailModalOpen && (
                 <EmailPromoModal
@@ -648,10 +664,10 @@ function ClienteDetailPage() {
                     salaoId={salaoId}
                     customerName={cliente.nome}
                     customerEmail={cliente.email}
-                    salonName={salonName} 
+                    salonName={salonName}
                 />
             )}
-            
+
             {/* --- Renderiza o Modal de Agendamento --- */}
             {isAgendamentoModalOpen && (
                 <AgendamentoServiceModal
@@ -661,7 +677,7 @@ function ClienteDetailPage() {
                     cliente={{ id: clienteId, nome: cliente.nome, whatsapp: cliente.whatsapp, email: cliente.email }}
                     salaoId={salaoId}
                     // Força a recarga da Timeline
-                    onSaveSuccess={setTimelineNeedsRefresh} 
+                    onSaveSuccess={setTimelineNeedsRefresh}
                 />
             )}
         </div>

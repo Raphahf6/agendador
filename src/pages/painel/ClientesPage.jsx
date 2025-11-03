@@ -1,11 +1,15 @@
 // frontend/src/pages/painel/ClientesPage.jsx
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+// REMOVIDO: { useParams }
 import axios from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { User, Mail, Phone, Clock, Loader2, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (Ajuste o caminho conforme o seu projeto)
+import { useSalon } from './PainelLayout';
+import { auth } from '@/firebaseConfig'; // Adicionado auth para token
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -13,52 +17,67 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-
-
 // --- Componente principal ---
 function ClientesPage() {
-    const { salaoId } = useParams();
+    // NOVO: Obtém salaoId do contexto
+    const { salaoId } = useSalon();
+
     const navigate = useNavigate();
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    
-    // Supondo que você use uma cor CIANO_COLOR_TEXT
+
+    // Cor definida para o componente
     const CIANO_TEXT_CLASS = 'text-cyan-800';
 
-    // 1. Fetch de Clientes
-    useEffect(() => {
-        const fetchClientes = async () => {
-            // OBS: Este endpoint deve ser criado no backend (Passo 3)
-            const URL = `${API_BASE_URL}/admin/clientes/${salaoId}/lista-crm`; 
-            
-            setLoading(true);
-            setError(null);
-            try {
-                // OBS: O token será injetado pelo seu sistema de autenticação ou deve ser passado explicitamente.
-                // Vou assumir que o sistema de autenticação (como o axios interceptor) adiciona o token
-                const response = await axios.get(URL);
-                
-                // Mapeia os dados do Firestore/Backend
-                const mappedClientes = response.data.map(c => ({
-                    ...c,
-                    // Garante que as datas são objetos Date/parseadas
-                    data_cadastro: c.data_cadastro ? parseISO(c.data_cadastro) : null,
-                    ultima_visita: c.ultima_visita ? parseISO(c.ultima_visita) : null,
-                }));
+    // 1. Fetch de Clientes (Refatorado para useCallback)
+    const fetchClientes = useCallback(async () => {
+        // Bloqueia a execução se o ID ainda não estiver no contexto
+        if (!salaoId) {
+            setLoading(false);
+            return;
+        }
 
-                setClientes(mappedClientes);
-            } catch (err) {
-                console.error("Erro ao buscar lista de clientes:", err);
-                setError(err.response?.data?.detail || "Não foi possível carregar a lista de clientes.");
-            } finally {
-                setLoading(false);
+        const URL = `${API_BASE_URL}/admin/clientes/${salaoId}/lista-crm`;
+
+        setLoading(true);
+        setError(null);
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                setError("Sessão expirada.");
+                return;
             }
-        };
+            const token = await currentUser.getIdToken();
 
-        fetchClientes();
-    }, [salaoId]);
+            const response = await axios.get(URL, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            // Mapeia os dados do Firestore/Backend
+            const mappedClientes = response.data.map(c => ({
+                ...c,
+                // Garante que as datas são objetos Date/parseadas
+                data_cadastro: c.data_cadastro ? parseISO(c.data_cadastro) : null,
+                ultima_visita: c.ultima_visita ? parseISO(c.ultima_visita) : null,
+            }));
+
+            setClientes(mappedClientes);
+        } catch (err) {
+            console.error("Erro ao buscar lista de clientes:", err);
+            setError(err.response?.data?.detail || "Não foi possível carregar a lista de clientes.");
+        } finally {
+            setLoading(false);
+        }
+    }, [salaoId]); // Agora depende APENAS do salaoId
+
+    useEffect(() => {
+        // Dispara a busca quando o salaoId for carregado/estabilizado
+        if (salaoId) {
+            fetchClientes();
+        }
+    }, [salaoId, fetchClientes]); // Depende de salaoId e da função fetchClientes
 
 
     // 2. Lógica de Filtragem (Frontend)
@@ -66,14 +85,18 @@ function ClientesPage() {
         const term = searchTerm.toLowerCase();
         return (
             cliente.nome.toLowerCase().includes(term) ||
-            cliente.email.toLowerCase().includes(term) ||
-            cliente.whatsapp.includes(term.replace(/\D/g, '')) // Permite buscar por número limpo
+            (cliente.email && cliente.email.toLowerCase().includes(term)) ||
+            (cliente.whatsapp && cliente.whatsapp.includes(term.replace(/\D/g, ''))) // Permite buscar por número limpo
         );
     });
 
     // --- Renderização de Status ---
-    if (loading) {
-        return <div className="flex justify-center py-10"><Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} /></div>;
+    if (loading || !salaoId) {
+        return (
+            <div className="flex justify-center py-10">
+                <Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} />
+            </div>
+        );
     }
     if (error) {
         return <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>;
@@ -97,7 +120,7 @@ function ClientesPage() {
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-cyan-500 focus:border-cyan-500"
                 />
             </div>
-            
+
             {/* Tabela de Clientes */}
             <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">

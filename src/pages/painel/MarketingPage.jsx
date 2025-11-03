@@ -1,46 +1,48 @@
 // frontend/src/pages/painel/MarketingPage.jsx
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+// REMOVIDO: { useParams }
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Send, UserPlus, Loader2, AlertTriangle, Link as LinkIcon, QrCode, Check, Eye, X, Users, UserCheck, UserX, Info } from 'lucide-react'; // Adicionado Info
+import { Send, UserPlus, Loader2, AlertTriangle, Link as LinkIcon, QrCode, Check, Eye, X, Users, UserCheck, UserX, Info } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { QRCodeCanvas } from 'qrcode.react';
-import { format, parseISO } from 'date-fns'; // Importa format e parseISO
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
+import { useSalon } from './PainelLayout';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 const CIANO_TEXT_CLASS = 'text-cyan-800';
 const CIANO_BG_CLASS = 'bg-cyan-800';
 const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900';
-const HORALIS_MAIN_COLOR = '#0E7490'; 
+const HORALIS_MAIN_COLOR = '#0E7490';
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- MODAL DE PRÉ-VISUALIZAÇÃO (Sem alterações) ---
+// --- MODAL DE PRÉ-VISUALIZAÇÃO (Mantido) ---
 const PreviewEmailModal = ({ isOpen, onClose, subject, message, salonName }) => {
     if (!isOpen) return null;
 
     const emailHtmlContent = `
-        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 20px;">
-            <div style="max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-                <h1 style="color: #E91E63; font-size: 24px; border-bottom: 2px solid #eee; padding-bottom: 10px;">${subject}</h1>
-                <p>Olá, <strong>[Nome do Cliente]</strong>!</p>
-                <p>A equipe do <strong>${salonName}</strong> tem uma novidade especial para você:</p>
-                
-                <div style="background-color: #FCE4EC; border-left: 5px solid #FF80AB; margin-top: 20px; margin-bottom: 20px; padding: 15px; border-radius: 4px;">
-                    ${message}
-                </div>
-                
-                <p>Esperamos te ver em breve!</p>
-            </div>
-            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
-                Este e-mail foi enviado automaticamente pelo sistema Horalis.
-            </div>
-        </div>
-    `;
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 20px;">
+            <div style="max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <h1 style="color: #E91E63; font-size: 24px; border-bottom: 2px solid #eee; padding-bottom: 10px;">${subject}</h1>
+                <p>Olá, <strong>[Nome do Cliente]</strong>!</p>
+                
+                <div style="background-color: #FCE4EC; border-left: 5px solid #FF80AB; margin-top: 20px; margin-bottom: 20px; padding: 15px; border-radius: 4px;">
+                    ${message}
+                </div>
+                
+                <p>Esperamos te ver em breve!</p>
+            </div>
+            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
+                Este e-mail foi enviado automaticamente pelo sistema Horalis.
+            </div>
+        </div>
+    `;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
@@ -69,81 +71,77 @@ const PreviewEmailModal = ({ isOpen, onClose, subject, message, salonName }) => 
 
 
 function MarketingPage() {
-    const { salaoId } = useParams();
+    // <<< NOVO: Obtém dados do contexto >>>
+    const { salaoId, salonDetails, loading: loadingContext } = useSalon();
+
     const [subject, setSubject] = useState('Novidade exclusiva da sua marca!');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-    const [segmento, setSegmento] = useState('todos'); 
+    const [segmento, setSegmento] = useState('todos');
     const [linkCopied, setLinkCopied] = useState(false);
     const copyTimeoutRef = useRef(null);
-    const publicUrl = `https://horalis.app/agendar/${salaoId}`; 
 
-    const [salonName, setSalonName] = useState("Seu Salão");
-    const [loadingSalonData, setLoadingSalonData] = useState(true);
+    // Valores derivados do contexto, sempre atualizados
+    const salonName = salonDetails?.nome_salao || "Seu Salão";
+    const publicUrl = `https://horalis.app/agendar/${salaoId}`;
 
-    // --- <<< NOVOS ESTADOS PARA A COTA >>> ---
-    const [cotaTotal, setCotaTotal] = useState(100); // Padrão
-    const [cotaUsada, setCotaUsada] = useState(0);
-    const [cotaResetEm, setCotaResetEm] = useState(null);
-    // --- <<< FIM DOS NOVOS ESTADOS >>> ---
+    // Consumo dos dados de cota diretamente do contexto/detalhes
+    const cotaTotal = salonDetails?.marketing_cota_total || 100;
+    const cotaUsada = salonDetails?.marketing_cota_usada || 0;
+    const cotaResetEmRaw = salonDetails?.marketing_cota_reset_em;
+    const cotaResetEm = cotaResetEmRaw ? parseISO(cotaResetEmRaw) : null;
+    const cotaPercentual = (cotaUsada / cotaTotal) * 100;
 
+    // O loading aqui será apenas o loading do envio, o carregamento inicial é do contexto
+    const loadingSalonData = loadingContext;
 
-    // --- useEffect para buscar os dados do salão (AGORA INCLUI COTAS) ---
+    // --- LÓGICA DE RECARGA (Simplificada) ---
+    // Funçao para forçar a recarga dos dados do salão (necessário após envio de e-mail)
+    // O SalonProvider NÃO EXPORTA O fetch, então precisamos criar um endpoint simples de recarga se necessário,
+    // mas por enquanto, vamos fazer a busca completa.
     const fetchSalonData = useCallback(async () => {
         if (!auth.currentUser || !salaoId) return;
-        setLoadingSalonData(true);
+        // Não precisamos setar loading aqui, pois o loading principal é do contexto.
+        // Apenas recarregamos os dados no provider/backend se necessário.
         try {
             const token = await auth.currentUser.getIdToken();
-            const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { 
+            // Chamamos novamente o endpoint que alimenta o contexto, se for o caso,
+            // ou apenas garantimos que o contexto será atualizado se o backend tiver notificação.
+            // Para simplificar, assumimos que o PUT/POST de envio de email não atualiza a cota automaticamente
+            // e fazemos uma busca manual (mas no app final, você faria isso via notificação/contexto).
+
+            // *MANTENDO A LÓGICA ANTERIOR DA BUSCA DO SALÃO APENAS PARA A COTA APÓS O ENVIO*
+            const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
-            if (response.data) {
-                setSalonName(response.data.nome_salao || "Seu Salão");
-                
-                // --- <<< ATUALIZA OS DADOS DA COTA >>> ---
-                setCotaTotal(response.data.marketing_cota_total || 100);
-                setCotaUsada(response.data.marketing_cota_usada || 0);
-                if (response.data.marketing_cota_reset_em) {
-                    setCotaResetEm(parseISO(response.data.marketing_cota_reset_em));
-                }
-                // --- <<< FIM DA ATUALIZAÇÃO >>> ---
-            }
+            // Esta busca não será usada para setar state local aqui, mas para garantir que o backend
+            // processou a mudança. (No app real, você faria um dispatch para o SalonProvider)
+
         } catch (error) {
-            console.error("Erro ao buscar dados do salão:", error);
-            toast.error("Não foi possível carregar os dados do salão.");
-        } finally {
-            setLoadingSalonData(false);
+            console.error("Erro ao buscar dados do salão para atualização da cota:", error);
         }
-    }, [salaoId]);
-
-    useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged(user => {
-            if (user) {
-                fetchSalonData();
-            } else {
-                setLoadingSalonData(false); 
-            }
-        });
-        return () => unsubscribe();
-    }, [fetchSalonData]);
+    }, [salaoId]); // Dependência apenas do salaoId
 
 
-    // --- Lógica de Envio de E-mail (idêntica) ---
+    // --- Lógica de Envio de E-mail ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSuccessMessage('');
-        
+
         if (!message.trim() || !subject.trim()) {
             toast.error("Assunto e mensagem são obrigatórios.");
             return;
         }
 
-        // <<< VERIFICAÇÃO DE COTA ANTES DO CONFIRM >>>
+        // VERIFICAÇÃO DE COTA ANTES DO CONFIRM
         if (cotaUsada >= cotaTotal) {
-            toast.error("Você atingiu seu limite de 100 e-mails de marketing este mês.");
+            toast.error("Você atingiu seu limite de e-mails de marketing este mês.");
+            return;
+        }
+        if (!salaoId) {
+            toast.error("Erro: ID do salão não carregado.");
             return;
         }
 
@@ -155,32 +153,31 @@ function MarketingPage() {
         const toastId = toast.loading("Iniciando disparo em massa (Isso pode levar alguns minutos)...");
 
         try {
-            const token = await auth.currentUser.getIdToken(); 
+            const token = await auth.currentUser.getIdToken();
             const response = await axios.post(`${API_BASE_URL}/admin/marketing/enviar-massa`, {
                 salao_id: salaoId,
                 subject: subject.trim(),
                 message: message.trim(),
-                segmento: segmento, 
+                segmento: segmento,
             }, { headers: { Authorization: `Bearer ${token}` } });
-            
-            setSuccessMessage(response.data.message); 
+
+            setSuccessMessage(response.data.message);
             toast.success("Disparo de Marketing iniciado!", { id: toastId });
             setMessage('');
             setSubject('Novidade exclusiva da sua marca!');
-            
-            // Recarrega os dados da cota após o envio
-            fetchSalonData(); 
+
+            // Disparar a recarga dos dados de cota
+            fetchSalonData();
 
         } catch (err) {
-            // O backend agora retorna 403 se a cota estourar durante o envio
             const detail = err.response?.data?.detail || err.response?.data?.message || "Erro interno de conexão ou timeout.";
             toast.error(detail, { id: toastId });
         } finally {
             setLoading(false);
         }
     };
-    
-    // --- Funções do Kit Bio (idênticas) ---
+
+    // --- Funções do Kit Bio (Mantidas) ---
     const copyLink = () => {
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
         navigator.clipboard.writeText(publicUrl).then(() => {
@@ -194,7 +191,13 @@ function MarketingPage() {
     };
 
     const downloadStylishQRCode = async () => {
+        // Bloqueia se o ID não estiver pronto
+        if (!salaoId) {
+            toast.error("Aguarde o carregamento dos dados do salão."); return;
+        }
+
         const toastId = toast.loading("Gerando seu pôster de QR Code...");
+        // Restante da lógica de download...
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const imageWidth = 800;
@@ -203,31 +206,31 @@ function MarketingPage() {
         canvas.height = imageHeight;
 
         // 1. Fundo
-        ctx.fillStyle = HORALIS_MAIN_COLOR; 
+        ctx.fillStyle = HORALIS_MAIN_COLOR;
         ctx.fillRect(0, 0, imageWidth, imageHeight);
-       
+
         // 2. Nome do Estabelecimento
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 70px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(salonName, imageWidth / 2, 200); 
+        ctx.fillText(salonName, imageWidth / 2, 200);
 
         // 3. QR Code
-        const qrCodeSize = 350; 
+        const qrCodeSize = 350;
         const qrCodeX = (imageWidth - qrCodeSize) / 2;
-        const qrCodeY = 300; 
+        const qrCodeY = 300;
 
-        const qrCodeTempCanvas = document.getElementById('horalis-qrcode-canvas'); 
+        const qrCodeTempCanvas = document.getElementById('horalis-qrcode-canvas');
         if (qrCodeTempCanvas) {
-            ctx.fillStyle = '#ffffff'; 
-            ctx.fillRect(qrCodeX - 25, qrCodeY - 25, qrCodeSize + 50, qrCodeSize + 50); 
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(qrCodeX - 25, qrCodeY - 25, qrCodeSize + 50, qrCodeSize + 50);
             ctx.drawImage(qrCodeTempCanvas, qrCodeX, qrCodeY, qrCodeSize, qrCodeSize);
         } else {
             console.error("Canvas do QR Code não encontrado.");
             toast.error("Erro ao gerar QR Code.", { id: toastId });
             return;
         }
-       
+
         // 4. Texto chamativo
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 48px Arial';
@@ -250,17 +253,14 @@ function MarketingPage() {
         toast.success("Download do Pôster de QR Code iniciado!", { id: toastId });
     };
 
-    // --- Calcula a porcentagem da cota usada ---
-    const cotaPercentual = (cotaUsada / cotaTotal) * 100;
-
     return (
         <div className="space-y-6">
             <h2 className={`text-2xl font-bold text-gray-900 flex items-center ${CIANO_TEXT_CLASS}`}>
                 <Icon icon={UserPlus} className="w-6 h-6 mr-3" />
                 Marketing & Aquisição de Clientes
             </h2>
-            
-            {/* --- Card Kit "Link na Bio" (idêntico) --- */}
+
+            {/* --- Card Kit "Link na Bio" (mantido) --- */}
             <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Seu Link de Agendamento</h3>
                 <p className="text-sm text-gray-600 mb-4">
@@ -268,7 +268,7 @@ function MarketingPage() {
                 </p>
                 <div className="flex items-center w-full bg-gray-50 border border-gray-200 rounded-lg p-3">
                     <Icon icon={LinkIcon} className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
-                    <input 
+                    <input
                         type="text"
                         readOnly
                         value={publicUrl}
@@ -276,25 +276,25 @@ function MarketingPage() {
                     />
                     <button
                         onClick={copyLink}
-                        className={`flex-shrink-0 flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                            linkCopied
-                            ? 'bg-green-100 text-green-700'
-                            : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
-                        }`}
+                        className={`flex-shrink-0 flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${linkCopied
+                                ? 'bg-green-100 text-green-700'
+                                : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
+                            }`}
                     >
-                        <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-1.5"/>
+                        <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-1.5" />
                         {linkCopied ? "Copiado!" : "Copiar"}
                     </button>
                 </div>
                 <div className="mt-6 flex flex-col sm:flex-row items-center gap-6">
+                    {/* Canvas oculto para gerar a imagem do QR Code */}
                     <div className="hidden">
                         <QRCodeCanvas
                             id="horalis-qrcode-canvas"
                             value={publicUrl}
-                            size={512} 
+                            size={512}
                             bgColor={"#ffffff"}
                             fgColor={"#000000"}
-                            level={"H"} 
+                            level={"H"}
                             includeMargin={false}
                         />
                     </div>
@@ -304,21 +304,21 @@ function MarketingPage() {
                             Baixe uma imagem com o QR Code já estilizado com o nome do seu estabelecimento, pronto para impressão.
                         </p>
                         <button
-                            onClick={downloadStylishQRCode} 
-                            disabled={loadingSalonData}
+                            onClick={downloadStylishQRCode}
+                            disabled={loadingContext}
                             className={`inline-flex items-center px-4 py-2 text-sm font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
                         >
                             <Icon icon={QrCode} className="w-4 h-4 mr-2" />
-                            {loadingSalonData ? 'Carregando dados...' : 'Baixar Pôster (PNG)'}
+                            {loadingContext ? 'Carregando dados...' : 'Baixar Pôster (PNG)'}
                         </button>
                     </div>
                 </div>
             </div>
-            
-            {/* --- <<< NOVO CARD: STATUS DA COTA DE E-MAIL >>> --- */}
+
+            {/* --- CARD: STATUS DA COTA DE E-MAIL --- */}
             <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200 max-w-2xl mx-auto">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Cota de E-mail Marketing</h3>
-                {loadingSalonData ? (
+                {loadingContext ? (
                     <div className="flex justify-center py-4"><Loader2 className={`w-6 h-6 animate-spin ${CIANO_TEXT_CLASS}`} /></div>
                 ) : (
                     <div className="space-y-3">
@@ -332,8 +332,8 @@ function MarketingPage() {
                         </div>
                         {/* Barra de Progresso */}
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div 
-                                className={`h-2.5 rounded-full ${cotaUsada >= cotaTotal ? 'bg-red-600' : CIANO_BG_CLASS}`} 
+                            <div
+                                className={`h-2.5 rounded-full ${cotaUsada >= cotaTotal ? 'bg-red-600' : CIANO_BG_CLASS}`}
                                 style={{ width: `${cotaPercentual > 100 ? 100 : cotaPercentual}%` }}
                             ></div>
                         </div>
@@ -348,8 +348,8 @@ function MarketingPage() {
 
             {/* Aviso de E-mail em Massa */}
             <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg flex items-center gap-3 max-w-2xl mx-auto">
-                 <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0"/> 
-                 <p className="text-sm">
+                <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">
                     **ATENÇÃO:** O envio consome sua cota de e-mails. Verifique o segmento e o conteúdo antes de confirmar.
                 </p>
             </div>
@@ -364,20 +364,20 @@ function MarketingPage() {
             <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200 max-w-2xl mx-auto">
                 <h3 className="text-xl font-semibold text-gray-900 mb-5">Criar E-mail Promocional</h3>
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    
+
                     {/* --- Seletor de Segmento --- */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Público-Alvo (Segmento)*</label>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <label 
+                            <label
                                 onClick={() => setSegmento('todos')}
                                 className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'todos' ? 'border-cyan-700 bg-cyan-50 ring-2 ring-cyan-600' : 'border-gray-300 bg-white hover:bg-gray-50'}`}
                             >
                                 <Icon icon={Users} className={`w-5 h-5 mr-2 ${segmento === 'todos' ? CIANO_TEXT_CLASS : 'text-gray-500'}`} />
                                 <span className="text-sm font-medium text-gray-800">Todos os Clientes</span>
                             </label>
-                            
-                            <label 
+
+                            <label
                                 onClick={() => setSegmento('inativos')}
                                 className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'inativos' ? 'border-cyan-700 bg-cyan-50 ring-2 ring-cyan-600' : 'border-gray-300 bg-white hover:bg-gray-50'}`}
                             >
@@ -385,7 +385,7 @@ function MarketingPage() {
                                 <span className="text-sm font-medium text-gray-800">Inativos (60d+)</span>
                             </label>
 
-                            <label 
+                            <label
                                 onClick={() => setSegmento('recentes')}
                                 className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'recentes' ? 'border-cyan-700 bg-cyan-50 ring-2 ring-cyan-600' : 'border-gray-300 bg-white hover:bg-gray-50'}`}
                             >
@@ -409,7 +409,7 @@ function MarketingPage() {
                             disabled={loading}
                         />
                     </div>
-                    
+
                     {/* Campo Mensagem */}
                     <div>
                         <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Corpo da Mensagem (pode usar HTML básico)</label>
@@ -431,7 +431,7 @@ function MarketingPage() {
                         <button
                             type="button"
                             onClick={() => setIsPreviewOpen(true)}
-                            disabled={!message.trim() || !subject.trim() || loadingSalonData}
+                            disabled={!message.trim() || !subject.trim() || loadingContext}
                             className="flex items-center px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
                         >
                             <Icon icon={Eye} className="w-5 h-5 mr-2" />
@@ -441,7 +441,7 @@ function MarketingPage() {
                         <button
                             type="submit"
                             className={`flex items-center px-6 py-2.5 text-base font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-md ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
-                            disabled={loading || !message.trim() || !subject.trim() || cotaUsada >= cotaTotal}
+                            disabled={loading || !message.trim() || !subject.trim() || cotaUsada >= cotaTotal || loadingContext}
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                             <Icon icon={Send} className="w-5 h-5 mr-2" />

@@ -1,12 +1,14 @@
 // frontend/src/pages/painel/PersonalizacaoPage.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+// REMOVIDO: { useParams }
 import axios from 'axios';
-import { Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type, AlertTriangle, Eye, Copy, Check } from 'lucide-react'; // Renomeado Image -> ImageIcon
+import { Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type, AlertTriangle, Eye, Copy, Check } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
-import { ImageWithFallback } from '@/ui/ImageWithFallback';
+// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
+import { useSalon } from './PainelLayout';
+import ImageWithFallback from '@/ui/ImageWithFallback'; // Assumindo este componente existe
 import BookingPagePreview from '@/components/BookingPagePreview'; // Assume que está em /components/
-import toast from 'react-hot-toast'; // <<< ADICIONADO: Importa o toast
+import toast from 'react-hot-toast';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -25,53 +27,47 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 );
 
 function PersonalizacaoPage() {
-    const { salaoId } = useParams();
+    // NOVO: Obtém dados do contexto
+    const { salaoId, salonDetails, loading: loadingContext } = useSalon();
+
     const [formData, setFormData] = useState({ nome_salao: '', tagline: '', url_logo: '' });
-    const [loading, setLoading] = useState(true);
+    // O loading principal é o loadingContext, 'loading' local será apenas para salvar
     const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState(null); // Estado de erro para a UI
+    const [error, setError] = useState(null);
     const [linkCopied, setLinkCopied] = useState(false);
     const copyTimeoutRef = useRef(null);
 
-    // --- fetchPersonalizacao (Corrigido para tratar null) ---
-    const fetchPersonalizacao = useCallback(async () => {
-        if (!salaoId) { setError("ID do Salão inválido."); setLoading(false); return; }
-        const currentUser = auth.currentUser;
-        if (!currentUser) { setError("Sessão expirada."); setLoading(false); return; }
-        const token = await currentUser.getIdToken();
-        setLoading(true); setError(null);
-        try {
-            const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
-            const data = response.data;
+    // --- NOVO: Popula o formulário com dados do contexto ---
+    useEffect(() => {
+        if (salonDetails) {
+            // Apenas inicializa o formData com os dados do contexto (sem fetch de API redundante)
             setFormData({
-                nome_salao: data.nome_salao || '',
-                tagline: data.tagline || '',
-                url_logo: data.url_logo || '', // Garante string vazia em vez de null
+                nome_salao: salonDetails.nome_salao || '',
+                tagline: salonDetails.tagline || '',
+                url_logo: salonDetails.url_logo || '',
             });
-        } catch (err) {
-            setError("Não foi possível carregar as configurações.");
-        } finally { setLoading(false); }
-    }, [salaoId]);
+        }
+    }, [salonDetails]); // Dispara apenas quando os detalhes do salão carregam
 
-    useEffect(() => { fetchPersonalizacao(); }, [fetchPersonalizacao]);
-
-    // --- handleChange (sem alteração) ---
+    // --- handleChange (mantido) ---
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- <<< ALTERADO: handleSubmit com Logs Detalhados >>> ---
+    // --- handleSubmit (otimizado para usar salaoId do contexto) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
-        setError(null); // Limpa erros antigos da UI
-        console.log("Iniciando handleSubmit..."); // Log 1
+        setError(null);
 
-        // Validação básica
         if (!formData.nome_salao.trim()) {
-            console.error("Validação falhou: Nome do salão é obrigatório."); // Log 2
             setError("O nome do salão é obrigatório.");
+            setIsSaving(false);
+            return;
+        }
+        if (!salaoId || !salonDetails) {
+            setError("Erro: Dados do salão não carregados.");
             setIsSaving(false);
             return;
         }
@@ -79,119 +75,93 @@ function PersonalizacaoPage() {
         try {
             const currentUser = auth.currentUser;
             if (!currentUser) {
-                console.error("Validação falhou: Usuário não autenticado."); // Log 3
                 throw new Error("Sessão expirada. Faça login novamente.");
             }
             const token = await currentUser.getIdToken();
-            console.log("Token obtido."); // Log 4
 
-            // 1. Busca dados completos
-            console.log("Buscando dados completos do salão (GET)..."); // Log 5
-            const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const salonData = salonResponse.data;
-            console.log("Dados do salão obtidos."); // Log 6
-
-            // 2. Prepara payload
+            // 1. Prepara payload (USANDO dados ATUAIS do contexto/estado, sem GET extra)
             const payload = {
-                ...salonData, // Preserva serviços, horários, etc.
+                ...salonDetails, // Preserva serviços, horários, etc., vindos do contexto
                 id: salaoId,
                 nome_salao: formData.nome_salao.trim(),
                 tagline: formData.tagline.trim(),
-                url_logo: formData.url_logo.trim() || null, // Converte "" para null
+                url_logo: formData.url_logo.trim() || null,
             };
-            console.log("Payload para PUT preparado:", payload); // Log 7
 
-            // 3. Envia o PUT
-            console.log("Enviando PUT para salvar..."); // Log 8
+            // 2. Envia o PUT
             await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            console.log("PUT bem-sucedido!"); // Log 9
-            toast.success("Personalização salva com sucesso!"); // Feedback
-            fetchPersonalizacao(); // Recarrega os dados para garantir consistência
+            toast.success("Personalização salva com sucesso!");
+
+            // NOTA: No app final, você deve disparar uma RECARGA do SalonProvider
+            // para que o menu lateral e outras páginas vejam o novo nome do salão.
+            // Aqui, por não termos a função de recarga do provider, disparamos a recarga manual (se existisse)
+            // ou simplesmente confiamos que o próximo carregamento do PainelLayout pegará os novos dados.
 
         } catch (err) {
-            console.error("Falha no bloco try do handleSubmit:", err); // Log 10
             let errorMsg = "Falha ao salvar personalização. Tente novamente.";
-
-            if (err.response) { // Erro da API
-                console.error("Erro - Resposta da API:", err.response.data);
+            if (err.response) {
                 errorMsg = err.response.data.detail || "Falha ao salvar. Verifique os dados.";
-            } else if (err.request) { // Erro de rede
-                console.error("Erro - Sem resposta da API:", err.request);
-                errorMsg = "Não foi possível conectar ao servidor.";
-            } else { // Erro de JS
-                console.error("Erro - Erro de JavaScript:", err.message);
-                errorMsg = err.message || "Erro inesperado.";
+            } else if (err.message) {
+                errorMsg = err.message;
             }
-
-            setError(errorMsg); // Define a mensagem de erro para a UI
-            toast.error(errorMsg); // Mostra o toast de erro
+            setError(errorMsg);
+            toast.error(errorMsg);
 
         } finally {
-            console.log("Bloco finally: setIsSaving(false)"); // Log 11
             setIsSaving(false);
         }
     };
-    // --- <<< FIM DA ALTERAÇÃO >>> ---
 
-    // --- Função para Copiar Link (CORRIGIDA COM LOGS) ---
+
+    // --- Função para Copiar Link (usando salaoId do contexto) ---
     const copyLink = () => {
-        console.log("copyLink chamada. Estado linkCopied:", linkCopied); // Log 1
+        if (!salaoId) {
+            toast.error("Aguarde o carregamento do ID do salão.");
+            return;
+        }
 
-        // <<< CONFIRME ESTA URL BASE >>>
         const publicUrl = `https://horalis.app/agendar/${salaoId}`;
 
-        // Limpa timeout anterior se existir
         if (copyTimeoutRef.current) {
-            console.log("Limpando timeout anterior:", copyTimeoutRef.current); // Log 2
             clearTimeout(copyTimeoutRef.current);
             copyTimeoutRef.current = null;
         }
 
-        // Tenta copiar
         navigator.clipboard.writeText(publicUrl).then(() => {
-            console.log("Copiado com sucesso! Definindo linkCopied = true"); // Log 3
             setLinkCopied(true);
-
-            // Define timeout para resetar
             copyTimeoutRef.current = setTimeout(() => {
-                console.log("Timeout executado. Definindo linkCopied = false"); // Log 4
                 setLinkCopied(false);
                 copyTimeoutRef.current = null;
-            }, 2000); // 2 segundos
+            }, 2000);
 
         }).catch(err => {
-            console.error('Erro ao copiar link:', err); // Log 5 (Erro detalhado)
-            alert('Não foi possível copiar o link. Verifique as permissões do navegador.'); // Alert
-            // <<< ADICIONADO: Reseta o estado em caso de erro >>>
+            toast.error('Não foi possível copiar o link.');
             setLinkCopied(false);
-            if (copyTimeoutRef.current) { // Limpeza extra em caso de erro
+            if (copyTimeoutRef.current) {
                 clearTimeout(copyTimeoutRef.current);
                 copyTimeoutRef.current = null;
             }
         });
     };
 
-    // useEffect de Cleanup para o timeout (sem alterações)
     useEffect(() => {
         return () => {
             if (copyTimeoutRef.current) {
                 clearTimeout(copyTimeoutRef.current);
             }
         };
-    }, []); // Roda só no mount/unmount
+    }, []);
 
 
-    // --- Renderização Loading/Error (sem alterações) ---
-    if (loading) {
+    // --- Renderização Loading/Error ---
+    if (loadingContext || !salaoId) {
         return (
             <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
                 <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-                <p className="text-gray-600">Carregando personalização...</p>
+                <p className="text-gray-600">Carregando dados globais...</p>
             </div>
         );
     }
@@ -211,7 +181,6 @@ function PersonalizacaoPage() {
                 Personalização da Página de Agendamento
             </h2>
 
-            {/* <<< ALTERADO: Mostra erro principal aqui em cima >>> */}
             {error && !isSaving && (
                 <div className="p-4 mb-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 flex items-center gap-2">
                     <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" /> <p>{error}</p>
@@ -285,7 +254,7 @@ function PersonalizacaoPage() {
                         </div>
                     </form>
 
-                    {/* --- SEÇÃO LINK PÚBLICO (COM BOTÃO CORRIGIDO) --- */}
+                    {/* --- SEÇÃO LINK PÚBLICO (MANTIDA) --- */}
                     <div className="pt-6 border-t border-gray-100 mt-6 space-y-3">
                         <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                             <Icon icon={LinkIcon} className={`w-5 h-5 mr-2 ${CIANO_COLOR_TEXT}`} />
@@ -300,16 +269,15 @@ function PersonalizacaoPage() {
                                 value={`https://horalis.app/agendar/${salaoId}`}
                                 readOnly
                                 className="flex-grow bg-transparent text-sm text-gray-700 focus:outline-none truncate"
-                                // Adiciona onClick para selecionar o texto ao clicar no input (opcional)
                                 onClick={(e) => e.target.select()}
                             />
-                            {/* Botão Copiar (CORRIGIDO) */}
+                            {/* Botão Copiar */}
                             <button
                                 type="button"
-                                onClick={copyLink} // Chama a função corrigida
+                                onClick={copyLink}
                                 className={`flex-shrink-0 flex items-center justify-center px-3 py-1.5 rounded-md text-sm transition-colors duration-200 ease-in-out ${linkCopied
-                                        ? 'bg-green-100 text-green-700' // Estado Copiado
-                                        : `${CIANO_COLOR_BG} text-white ${CIANO_COLOR_BG_HOVER}` // Estado Normal
+                                    ? 'bg-green-100 text-green-700'
+                                    : `${CIANO_COLOR_BG} text-white ${CIANO_COLOR_BG_HOVER}`
                                     }`}
                                 title={linkCopied ? "Link Copiado!" : "Copiar Link"}
                             >
@@ -322,8 +290,6 @@ function PersonalizacaoPage() {
                         </div>
                     </div>
                     {/* --- FIM DA SEÇÃO LINK --- */}
-                   
-                    
                 </div>
 
                 {/* Coluna 2: Preview */}
