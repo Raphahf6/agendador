@@ -2,12 +2,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 // REMOVIDO: { useParams }
 import axios from 'axios';
-import { Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type, AlertTriangle, Eye, Copy, Check } from 'lucide-react';
+import { Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type, AlertTriangle, Eye, Copy, Check, Feather } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
-// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
-import { useSalon } from './PainelLayout';
-import ImageWithFallback from '@/ui/ImageWithFallback'; // Assumindo este componente existe
-import BookingPagePreview from '@/components/BookingPagePreview'; // Assume que está em /components/
+import { useSalon } from './PainelLayout'; // Importa o hook do contexto
+import ImageWithFallback from '@/ui/ImageWithFallback'; // Assumido existir
+import BookingPagePreview from '@/components/BookingPagePreview'; // Assumido existir
 import toast from 'react-hot-toast';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
@@ -21,7 +20,7 @@ const CIANO_BORDER_FOCUS = 'focus:border-cyan-800';
 const CIANO_BG_CLASS = 'bg-cyan-800';
 const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900';
 
-// --- Helper Ícone Simples ---
+// Helper Ícone Simples
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
@@ -30,24 +29,36 @@ function PersonalizacaoPage() {
     // NOVO: Obtém dados do contexto
     const { salaoId, salonDetails, loading: loadingContext } = useSalon();
 
-    const [formData, setFormData] = useState({ nome_salao: '', tagline: '', url_logo: '' });
-    // O loading principal é o loadingContext, 'loading' local será apenas para salvar
+    const [formData, setFormData] = useState({
+        nome_salao: '',
+        tagline: '',
+        url_logo: '',
+        primary_color: '#0E7490', // Valor padrão fallback
+        secondary_color: '#FFFFFF', // Novo campo para cor secundária (se necessário)
+        email_footer_message: 'Powered by Horalis'
+    });
+
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
     const [linkCopied, setLinkCopied] = useState(false);
     const copyTimeoutRef = useRef(null);
 
-    // --- NOVO: Popula o formulário com dados do contexto ---
+    // --- CORREÇÃO: Popula o formulário com dados do contexto, incluindo cores do DB ---
     useEffect(() => {
         if (salonDetails) {
-            // Apenas inicializa o formData com os dados do contexto (sem fetch de API redundante)
             setFormData({
                 nome_salao: salonDetails.nome_salao || '',
                 tagline: salonDetails.tagline || '',
                 url_logo: salonDetails.url_logo || '',
+                // Inicializa a cor principal com o valor do DB, ou fallback
+                primary_color: salonDetails.cor_primaria || '#0E7490',
+                secondary_color: salonDetails.cor_secundaria || '#FFFFFF',
+                email_footer_message: salonDetails.email_footer_message || 'Powered by Horalis'
             });
         }
-    }, [salonDetails]); // Dispara apenas quando os detalhes do salão carregam
+    }, [salonDetails]);
+    // --- FIM DA CORREÇÃO ---
+
 
     // --- handleChange (mantido) ---
     const handleChange = (e) => {
@@ -55,7 +66,7 @@ function PersonalizacaoPage() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- handleSubmit (otimizado para usar salaoId do contexto) ---
+    // --- handleSubmit (otimizado para usar salaoId do contexto e enviar novos campos) ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
@@ -79,13 +90,17 @@ function PersonalizacaoPage() {
             }
             const token = await currentUser.getIdToken();
 
-            // 1. Prepara payload (USANDO dados ATUAIS do contexto/estado, sem GET extra)
+            // 1. Prepara payload (USANDO dados ATUAIS do contexto/estado + novos campos)
             const payload = {
-                ...salonDetails, // Preserva serviços, horários, etc., vindos do contexto
+                ...salonDetails,
                 id: salaoId,
                 nome_salao: formData.nome_salao.trim(),
                 tagline: formData.tagline.trim(),
                 url_logo: formData.url_logo.trim() || null,
+                // CORREÇÃO: ENVIANDO CORES E RODAPÉ
+                cor_primaria: formData.primary_color, // Novo campo de cor principal
+                cor_secundaria: formData.secondary_color, // Campo de cor secundária (mantido como branco padrão se não editado)
+                email_footer_message: formData.email_footer_message.trim(),
             };
 
             // 2. Envia o PUT
@@ -94,11 +109,6 @@ function PersonalizacaoPage() {
             });
 
             toast.success("Personalização salva com sucesso!");
-
-            // NOTA: No app final, você deve disparar uma RECARGA do SalonProvider
-            // para que o menu lateral e outras páginas vejam o novo nome do salão.
-            // Aqui, por não termos a função de recarga do provider, disparamos a recarga manual (se existisse)
-            // ou simplesmente confiamos que o próximo carregamento do PainelLayout pegará os novos dados.
 
         } catch (err) {
             let errorMsg = "Falha ao salvar personalização. Tente novamente.";
@@ -116,7 +126,7 @@ function PersonalizacaoPage() {
     };
 
 
-    // --- Função para Copiar Link (usando salaoId do contexto) ---
+    // --- Função para Copiar Link (mantido) ---
     const copyLink = () => {
         if (!salaoId) {
             toast.error("Aguarde o carregamento do ID do salão.");
@@ -130,21 +140,30 @@ function PersonalizacaoPage() {
             copyTimeoutRef.current = null;
         }
 
-        navigator.clipboard.writeText(publicUrl).then(() => {
-            setLinkCopied(true);
-            copyTimeoutRef.current = setTimeout(() => {
+        // Usando o mecanismo padrão de cópia do navegador
+        // Se a API 'navigator.clipboard' falhar (em iframes/ambiente restrito), 
+        // o usuário precisará fazer a cópia manualmente pelo input.
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(publicUrl).then(() => {
+                setLinkCopied(true);
+                copyTimeoutRef.current = setTimeout(() => {
+                    setLinkCopied(false);
+                    copyTimeoutRef.current = null;
+                }, 2000);
+            }).catch(err => {
+                toast.error('Falha ao copiar. Selecione e copie manualmente.');
                 setLinkCopied(false);
-                copyTimeoutRef.current = null;
-            }, 2000);
+            });
+        } else {
+            // Fallback simples para ambientes restritos (como iframe)
+            toast.error('Recurso de cópia indisponível. Selecione e copie o link.');
+        }
 
-        }).catch(err => {
-            toast.error('Não foi possível copiar o link.');
-            setLinkCopied(false);
-            if (copyTimeoutRef.current) {
-                clearTimeout(copyTimeoutRef.current);
-                copyTimeoutRef.current = null;
-            }
-        });
+        if (copyTimeoutRef.current) {
+            clearTimeout(copyTimeoutRef.current);
+            copyTimeoutRef.current = null;
+        }
+
     };
 
     useEffect(() => {
@@ -187,11 +206,12 @@ function PersonalizacaoPage() {
                 </div>
             )}
 
-            <div className="grid lg:grid-cols-2 gap-8 items-start">
-                {/* Coluna 1: Formulário */}
-                <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 space-y-6">
+            {/* APLICAÇÃO DA RESPONSIVIDADE AQUI */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                {/* Coluna 1: Formulário (Sempre 100% de largura em mobile, 50% em desktop) */}
+                <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 space-y-6 order-2 lg:order-1">
                     <form onSubmit={handleSubmit}>
-                        {/* Pré-visualização Simples */}
+                        {/* Pré-visualização Simples (Mantida) */}
                         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-gray-100">
                             {formData.url_logo ? (
                                 <ImageWithFallback src={formData.url_logo} alt="Logo Preview" className="w-14 h-14 rounded-full border border-gray-200 object-cover flex-shrink-0" />
@@ -214,7 +234,7 @@ function PersonalizacaoPage() {
                                 <div className="relative">
                                     <Icon icon={Type} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input name="nome_salao" id="nome_salao" type="text" value={formData.nome_salao} onChange={handleChange}
-                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
+                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 text-base sm:text-sm`} // Ajuste de text-base para melhor toque em mobile
                                         disabled={isSaving} required />
                                 </div>
                             </div>
@@ -224,7 +244,7 @@ function PersonalizacaoPage() {
                                 <div className="relative">
                                     <Icon icon={LinkIcon} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input name="tagline" id="tagline" type="text" value={formData.tagline} onChange={handleChange}
-                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
+                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 text-base sm:text-sm`} // Ajuste de text-base para melhor toque em mobile
                                         disabled={isSaving} placeholder="Ex: Beleza e bem-estar" />
                                 </div>
                             </div>
@@ -234,10 +254,35 @@ function PersonalizacaoPage() {
                                 <div className="relative">
                                     <Icon icon={ImageIcon} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input name="url_logo" id="url_logo" type="url" value={formData.url_logo} onChange={handleChange}
-                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 sm:text-sm`}
+                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 text-base sm:text-sm`} // Ajuste de text-base para melhor toque em mobile
                                         disabled={isSaving} placeholder="https://exemplo.com/sua-logo.png" />
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">Cole o link direto da imagem (hospedada online).</p>
+                            </div>
+                            {/* CAMPO: Cor Primária (Premium Branding) */}
+                            <div>
+                                <label htmlFor="primary_color" className="block text-sm font-medium text-gray-700 mb-1">Cor Primária (Hex)*</label>
+                                <div className="relative flex items-center gap-3">
+                                    {/* MANTIDO: O ícone aqui não faz sentido, mas mantenho o campo do color picker */}
+                                    <input name="primary_color" id="primary_color" type="color" value={formData.primary_color} onChange={handleChange}
+                                        className="w-10 h-10 rounded-md border-none p-0 cursor-pointer flex-shrink-0"
+                                        disabled={isSaving} required />
+                                    <input name="primary_color" type="text" value={formData.primary_color} onChange={(e) => setFormData(prev => ({ ...prev, primary_color: e.target.value }))}
+                                        className={`flex-1 pl-3 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} h-10 text-base sm:text-sm`}
+                                        disabled={isSaving} placeholder="#0E7490" />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Essa cor será usada nos botões e destaques da página pública.</p>
+                            </div>
+                            {/* CAMPO: Mensagem de Rodapé (Premium E-mail) */}
+                            <div>
+                                <label htmlFor="email_footer_message" className="block text-sm font-medium text-gray-700 mb-1">Rodapé dos E-mails (Marketing e Lembretes)</label>
+                                <div className="relative">
+                                    <Icon icon={Feather} className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                                    <textarea name="email_footer_message" id="email_footer_message" rows="2" value={formData.email_footer_message} onChange={handleChange}
+                                        className={`w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} text-base sm:text-sm resize-none`}
+                                        disabled={isSaving} placeholder="Ex: Siga nossas redes sociais!" />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Mensagem curta exibida no final de todos os e-mails automáticos.</p>
                             </div>
                         </div>
 
@@ -245,7 +290,7 @@ function PersonalizacaoPage() {
                         <div className="flex justify-end pt-6 border-t border-gray-100 mt-6">
                             <button
                                 type="submit"
-                                className={`flex items-center px-6 py-2.5 ${CIANO_BG_CLASS} text-white rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50`}
+                                className={`flex items-center w-full sm:w-auto justify-center px-6 py-2.5 ${CIANO_BG_CLASS} text-white rounded-lg shadow-sm ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-50 text-base`}
                                 disabled={isSaving}
                             >
                                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" /> : <Icon icon={Save} className="w-5 h-5 mr-2" />}
@@ -263,19 +308,19 @@ function PersonalizacaoPage() {
                         <p className="text-sm text-gray-600">
                             Compartilhe este link com seus clientes:
                         </p>
-                        <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
                             <input
                                 type="text"
                                 value={`https://horalis.app/agendar/${salaoId}`}
                                 readOnly
-                                className="flex-grow bg-transparent text-sm text-gray-700 focus:outline-none truncate"
+                                className="flex-grow bg-transparent text-sm text-gray-700 focus:outline-none truncate p-1 sm:p-0" // Adicionado p-1 em mobile
                                 onClick={(e) => e.target.select()}
                             />
                             {/* Botão Copiar */}
                             <button
                                 type="button"
                                 onClick={copyLink}
-                                className={`flex-shrink-0 flex items-center justify-center px-3 py-1.5 rounded-md text-sm transition-colors duration-200 ease-in-out ${linkCopied
+                                className={`flex-shrink-0 flex items-center justify-center w-full sm:w-auto px-3 py-1.5 rounded-md text-sm transition-colors duration-200 ease-in-out ${linkCopied
                                     ? 'bg-green-100 text-green-700'
                                     : `${CIANO_COLOR_BG} text-white ${CIANO_COLOR_BG_HOVER}`
                                     }`}
@@ -290,20 +335,26 @@ function PersonalizacaoPage() {
                         </div>
                     </div>
                     {/* --- FIM DA SEÇÃO LINK --- */}
+
                 </div>
 
-                {/* Coluna 2: Preview */}
-                <div className="lg:sticky lg:top-24">
+                {/* Coluna 2: Preview (Ordem 1 em mobile/tablet, Ordem 2 em desktop) */}
+                <div className="order-1 lg:order-2 lg:sticky lg:top-24">
                     <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center">
                         <Icon icon={Eye} className={`w-5 h-5 mr-2 ${CIANO_COLOR_TEXT}`} />
                         Pré-visualização da Página de Agendamento
                     </h3>
-                    <BookingPagePreview
-                        salaoId={salaoId}
-                        nomeSalao={formData.nome_salao}
-                        tagline={formData.tagline}
-                        logoUrl={formData.url_logo}
-                    />
+                    {/* ENVOLVE O PREVIEW PARA LIMITAR O TAMANHO E CENTRALIZAR */}
+                    <div className="max-w-md mx-auto">
+                        <BookingPagePreview
+                            salaoId={salaoId}
+                            nomeSalao={formData.nome_salao}
+                            tagline={formData.tagline}
+                            logoUrl={formData.url_logo}
+                            primaryColor={formData.primary_color}
+                            emailFooter={formData.email_footer_message}
+                        />
+                    </div>
                     <p className="text-xs text-gray-500 mt-2 text-center">A aparência final pode variar.</p>
                 </div>
 

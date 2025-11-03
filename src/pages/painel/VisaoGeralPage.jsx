@@ -386,18 +386,7 @@ function VisaoGeralPage() {
                     Visão Geral
                 </h2>
 
-                <button
-                    type="button"
-                    onClick={copyLink}
-                    className={`flex-shrink-0 flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ease-in-out shadow-sm ${linkCopied
-                        ? 'bg-green-100 text-green-700'
-                        : `${CIANO_BG_CLASS} text-white ${CIANO_BG_HOVER_CLASS}`
-                        }`}
-                    disabled={!salaoId} // Desabilita se o ID ainda não estiver carregado
-                >
-                    <Icon icon={linkCopied ? Check : LinkIcon} className="w-4 h-4 mr-2" />
-                    {linkCopied ? "Link Copiado!" : "Link de Agendamentos"}
-                </button>
+               
             </div>
 
             {error && (

@@ -2,31 +2,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { format, isBefore, startOfToday, parseISO } from 'date-fns';
-// REMOVIDO: CreditCard
 import { Clock, User, Phone, DollarSign, Mail, Loader2, ArrowRight, Copy } from 'lucide-react';
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
-
-// REMOVIDO: import { CardPayment } from '@mercadopago/sdk-react';
 import { QRCodeCanvas } from 'qrcode.react';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// --- DEFINIÇÕES DE COR ---
-const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-600';
-const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
-const CIANO_RING_FOCUS = 'focus:ring-cyan-500';
-const CIANO_BORDER_FOCUS = 'focus:border-cyan-500';
+// --- DEFINIÇÕES DE COR FIXAS REMOVIDAS ---
+// O estilo será aplicado via CSS Variables ou Inline Style
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- Componente PIX (Sem alterações) ---
-const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess }) => {
+// --- Componente PIX (Ajustado para usar a cor primária no botão) ---
+const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess, primaryColor }) => {
 
-  // Polling para verificar o status do pagamento
+  const primary = primaryColor || '#0E7490'; // Fallback
+
+  // Polling para verificar o status do pagamento (mantido)
   useEffect(() => {
     if (!pixData?.payment_id || !salaoId || !agendamentoId) {
       console.warn("[PIX Polling] IDs ausentes. Polling não iniciado.");
@@ -76,7 +71,9 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess 
       </div>
       <button
         onClick={() => onCopy(pixData.qr_code)}
-        className={`w-full flex items-center justify-center mt-2 px-4 py-2 text-sm font-semibold text-white ${CIANO_COLOR_BG} rounded-lg ${CIANO_COLOR_BG_HOVER} transition-colors`}
+        // APLICAÇÃO DA COR NO BOTÃO
+        style={{ backgroundColor: primary, borderColor: primary }}
+        className={`w-full flex items-center justify-center mt-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90`}
       >
         <Icon icon={Copy} className="w-4 h-4 mr-2" />
         Copiar Código PIX
@@ -91,18 +88,20 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess 
 
 
 // --- COMPONENTE PRINCIPAL ---
-function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists }) {
+function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists, primaryColor }) {
+  //                                                                                                                       ^ NOVO PROP
+  const primary = primaryColor || '#0E7490'; // Fallback
+  // Define as classes de foco dinamicamente
+  const focusRingClass = `focus:ring-[${primary}]`;
+  const focusBorderClass = `focus:border-[${primary}]`;
 
   // --- LÓGICA DO FLUXO INTELIGENTE ---
-  // Define se o pagamento é obrigatório
   const requiresPayment = publicKeyExists && sinalValor > 0;
   const sinalAmount = sinalValor || 0;
   // --- FIM DA LÓGICA ---
 
-  // --- Estados do Fluxo ---
-  // ALTERADO: step 1 = Dados, step 2 = Pagamento PIX (Direto)
+  // --- Estados do Fluxo (mantidos) ---
   const [step, setStep] = useState(1);
-  // REMOVIDO: const [paymentMethod, setPaymentMethod] = useState(null);
   const [pixData, setPixData] = useState(null);
   const [agendamentoIdPendente, setAgendamentoIdPendente] = useState(null);
 
@@ -113,7 +112,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [errorSlots, setErrorSlots] = useState(null);
   const [isBooking, setIsBooking] = useState(false);
 
-  // --- Estados do Formulário (Passo 1) ---
+  // --- Estados do Formulário (mantidos) ---
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -122,7 +121,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [validationError, setValidationError] = useState('');
   const [paymentError, setPaymentError] = useState(null);
 
-  // --- EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA DO MERCADO PAGO ---
+  // --- EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA (mantido) ---
   useEffect(() => {
     const existingScript = document.querySelector('script[src="https://www.mercadopago.com/v2/security.js"]');
     if (existingScript) {
@@ -143,7 +142,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
     document.body.appendChild(script);
 
-    // Cleanup (opcional, mas boa prática)
     return () => {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
@@ -152,14 +150,13 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   }, []);
   // --- FIM DO EFEITO ---
 
-  // --- Validação Condicional do CPF ---
+  // --- Validação Condicional do CPF (mantida) ---
   const isFormValid =
     selectedSlot &&
     customerName.trim().length > 2 &&
     customerEmail.trim() &&
     customerPhone.replace(/\D/g, '').length >= 10 &&
     customerPhone === confirmCustomerPhone &&
-    // CPF só é obrigatório se o pagamento for exigido
     (!requiresPayment || (requiresPayment && customerCpf.replace(/\D/g, '').length === 11)) &&
     !isBooking;
 
@@ -207,7 +204,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     setValidationError('');
   };
 
-  // --- FUNÇÃO DE AGENDAMENTO GRATUITO (FLUXO ANTIGO) ---
+  // --- FUNÇÃO DE AGENDAMENTO GRATUITO (mantida) ---
   const handleFreeBooking = async () => {
     setIsBooking(true);
     setValidationError('');
@@ -243,11 +240,11 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   };
   // --- FIM DO FLUXO GRATUITO ---
 
-  // --- FUNÇÃO: GERAÇÃO DIRETA DO PIX ---
+  // --- FUNÇÃO: GERAÇÃO DIRETA DO PIX (mantida) ---
   const handleGeneratePix = async () => {
     setIsBooking(true);
     setPaymentError(null);
-    setStep(2); // Vai direto para o passo de exibição do PIX
+    setStep(2);
 
     try {
       const payload = createBasePayload('pix');
@@ -267,7 +264,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   };
   // --- FIM DA GERAÇÃO PIX ---
 
-  // --- FUNÇÃO PRINCIPAL DE PROSSEGUIR (FLUXO INTELIGENTE) ---
+  // --- FUNÇÃO PRINCIPAL DE PROSSEGUIR (mantida) ---
   const handleProceed = (e) => {
     e.preventDefault();
     setValidationError('');
@@ -294,9 +291,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   };
   // --- FIM DA FUNÇÃO ---
 
-  // --- Helper: Cria o payload base (AGORA COM DEVICE ID) ---
+  // --- Helper: Cria o payload base (mantido) ---
   const createBasePayload = (paymentMethodId) => {
-    // Tenta ler o Device ID da variável global (criada pelo script injetado no useEffect)
     const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID;
 
     if (!deviceId) {
@@ -341,7 +337,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       <div style={{ display: step === 1 ? 'block' : 'none' }}>
         {/* Card detalhes do serviço */}
         <div className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-100">
-          <h2 className={`text-xl font-bold mb-1 ${CIANO_COLOR_TEXT}`}>
+          <h2 className="text-xl font-bold mb-1" style={{ color: primary }}>
             {serviceName}
           </h2>
           <div className="flex items-center gap-4 text-sm text-gray-500 font-light mt-2">
@@ -353,9 +349,10 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             {requiresPayment && (
               <div className="flex items-center gap-1.5">
                 <Icon icon={DollarSign} className="w-4 h-4 text-gray-400" />
-                <span>Sinal de Reserva: R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
+                <span style={{ color: primary }}>Sinal de Reserva: R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
               </div>
             )}
+
           </div>
         </div>
 
@@ -386,12 +383,17 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                     <button
                       key={slotDate.toISOString()}
                       onClick={() => { if (!isDisabled) { setSelectedSlot(slotDate); setValidationError(''); } }}
-                      className={`p-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${CIANO_RING_FOCUS} ${isDisabled
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : isSelected
-                          ? `${CIANO_COLOR_BG} text-white shadow-md`
-                          : 'bg-white text-gray-800 border border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-                        }`}
+                      className={`p-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1`}
+                      // ESTILIZAÇÃO DINÂMICA
+                      style={{
+                        color: isSelected ? 'white' : 'inherit',
+                        backgroundColor: isSelected ? primary : (isDisabled ? 'rgb(229, 231, 235)' : 'white'),
+                        borderColor: isDisabled ? 'rgb(209, 213, 219)' : (isSelected ? primary : 'rgb(209, 213, 219)'),
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        // Adiciona o foco da cor primária
+                        '--tw-ring-color': primary,
+                        '--tw-border-color': isSelected ? primary : 'rgb(209, 213, 219)'
+                      }}
                       disabled={loadingSlots || isBooking || isDisabled}
                     >
                       {format(slotDate, 'HH:mm')}
@@ -408,13 +410,14 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           <div className="mb-8 p-4 bg-white rounded-lg shadow-sm border border-gray-100 space-y-4">
             <h3 className="text-gray-700 font-medium text-sm mb-3 border-b pb-2">3. Seus Dados</h3>
 
-            {/* Campo Nome */}
+            {/* Campos de formulário - Aplicação da cor de foco */}
             <div>
               <label htmlFor="customerName" className="block text-xs font-medium text-gray-600 mb-1"> Seu Nome* </label>
               <div className="relative">
                 <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerName" type="text" autoComplete="name" required placeholder="Nome Completo"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} sm:text-sm`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerName} onChange={(e) => setCustomerName(e.target.value)} disabled={isBooking} />
               </div>
             </div>
@@ -424,7 +427,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
               <div className="relative">
                 <Icon icon={Mail} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerEmail" type="email" autoComplete="email" required placeholder="seuemail@dominio.com"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} sm:text-sm`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} disabled={isBooking} />
               </div>
             </div>
@@ -434,7 +438,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
               <div className="relative">
                 <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerPhone" type="tel" autoComplete="tel" required placeholder="DDD + Número"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} sm:text-sm`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} disabled={isBooking} />
               </div>
             </div>
@@ -446,8 +451,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                 <input id="confirmCustomerPhone" type="tel" required placeholder="Digite novamente"
                   className={`appearance-none block w-full pl-9 pr-3 py-2 border rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone
                     ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                    : `border-gray-300 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`
+                    : `border-gray-300`
                     }`}
+                  style={{
+                    '--tw-ring-color': primary,
+                    '--tw-border-color': primary
+                  }}
                   value={confirmCustomerPhone} onChange={(e) => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} />
               </div>
             </div>
@@ -459,7 +468,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
                 <div className="relative">
                   <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input id="customerCpf" type="tel" autoComplete="off" required={requiresPayment} placeholder="000.000.000-00"
-                    className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS} sm:text-sm`}
+                    className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm`}
+                    style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                     value={customerCpf} onChange={(e) => setCustomerCpf(e.target.value)} disabled={isBooking} />
                 </div>
               </div>
@@ -471,7 +481,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       </div>
 
 
-      {/* REMOVIDO: ETAPA 2 DE ESCOLHA DE PAGAMENTO */}
       {/* ETAPA 2: EXECUÇÃO DO PAGAMENTO (APENAS PIX) */}
       <div style={{ display: step === 2 ? 'block' : 'none' }}>
         <h3 className="text-gray-700 font-medium text-lg mb-4 text-center">4. Finalizar Pagamento via PIX</h3>
@@ -483,7 +492,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           </div>
           <div className="flex justify-between items-center pt-2">
             <span className="text-gray-600">Valor do Sinal:</span>
-            <span className={`font-bold text-xl ${CIANO_COLOR_TEXT}`}>R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
+            <span className={`font-bold text-xl`} style={{ color: primary }}>R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
           </div>
         </div>
 
@@ -500,6 +509,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             salaoId={salaoId}
             agendamentoId={agendamentoIdPendente}
             onCopy={handleCopyPix}
+            primaryColor={primary} // Passa a cor para o subcomponente PIX
             onPaymentSuccess={() => onAppointmentSuccess({
               serviceName,
               startTime: selectedSlot.toISOString(),
@@ -510,7 +520,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           />
         ) : (
           <div className="relative h-64 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: primary }} />
             <p className="text-sm text-gray-600 ml-2">Gerando PIX...</p>
           </div>
         )}
@@ -523,11 +533,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           {/* Botão do Passo 1 (Inteligente) */}
           <button
             onClick={handleProceed}
-            style={{ display: step === 1 ? 'flex' : 'none' }}
-            className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-md flex items-center justify-center ${isFormValid
-              ? `${CIANO_COLOR_BG} ${CIANO_COLOR_BG_HOVER}`
-              : 'bg-gray-400 cursor-not-allowed'
-              }`}
+            style={{
+              display: step === 1 ? 'flex' : 'none',
+              backgroundColor: isFormValid ? primary : 'rgb(156, 163, 175)', // bg-gray-400
+              opacity: isFormValid ? 1 : 0.6 // Controla o hover/disabled
+            }}
+            className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-md flex items-center justify-center cursor-pointer`}
             disabled={!isFormValid || isBooking}
           >
             {isBooking ? (
