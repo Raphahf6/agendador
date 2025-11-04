@@ -9,6 +9,7 @@ import {
     MessageSquare, Tag, CheckCircle, Trash2, Edit3, Clock10, CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import HourglassLoading from '@/components/HourglassLoading';
 
 import { auth } from '@/firebaseConfig';
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
@@ -480,7 +481,7 @@ function ClienteDetailPage() {
 
     // --- Renderização de Status ---
     if (loading || !salaoId || !clienteId) {
-        return <div className="flex justify-center py-10"><Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} /></div>;
+        return <div className="flex justify-center py-10"><HourglassLoading message='Carregando cliente...'/></div>;
     }
     if (error) {
         return <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>;

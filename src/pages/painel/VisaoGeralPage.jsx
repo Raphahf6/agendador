@@ -10,13 +10,15 @@ import { format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow, st
 import { ptBR } from 'date-fns/locale';
 import {
     Loader2, Calendar, Users, BarChart2, Bell, CheckCircle, AlertTriangle, TrendingUp, CalendarDays,
-    Filter, Check, Link as LinkIcon, Edit, UserPlus
+    Filter, Check, Link as LinkIcon, Edit, UserPlus,
+    Hourglass
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (assumindo que SalonProvider está configurado)
 import { useSalon } from './PainelLayout';
+import HourglassLoading from '@/components/HourglassLoading';
 // Ajuste o caminho conforme a estrutura real do seu projeto
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -177,7 +179,7 @@ const KpiCard = ({
                     <Icon icon={IconComp} className="w-5 h-5" />
                 </div>
                 {isLoading ? (
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-cyan-600" />
                 ) : (
                     <p className="text-3xl font-bold text-gray-900">{value ?? '-'}</p>
                 )}
@@ -456,7 +458,7 @@ function VisaoGeralPage() {
 
                     {loadingChart ? (
                         <div className="flex justify-center items-center h-64 sm:h-80">
-                            <Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} />
+                          <HourglassLoading message='Carregando dados...' />
                         </div>
                     ) : chartData.length === 0 ? (
                         <div className="flex justify-center items-center h-64 sm:h-80 text-gray-500">

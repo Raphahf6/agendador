@@ -8,6 +8,7 @@ import { auth } from '@/firebaseConfig';
 import { QRCodeCanvas } from 'qrcode.react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import HourglassLoading from '@/components/HourglassLoading';
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
 import { useSalon } from './PainelLayout';
@@ -319,7 +320,7 @@ function MarketingPage() {
             <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200 max-w-2xl mx-auto">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Cota de E-mail Marketing</h3>
                 {loadingContext ? (
-                    <div className="flex justify-center py-4"><Loader2 className={`w-6 h-6 animate-spin ${CIANO_TEXT_CLASS}`} /></div>
+                    <div className="flex justify-center py-4"><HourglassLoading/></div>
                 ) : (
                     <div className="space-y-3">
                         <div className="flex justify-between items-center mb-1">

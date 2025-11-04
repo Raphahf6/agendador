@@ -1,6 +1,6 @@
 const HourglassLoading = ({ primaryColor, size = "w-12 h-12", message = "Carregando..." }) => {
     // COR FIXA para evitar a transição visual. Usaremos um cinza escuro neutro (gray-700).
-    const fixedLoadingColor = primaryColor || '#4B5563';
+    const fixedLoadingColor = primaryColor || 'rgb(8 145 178)';
 
     // CSS Keyframes para a animação da ampulheta (Localizado aqui para garantir o escopo)
     const keyframes = `

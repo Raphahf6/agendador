@@ -6,6 +6,7 @@ import { Loader2, Save, CalendarDays, AlertTriangle } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout
 import { useSalon } from './PainelLayout';
+import HourglassLoading from '@/components/HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -116,8 +117,7 @@ function HorariosPage() {
     if (loading || !salaoId) {
         return (
             <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-                <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-                <p className="text-gray-600">{!salaoId ? 'Aguardando dados do painel...' : 'Carregando horários...'}</p>
+                <p className="text-gray-600">{!salaoId ? <HourglassLoading message="Carregando dados do painel..."/>: <HourglassLoading message='Carregando horarios...'/>}</p>
             </div>
         );
     }

@@ -4,8 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { User, Mail, Phone, Clock, Loader2, Search } from 'lucide-react';
+import { User, Mail, Phone, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import HourglassLoading from '@/components/HourglassLoading';
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (Ajuste o caminho conforme o seu projeto)
 import { useSalon } from './PainelLayout';
@@ -94,7 +95,7 @@ function ClientesPage() {
     if (loading || !salaoId) {
         return (
             <div className="flex justify-center py-10">
-                <Loader2 className={`w-8 h-8 animate-spin ${CIANO_TEXT_CLASS}`} />
+                <HourglassLoading message='Carregando Clientes...'/>
             </div>
         );
     }

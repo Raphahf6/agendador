@@ -179,8 +179,7 @@ function PersonalizacaoPage() {
     if (loadingContext || !salaoId) {
         return (
             <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-                <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-                <p className="text-gray-600">Carregando dados globais...</p>
+                <HourglassLoading message='Carregando dados...'/>
             </div>
         );
     }

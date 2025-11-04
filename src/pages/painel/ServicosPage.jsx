@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Scissors, DollarSign, Clock, Loader2, PlusCircle, Trash2, X, Edit3 } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
+import HourglassLoading from '@/components/HourglassLoading';
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (Ajuste o caminho conforme o seu projeto)
 import { useSalon } from './PainelLayout';
@@ -253,8 +254,7 @@ function ServicosPage() {
   if (loading || isDeleting || !salaoId) { // Adicionamos !salaoId
     return (
       <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-        <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-        <p className="text-gray-600">{!salaoId ? 'Aguardando dados do painel...' : (isDeleting ? 'Removendo serviço...' : 'Carregando serviços...')}</p>
+        <p className="text-gray-600">{!salaoId ? <HourglassLoading message='Carregando dados do painel...'/> : (isDeleting ? <HourglassLoading message='Removendo serviço...'/> : <HourglassLoading message='Carregando serviços...'/>)}</p>
       </div>
     );
   }

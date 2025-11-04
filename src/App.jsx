@@ -4,12 +4,15 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from './firebaseConfig';
 import { Toaster } from 'react-hot-toast';
 // Axios é necessário para a requisição, mas não é usado diretamente neste arquivo pai
+import HandleAuthActions from './components/HandleAuthActions';
+import ResetarSenhaPage from './components/ResetarSenhaPage';
 
 // Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import ConfirmationPage from './components/ConfirmationPage';
 import HoralisCalendar from './components/HoralisCalendar';
+import RecuperarSenhaPage from './components/RecuperarSenhaPage';
 
 // Imports da Landing Page
 import { LandingPage } from './pages/LandingPage';
@@ -51,7 +54,7 @@ function ProtectedPanelRoute({ children, user, location }) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-50">
                 {/* NOVO: Usando HourglassLoading */}
-                <HourglassLoading message="Verificando autenticação..." primaryColor="#4B5563" />
+                <HourglassLoading message="Verificando autenticação..."/>
             </div>
         );
     }
@@ -463,6 +466,9 @@ function App() {
                 {/* --- ROTAS DE AUTENTICAÇÃO PÚBLICA --- */}
                 <Route path="/login" element={<ProfissionalLoginPage />} />
                 <Route path="/cadastro" element={<ProfissionalSignupPage />} />
+                <Route path="/recuperar-senha" element={<RecuperarSenhaPage />} />
+                <Route path="/auth/actions" element={<HandleAuthActions />} />
+                <Route path="/resetar-senha" element={<ResetarSenhaPage />} />
 
                 {/* Rota de Agendamento (Pública) */}
                 <Route path="/agendar/:salaoId" element={<SalonScheduler />} />

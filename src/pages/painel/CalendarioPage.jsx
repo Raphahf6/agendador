@@ -19,6 +19,7 @@ import {
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (ajuste o caminho se necessário)
 import { useSalon } from './PainelLayout';
+import HourglassLoading from '@/components/HourglassLoading';
 
 // --- Configurações ---
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
@@ -369,8 +370,7 @@ function CalendarioPage() {
   if (!salaoId || (loading && isInitialLoad.current)) {
     return (
       <div className="flex flex-col items-center justify-center p-10 min-h-[400px]">
-        <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-        <p className="text-gray-600">Carregando agenda...</p>
+        <HourglassLoading message='Carregando Agenda...' />
       </div>
     );
   }

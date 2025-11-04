@@ -7,6 +7,7 @@
     import { doc, getDoc, updateDoc } from "firebase/firestore"; 
     import axios from 'axios';
     import toast from 'react-hot-toast';
+    import HourglassLoading from '@/components/HourglassLoading';
 
     const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -304,8 +305,7 @@
         if (loading) {
             return (
                 <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-                    <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-                    <p className="text-gray-600">Carregando configurações...</p>
+                   <HourglassLoading message='Carregando configurações...'/>
                 </div>
             );
         }

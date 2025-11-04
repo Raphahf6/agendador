@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { Loader2, AlertTriangle, CheckCircle, CreditCard, Star, Calendar, Link2, Bell, Users, Clock } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast'; // Importando toast
+import HourglassLoading from '@/components/HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -163,8 +164,7 @@ function AssinaturaPage() {
   if (loading) {
     return (
       <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-          <Loader2 className={`h-8 w-8 animate-spin ${CIANO_COLOR_TEXT} mb-3`} />
-          <p className="text-gray-600">Carregando assinatura...</p>
+           <HourglassLoading message="Carregando assinatura..."/>
       </div>
     );
   }

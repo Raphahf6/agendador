@@ -139,7 +139,7 @@ function ProfissionalLoginPage() {
                         <div className="space-y-1">
                             <div className="flex justify-between items-center">
                                 <label htmlFor="password" className="text-sm font-medium text-gray-700">Senha</label>
-                                <Link to="/esqueci-senha"
+                                <Link to="/recuperar-senha"
                                     className={`text-xs font-medium ${CIANO_COLOR_TEXT} hover:underline`}
                                 >
                                     Esqueceu a senha?
