@@ -9,6 +9,7 @@ import { Loader2, AlertTriangle, CheckCircle, CreditCard, Star, Calendar, Link2,
 import axios from 'axios';
 import toast from 'react-hot-toast'; // Importando toast
 import HourglassLoading from '@/components/HourglassLoading';
+import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -209,7 +210,7 @@ function AssinaturaPage() {
 
           <div className="text-center sm:text-left">
             <p className="text-gray-500">Preço</p>
-            <p className="text-4xl font-bold text-gray-900 mb-1">R$ 29,90 <span className="text-lg font-normal text-gray-500">/mês</span></p>
+            <p className="text-4xl font-bold text-gray-900 mb-1">{DISPLAY_PRICE_SETUP}<span className="text-lg font-normal text-gray-500">/mês</span></p>
             <p className="text-sm text-gray-500">PIX, Boleto ou Cartão de Crédito via Mercado Pago.</p>
           </div>
         </div>
