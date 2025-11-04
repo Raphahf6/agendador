@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 // Importações de ícones que são usadas na Landing Page
 import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail, Lock as LockIcon } from 'lucide-react';
-
+import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 // Importa os novos componentes/helpers
 import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
@@ -63,6 +63,24 @@ export function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const precosRef = useRef(null);
+
+  useEffect(() => {
+    // Carrega o script de segurança do Mercado Pago dinamicamente
+    const script = document.createElement('script');
+    script.src = "https://www.mercadopago.com/v2/security.js";
+    script.setAttribute('data-public-key', "APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311");
+    script.id = 'mercadopago-security';
+
+    // Garante que o script seja adicionado ao final do <body>
+    document.body.appendChild(script);
+
+    // Limpeza: Remove o script quando o componente for desmontado (boa prática)
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   // --- EFEITOS ---
   useEffect(() => {
@@ -411,7 +429,7 @@ export function LandingPage() {
               <p className="text-gray-600 mt-1">Todos os recursos para automatizar sua agenda.</p>
 
               <div className="my-6">
-                <p className="text-5xl font-bold text-gray-900">R$ 19,90</p>
+                <p className="text-5xl font-bold text-gray-900">{DISPLAY_PRICE_SETUP}</p>
                 <p className="text-lg font-medium text-gray-500">/mês</p>
               </div>
 

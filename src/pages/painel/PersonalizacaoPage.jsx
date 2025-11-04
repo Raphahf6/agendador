@@ -260,7 +260,7 @@ function PersonalizacaoPage() {
                             </div>
                             {/* CAMPO: Cor Primária (Premium Branding) */}
                             <div>
-                                <label htmlFor="primary_color" className="block text-sm font-medium text-gray-700 mb-1">Cor Primária (Hex)*</label>
+                                <label htmlFor="primary_color" className="block text-sm font-medium text-gray-700 mb-1">Cor Primária</label>
                                 <div className="relative flex items-center gap-3">
                                     {/* MANTIDO: O ícone aqui não faz sentido, mas mantenho o campo do color picker */}
                                     <input name="primary_color" id="primary_color" type="color" value={formData.primary_color} onChange={handleChange}

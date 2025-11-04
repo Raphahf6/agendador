@@ -1,11 +1,11 @@
-// src/components/landing/SignupModalContent.jsx
 import React, { useState } from 'react';
 import { Payment } from '@mercadopago/sdk-react';
 import { Link } from 'react-router-dom';
-import { useSignupPayment } from '@/hooks/useSignupPayment'; // Importa o Hook
+import { useSignupPayment } from '@/hooks/useSignupPayment';
 // Importe todos os ícones e helpers necessários para a renderização
 import { Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail, Loader2, QrCode, Copy, CreditCard, User, Lock as LockIcon } from 'lucide-react';
-
+import { MONTHLY_PRICE_AMOUNT } from '@/utils/pricing';
+import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 // --- CONFIGURAÇÕES DE COR E CONSTANTES (Ajuste conforme o seu arquivo) ---
 const BRAND_NAME = "Horalis";
 const CIANO_COLOR = 'cyan-800';
@@ -13,7 +13,7 @@ const CIANO_BG_CLASS = `bg-${CIANO_COLOR}`;
 const CIANO_BG_HOVER_CLASS = `hover:bg-cyan-700`;
 const CIANO_TEXT_CLASS = `text-${CIANO_COLOR}`;
 
-// Revertendo renderIcon para ser usado pela LandingPage (onde funciona) e injetado no Modal.
+// Única definição do renderIcon (ou use a versão da LandingPage)
 const renderIcon = (IconComponent, extraClasses = "") => (
     <IconComponent className={`stroke-current ${extraClasses}`} />
 );
@@ -36,11 +36,13 @@ function SignupModalContent({ closeModal, isModalOpen }) {
 
     // Helper para copiar (UI-related)
     const copyToClipboard = (text) => {
+        // Usa navigator.clipboard para melhor compatibilidade em browsers modernos
         navigator.clipboard.writeText(text).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }).catch(err => {
             console.error("Falha ao copiar:", err);
+            // Fallback para document.execCommand('copy') se necessário
         });
     };
     
@@ -49,6 +51,15 @@ function SignupModalContent({ closeModal, isModalOpen }) {
         paymentMethods: { creditCard: "all", debitCard: "all" },
         visual: { style: { theme: 'default' } }
     };
+    
+    // Handler de fechamento (para o rollback seguro, se necessário)
+    // O hook useSignupPayment deve fornecer um handler que inclua o rollback seguro.
+    const onClose = () => {
+        // Chamada direta ao closeModal. A lógica de rollback por expiração
+        // agora está no backend (cria-conta-paga), tornando o fechamento seguro.
+        closeModal();
+    };
+
 
     // --- RENDERIZAÇÃO: JSX + Handlers do Hook ---
     return (
@@ -57,7 +68,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
           ${step === 3 ? 'max-w-md md:max-w-3xl' : 'max-w-lg md:max-w-2xl'}`}
         >
           <button
-            onClick={closeModal}
+            onClick={onClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
             aria-label="Fechar"
           >
@@ -152,7 +163,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
 
               {/* Opção PIX (Botão Customizado) */}
               <button type="button" onClick={handlePixPayment} className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors disabled:opacity-70`} disabled={loading}>
-                {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(QrCode, "w-5 h-5 mr-2")} Pagar com PIX (R$ 0,99)</>}
+                {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(QrCode, "w-5 h-5 mr-2")} Pagar com PIX {DISPLAY_PRICE_SETUP}</>}
               </button>
 
               <div className="flex items-center gap-2 my-4">
@@ -165,18 +176,25 @@ function SignupModalContent({ closeModal, isModalOpen }) {
               <div className="mt-2">
                 <p className="text-sm font-medium text-gray-700 mb-2">Pagar com Cartão</p>
                 <Payment
+                  // A chave força a remontagem, garantindo que o Brick inicialize no DOM correto
+                  key={step} 
                   initialization={{
-                    amount: 0.99,
+                    amount: MONTHLY_PRICE_AMOUNT,
                     payer: {
                       email: formData.email,
-                      identification: { type: 'CPF', number: formData.cpf.replace(/\D/g, '') },
+                      identification: { 
+                        type: 'CPF', 
+                        number: formData.cpf.replace(/\D/g, '') 
+                      },
+                      // CORREÇÃO CRÍTICA: Adicionando entityType no camelCase para inicialização do Brick
+                      entityType: 'individual', 
                     },
                   }}
                   customization={paymentBrickCustomization}
                   onSubmit={handleCardPaymentSubmit}
                   onError={(err) => {
-                    // O Brick do MP lida com a maioria dos erros, mas garantimos a mensagem no erro do hook
                     console.error("Erro no Brick:", err);
+                    // O erro de inicialização é um aviso; o erro de submissão é tratado pelo onSubmit
                   }}
                 />
               </div>
@@ -188,7 +206,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
             <div className="flex flex-col items-center p-4">
               <p className="text-lg font-semibold text-gray-800 mb-4">Seu PIX foi gerado com sucesso!</p>
 
-              {/* QR Code (Assumindo que ImageWithFallback foi movido ou importado) */}
+              {/* QR Code */}
               <img
                 src={`data:image/png;base64,${pixData.qr_code_base64}`}
                 alt="PIX QR Code"
@@ -219,7 +237,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
               <h3 className="text-2xl font-bold text-gray-900">Pagamento Confirmado!</h3>
               <p className="text-lg text-gray-600">Sua conta {BRAND_NAME} Pro está **ATIVA** e pronta para gerenciar seus agendamentos!</p>
               <button
-                onClick={() => { closeModal(); navigate('/login'); }}
+                onClick={() => { onClose(); navigate('/login'); }}
                 className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors mt-6`}
               >
                 {renderIcon(LogIn, "w-5 h-5 mr-2")} Fazer Login Agora

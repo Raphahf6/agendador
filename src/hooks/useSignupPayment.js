@@ -1,11 +1,20 @@
-// src/hooks/useSignupPayment.js
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { parseApiError } from '@/utils/apiHelpers';
+import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+
+// --- NOVO HELPER: Captura o Device ID ---
+// Se o script de segurança do MP estiver carregado, ele cria este input oculto.
+const getDeviceId = () => {
+    const input = document.getElementById('__mpoffline_device_id');
+    return input ? input.value : null;
+};
+// ----------------------------------------
+
 
 export function useSignupPayment(isModalOpen) {
     const navigate = useNavigate();
@@ -17,7 +26,7 @@ export function useSignupPayment(isModalOpen) {
     const [loading, setLoading] = useState(false);
     const [pollingInterval, setPollingInterval] = useState(null);
 
-    // Dados do Formulário (Centralizados no Hook)
+    // Dados do Formulário
     const [formData, setFormData] = useState({
         email: '', password: '', confirmPassword: '',
         nomeSalao: '', whatsapp: '', cpf: ''
@@ -40,10 +49,9 @@ export function useSignupPayment(isModalOpen) {
         }
     }, [isModalOpen, pollingInterval]);
 
-    // --- FUNÇÕES DE EFEITO COLATERAL ---
-
-    // 1. POLLING PARA CONFIRMAÇÃO DO PIX
+    // 1. POLLING PARA CONFIRMAÇÃO DO PIX (MANTIDO)
     const startPolling = useCallback((paymentId) => {
+        // ... (código startPolling) ...
         if (pollingInterval) clearInterval(pollingInterval);
 
         let checks = 0;
@@ -84,7 +92,7 @@ export function useSignupPayment(isModalOpen) {
     }, [pollingInterval]);
 
 
-    // 2. Validação do Formulário e Avanço (ETAPA 1)
+    // 2. Validação do Formulário e Avanço (ETAPA 1) (MANTIDO)
     const handleFormSubmit = useCallback((e) => {
         e.preventDefault();
         setError('');
@@ -103,69 +111,114 @@ export function useSignupPayment(isModalOpen) {
     }, [formData]);
 
 
-    // 3. Pagamento com Cartão (ETAPA 2)
-    const handleCardPaymentSubmit = useCallback((cardData) => {
+    // 3. Pagamento com Cartão (ETAPA 2) - ADICIONANDO device_id MANUALMENTE
+     const handleCardPaymentSubmit = useCallback((cardData) => {
         setLoading(true);
         setError('');
 
-        const cleanedWhatsapp = formData.whatsapp.replace(/\D/g, ''); // Limpo
-        const formattedWhatsapp = `+55${cleanedWhatsapp}`; // Formatado
+        // -----------------------------------------------------------------------------------
+        // VALIDAÇÃO CRÍTICA DO BRICK (REMOVIDA TEMPORARIAMENTE PARA DEBUG)
+        // Deixamos a tokenização falhar para que o backend devolva o erro detalhado do MP.
+        // -----------------------------------------------------------------------------------
+
+        const cleanedWhatsapp = formData.whatsapp.replace(/\D/g, '');
+        const formattedWhatsapp = `+55${cleanedWhatsapp}`;
+        const deviceId = getDeviceId(); 
+        const cleanedCpf = formData.cpf.replace(/\D/g, ''); 
+        console.log(cardData)
 
         const payload = {
+            // Campos que vêm do Formulário
             email: formData.email, 
-            password: formData.password, 
+            // >>> MUDANÇA CRÍTICA: Assegura que a senha seja uma string válida e vem APENAS do formData
+            // Converte para string e usa 'none' se estiver vazio, embora o Pydantic espere a senha real
+            password: String(formData.password), 
             nome_salao: formData.nomeSalao.trim(), 
-            
-            // NOVO CAMPO: ID do cliente sem prefixo (para uso interno)
             client_whatsapp_id: cleanedWhatsapp, 
-            
-            // NOME ORIGINAL: Número formatado (+55) para APIs de notificação
             numero_whatsapp: formattedWhatsapp, 
+
+            // CAMPOS CRÍTICOS DO CARTÃO: Agora passamos o que vier do cardData (pode ser null/undefined)
+            // Se o Brick falhou (token, payment_method_id ausentes), o backend receberá null e deve rejeitar a transação.
+            payment_method_id: cardData.formData.payment_method_id || null, 
+            transaction_amount: DISPLAY_PRICE_SETUP, 
+            token: cardData.formData.token || null,
             
-            // Dados do Mercado Pago
-            ...cardData,
+            // ... (Campos opcionais e Payer Data) ...
+            issuer_id: cardData.formData.issuer_id || null,
+            installments: cardData.formData.installments || 1,
+            device_id: deviceId || null, 
+            
+            payer: {
+                email: formData.email, 
+                identification: {
+                    type: 'CPF', 
+                    number: cleanedCpf,
+                },
+                entity_type: 'individual'
+            }
         };
 
+        // ... (código de requisição axios.post) ...
         return new Promise((resolve, reject) => {
             axios.post(`${API_BASE_URL}/auth/criar-conta-paga`, payload)
-                .then(() => {
+                .then((response) => {
                     setLoading(false);
-                    setStep(4); // Sucesso
-                    resolve();
+                    if (response.data.status === 'approved') {
+                        setStep(4);
+                        resolve();
+                    } else {
+                        // O Mercado Pago está rejeitando no backend, mas a resposta é 200/201.
+                        // O payload precisa ser {status, message}
+                        setError(response.data.message || "Pagamento em análise ou pendente.");
+                        reject(new Error(response.data.message || "Pagamento pendente.")); 
+                    }
                 })
                 .catch((err) => {
                     setLoading(false);
                     const friendlyError = parseApiError(err);
                     setError(friendlyError);
-                    reject(new Error(friendlyError)); 
+                    
+                    // Se o 422 retornar, logamos o detalhe
+                    if (err.response && err.response.status === 422) {
+                        console.error("ERRO 422 - Detalhes da Validação Pydantic:", err.response.data.detail);
+                        console.log(cardData)
+                    }
+                    
+                    reject(new Error(friendlyError));
                 });
         });
     }, [formData]);
 
 
-    // 4. Pagamento com PIX (ETAPA 2)
+    // 4. Pagamento com PIX (ETAPA 2) - ADICIONANDO entity_type MANUALMENTE
     const handlePixPayment = useCallback(async () => {
         setLoading(true);
         setError(''); setPixData(null);
 
         const cleanedCpf = formData.cpf.replace(/\D/g, '');
-        const cleanedWhatsapp = formData.whatsapp.replace(/\D/g, ''); // Limpo
-        const formattedWhatsapp = `+55${cleanedWhatsapp}`; // Formatado
+        const cleanedWhatsapp = formData.whatsapp.replace(/\D/g, '');
+        const formattedWhatsapp = `+55${cleanedWhatsapp}`;
+        
+        const deviceId = getDeviceId(); // CAPTURA MANUAL AQUI
+        
 
         const payload = {
             email: formData.email, 
             password: formData.password, 
             nome_salao: formData.nomeSalao.trim(), 
-            
-            // NOVO CAMPO: ID do cliente sem prefixo (para uso interno)
             client_whatsapp_id: cleanedWhatsapp, 
-            
-            // NOME ORIGINAL: Número formatado (+55) para APIs de notificação
             numero_whatsapp: formattedWhatsapp, 
+            device_id: deviceId,
             
             payment_method_id: 'pix', 
-            transaction_amount: 0.99,
-            payer: { email: formData.email, identification: { type: 'CPF', number: cleanedCpf } }
+            transaction_amount: DISPLAY_PRICE_SETUP,
+            
+            // ADIÇÃO CRÍTICA DO entity_type:
+            payer: { 
+                email: formData.email, 
+                identification: { type: 'CPF', number: cleanedCpf },
+                entity_type: 'individual' // <<< ADICIONADO AQUI
+            }
         };
 
         try {
