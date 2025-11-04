@@ -130,7 +130,7 @@ export function LandingPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans overflow-x-hidden">
 
       {/* --- Cabeçalho --- */}
       <header className="sticky top-0 w-full bg-white border-b border-gray-200 z-20">
