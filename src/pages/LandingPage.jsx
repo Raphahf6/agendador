@@ -420,9 +420,6 @@ export function LandingPage() {
             <p className="text-gray-600 text-lg">
               Sem taxas escondidas. Todos os recursos que você precisa, por um preço justo.
             </p>
-            <p className="text-xl font-bold text-green-600 mt-4">
-              Teste Grátis de 7 Dias! Apenas R$ 0,99 para começar.
-            </p>
           </div>
 
           {/* Card de Preço Único */}
