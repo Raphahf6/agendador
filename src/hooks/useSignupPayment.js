@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { parseApiError } from '@/utils/apiHelpers';
-import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
-
 // --- CONFIGURAÇÕES GLOBAIS ---
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -140,7 +138,7 @@ export function useSignupPayment(isModalOpen) {
             // CAMPOS CRÍTICOS DO CARTÃO: Agora passamos o que vier do cardData (pode ser null/undefined)
             // Se o Brick falhou (token, payment_method_id ausentes), o backend receberá null e deve rejeitar a transação.
             payment_method_id: cardData.formData.payment_method_id || null, 
-            transaction_amount: DISPLAY_PRICE_SETUP, 
+            transaction_amount: VITE_SETUP_PRICE, 
             token: cardData.formData.token || null,
             
             // ... (Campos opcionais e Payer Data) ...
@@ -211,7 +209,7 @@ export function useSignupPayment(isModalOpen) {
             device_id: deviceId,
             
             payment_method_id: 'pix', 
-            transaction_amount: DISPLAY_PRICE_SETUP,
+            transaction_amount: VITE_SETUP_PRICE,
             
             // ADIÇÃO CRÍTICA DO entity_type:
             payer: { 
