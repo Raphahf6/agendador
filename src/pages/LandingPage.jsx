@@ -1,11 +1,14 @@
+// src/pages/LandingPage.jsx
+
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-// Corrigido: Renomeando o ícone Lock para LockIcon para evitar conflito com a interface nativa do navegador (Web Locks API).
-import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail, Loader2, QrCode, Copy, CreditCard, User, Lock as LockIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+// Importações de ícones que são usadas na Landing Page
+import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail, Lock as LockIcon } from 'lucide-react';
+
+// Importa os novos componentes/helpers
+import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
-import AOS from 'aos';
-import 'aos/dist/aos.css';
-import axios from 'axios';
+// import { parseApiError } from '@/utils/apiHelpers'; // Não é necessário aqui, mas mantemos o comentário para referência
 
 // Imports do Swiper
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -14,10 +17,13 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-// --- CONFIGURAÇÕES GLOBAIS ---
+import AOS from 'aos';
+import 'aos/dist/aos.css';
+
+
+// --- CONFIGURAÇÕES GLOBAIS (APENAS CONSTANTES DE RENDERIZAÇÃO) ---
 const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1,%20Gostaria%20de%20saber%20mais%20sobre%20o%20horalis";
 const BRAND_NAME = "Horalis";
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // --- Definições de Cor ---
 const CIANO_COLOR = 'cyan-800';
@@ -27,14 +33,8 @@ const CIANO_BG_CLASS = `bg-${CIANO_COLOR}`;
 const CIANO_BG_HOVER_CLASS = `hover:bg-${CIANO_HOVER}`;
 const CIANO_RGB_COLOR = 'rgb(14, 116, 144)';
 
-// --- Inicialização do Mercado Pago ---
-import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
-initMercadoPago("APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311", {
-  locale: 'pt-BR'
-});
 
-// --- Helpers e Componentes Simples ---
-
+// --- Componentes Simples (Mantidos aqui) ---
 const FeatureItem = ({ text }) => (
   <li className="flex items-center gap-3">
     <Check className="w-5 h-5 text-green-500 flex-shrink-0 stroke-current" />
@@ -51,471 +51,42 @@ const proFeatures = [
   "Gestão de Clientes"
 ];
 
-// Revertendo renderIcon para ser usado pela LandingPage (onde funciona) e injetado no Modal.
+// --- ÚNICA DEFINIÇÃO DO renderIcon ---
+// Usada tanto na LandingPage quanto passada para o Modal
 const renderIcon = (IconComponent, extraClasses = "") => (
   <IconComponent className={`stroke-current ${extraClasses}`} />
 );
-
-// --- Função: Parse de Erro da API ---
-const parseApiError = (err) => {
-  const defaultError = "Ocorreu um erro. Verifique os dados e tente novamente.";
-  try {
-    const detail = err.response?.data?.detail;
-    if (typeof detail === 'string') { return detail; }
-    if (Array.isArray(detail) && detail.length > 0 && detail[0].msg) { return detail[0].msg; }
-    if (typeof detail === 'object' && detail !== null && detail.msg) { return detail.msg; }
-    return defaultError;
-  } catch (e) {
-    return defaultError;
-  }
-};
+// --- FIM DA DEFINIÇÃO ÚNICA ---
 
 
-// =======================================================
-// === 1. LÓGICA DO CADASTRO E PAGAMENTO (DENTRO DO MODAL) ===
-// =======================================================
+export function LandingPage() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const precosRef = useRef(null);
 
-function SignupModalContent({ closeModal, isModalOpen, renderIcon }) {
-  // --- Estado de Fluxo ---
-  const [step, setStep] = useState(1);
-  const [pixData, setPixData] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState(null);
-
-  // Estados do formulário
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [nomeSalao, setNomeSalao] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-
-  const [paymentError, setPaymentError] = useState(null);
-
-  // Limpa o polling ao fechar o modal
+  // --- EFEITOS ---
   useEffect(() => {
-    if (!isModalOpen && pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
+    // Inicialização do AOS (Animação)
+    AOS.init({ duration: 1000, once: true, offset: 100 });
+
+    // Bloqueio de rolagem ao abrir o modal
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { document.body.style.overflow = ''; };
   }, [isModalOpen]);
 
 
-  // --- FUNÇÃO CRÍTICA: POLLING PARA CONFIRMAÇÃO DO PIX (SIMULADA) ---
-  const startPolling = (paymentId) => {
-    // Para a simulação anterior, se houver
-    if (pollingInterval) clearInterval(pollingInterval);
-
-    let checks = 0;
-    const maxChecks = 40; // 40 verificações * 3 segundos = 2 minutos de polling
-
-    const interval = setInterval(async () => {
-      checks++;
-      console.log(`[POLLING REAL] Verificando status para Payment ID: ${paymentId}. Tentativa ${checks}/${maxChecks}...`);
-
-      try {
-        // Chama a nova rota de backend que verifica o Firestore
-        const response = await axios.get(`${API_BASE_URL}/auth/check-payment-status/${paymentId}`);
-        const status = response.data.status;
-
-        if (status === 'approved') {
-          console.log("POLLING: Pagamento aprovado pelo Backend.");
-          clearInterval(interval);
-          setPollingInterval(null);
-          setStep(4); // Vai para o Passo 4 (Sucesso)
-          return;
-        }
-
-        // Se o status for rejected, cancelled, etc.
-        if (status !== 'pending' && status !== 'trialing') {
-          console.log(`POLLING: Pagamento falhou. Status: ${status}`);
-          clearInterval(interval);
-          setPollingInterval(null);
-          // Retorna o usuário ao passo 1 com uma mensagem de erro
-          setError(response.data.message || "Pagamento rejeitado. Tente novamente.");
-          setStep(1);
-          return;
-        }
-
-      } catch (error) {
-        console.error("Erro durante o polling:", error);
-        // Continua o polling em caso de erro temporário de rede.
-      }
-
-      if (checks >= maxChecks) {
-        clearInterval(interval);
-        setPollingInterval(null);
-        setError("Tempo limite de espera excedido. Pagamento ainda pendente. Verifique o status pelo login em instantes.");
-        console.warn("POLLING: Tempo limite atingido.");
-      }
-    }, 3000);
-
-    setPollingInterval(interval);
-  };
-  // --- FIM DA FUNÇÃO CRÍTICA ---
-
-
-  // --- ETAPA 1 - Validar o Formulário ---
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    setError(null);
-    setPaymentError(null);
-
-    // Validações
-    if (password !== confirmPassword) { setError("As senhas não coincidem."); return; }
-    if (password.length < 6) { setError("A senha deve ter pelo menos 6 caracteres."); return; }
-    if (!nomeSalao.trim()) { setError("O nome do salão é obrigatório."); return; }
-    const cleanedWhatsapp = whatsapp.replace(/\D/g, '');
-    if (cleanedWhatsapp.length < 10 || cleanedWhatsapp.length > 11) { setError("Telefone inválido."); return; }
-    const cleanedCpf = cpf.replace(/\D/g, '');
-    if (cleanedCpf.length !== 11) { setError("CPF inválido. Deve conter 11 dígitos."); return; }
-
-    setStep(2);
-  };
-
-  // --- Funções de Pagamento (Idênticas ao anterior) ---
-  const handleCardPaymentSubmit = async (formData) => {
-    setLoading(true);
-    setError(null);
-    setPaymentError(null);
-
-    const deviceId = document.getElementById('__mpoffline_device_id')?.value;
-    if (!deviceId) {
-        console.warn("MP Device ID não encontrado. O risco de fraude aumenta.");
-    }
-
-    const formattedWhatsapp = `+55${whatsapp.replace(/\D/g, '')}`;
-    const payload = {
-      email, password, nome_salao: nomeSalao.trim(), numero_whatsapp: formattedWhatsapp,
-      token: formData.token, issuer_id: formData.issuer_id, payment_method_id: formData.payment_method_id,
-      transaction_amount: formData.transaction_amount, installments: formData.installments,
-      payer: {
-        email: formData.payer.email,
-        identification: formData.payer.identification,
-      }
-    };
-
-    return new Promise((resolve, reject) => {
-      axios.post(`${API_BASE_URL}/auth/criar-conta-paga`, payload)
-        .then(() => {
-          setLoading(false);
-          setStep(4);
-          resolve();
-        })
-        .catch((err) => {
-          setLoading(false);
-          const friendlyError = parseApiError(err);
-          setError(friendlyError);
-          setPaymentError(friendlyError);
-          reject();
-        });
-    });
-  };
-
-  const handlePixPayment = async () => {
-    setLoading(true);
-    setError(null); setPaymentError(null); setPixData(null);
-
-    const cleanedCpf = cpf.replace(/\D/g, '');
-    const formattedWhatsapp = `+55${whatsapp.replace(/\D/g, '')}`;
-
-    const payload = {
-      email, password, nome_salao: nomeSalao.trim(), numero_whatsapp: formattedWhatsapp,
-      payment_method_id: 'pix', transaction_amount: 0.99,
-      payer: { email, identification: { type: 'CPF', number: cleanedCpf } }
-    };
-
-    try {
-      const response = await axios.post(`${API_BASE_URL}/auth/criar-conta-paga`, payload);
-
-      const qr_code = response.data?.payment_data?.qr_code;
-      const qr_code_base64 = response.data?.payment_data?.qr_code_base64;
-      const payment_id = response.data?.payment_data?.payment_id;
-
-      if (qr_code && qr_code_base64 && payment_id) {
-        setPixData({ qr_code, qr_code_base64, payment_id });
-        setStep(3);
-        startPolling(payment_id);
-      } else {
-        setError("Ocorreu um erro ao gerar o PIX. Dados incompletos da API.");
-      }
-
-    } catch (err) {
-      const friendlyError = parseApiError(err);
-      setError(friendlyError);
-      setStep(1);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // --- Configuração do Brick (APENAS CARTÕES) ---
-  const paymentBrickCustomization = {
-    paymentMethods: { creditCard: "all", debitCard: "all" },
-    visual: { style: { theme: 'default' } }
-  };
-
-  // Helper para copiar
-  const copyToClipboard = (text) => {
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed"; textArea.style.opacity = 0;
-      document.body.appendChild(textArea); textArea.focus(); textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Falha ao copiar:", err);
-    }
-  };
-
-
-  // --- Renderização do Modal ---
-  return (
-    <div
-      // CLASSE CORRIGIDA: Usa max-w-2xl para PIX e max-w-3xl para formulário, a partir do tamanho 'md'
-      className={`bg-white p-8 shadow-xl border border-gray-200 rounded-xl relative overflow-y-auto max-h-[90vh]
-                ${step === 3
-          ? 'max-w-md md:max-w-3xl' // PIX: Fica mais estreito
-          : 'max-w-lg md:max-w-2xl' // Formulário/Sucesso: Fica mais largo
-        }`}
-    >
-      <button
-        onClick={closeModal}
-        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
-        aria-label="Fechar"
-      >
-        <X className="w-6 h-6" />
-      </button>
-
-      {/* Título e Subtítulo */}
-      <div className="text-center mb-6 border-b pb-4">
-        <h2 className="text-3xl font-extrabold text-gray-900">
-          {BRAND_NAME} <span className={CIANO_TEXT_CLASS}>Pro</span>
-        </h2>
-        <p className="text-gray-600 mt-1">
-          {step === 1 && "Crie sua conta profissional 🚀"}
-          {step === 2 && "Finalize sua assinatura de R$ 0,99"}
-          {step === 3 && "PIX gerado! Escaneie para pagar."}
-          {step === 4 && "Sucesso Total! 🎉"}
-        </p>
-      </div>
-
-      {/* Passo 1: Formulário de Dados */}
-      {step === 1 && (
-        <div className="space-y-4">
-
-          <div className="space-y-1">
-            <label htmlFor="nomeSalao" className="text-sm font-medium text-gray-700">Nome do Salão</label>
-            <div className="relative">
-              {renderIcon(User, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="nomeSalao" type="text" placeholder="Seu Estúdio de Beleza" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={nomeSalao} onChange={(e) => setNomeSalao(e.target.value)} disabled={loading} />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">Seu WhatsApp (ID de Acesso)</label>
-            <div className="relative">
-              {renderIcon(Phone, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="whatsapp" type="tel" placeholder="DDD + Número (ex: 11987654321)" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} disabled={loading} />
-            </div>
-          </div>
-
-          <div className="space-y-1 pt-3 border-t border-gray-100">
-            <label htmlFor="email" className="text-sm font-medium text-gray-700">Seu E-mail (Notificações)</label>
-            <div className="relative">
-              {renderIcon(Mail, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="email" type="email" placeholder="seuemail@exemplo.com" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={email} onChange={(e) => setEmail(e.target.value)} disabled={loading} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="cpf" className="text-sm font-medium text-gray-700">CPF (para o Pagamento)</label>
-            <div className="relative">
-              {renderIcon(CreditCard, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="cpf" type="tel" placeholder="000.000.000-00" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={cpf} onChange={(e) => setCpf(e.target.value)} disabled={loading} maxLength={14} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium text-gray-700">Sua Senha</label>
-            <div className="relative">
-              {renderIcon(LockIcon, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="password" type="password" placeholder="Mínimo 6 caracteres" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirme sua Senha</label>
-            <div className="relative">
-              {renderIcon(LockIcon, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-              <input id="confirmPassword" type="password" placeholder="Repita a senha" required className={`w-full pl-10 pr-4 py-2.5 border rounded-lg h-11 focus:outline-none focus:ring-2 ${confirmPassword && password !== confirmPassword ? 'border-red-500 focus:ring-red-400 focus:border-red-500' : `border-gray-300 focus:ring-cyan-400 focus:border-cyan-400`}`} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={loading} />
-            </div>
-          </div>
-
-          {error && (<div className="p-3 bg-red-100 border border-red-200 rounded-md text-center"><p className="text-sm text-red-700">{error}</p></div>)}
-
-          <button type="button" onClick={handleFormSubmit} className={`w-full h-11 flex items-center justify-center text-base font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-md ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-70`} disabled={loading}>
-            {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(ArrowRight, "w-5 h-5 mr-2")} Ir para o Pagamento</>}
-          </button>
-        </div>
-      )}
-
-      {/* Passo 2: Pagamento (Cartão ou PIX) */}
-      {step === 2 && (
-        <div className="space-y-4">
-
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center text-sm">
-            <div>
-              <p className="text-gray-600 truncate">Conta: <span className="font-medium text-gray-800">{email}</span></p>
-              <p className="text-gray-600 truncate">Salão: <span className="font-medium text-gray-800">{nomeSalao}</span></p>
-            </div>
-            <button onClick={() => { setStep(1); setError(null); setPaymentError(null); }} className={`text-xs ${CIANO_TEXT_CLASS} hover:underline font-medium`} disabled={loading}>
-              {renderIcon(ArrowRight, "w-4 h-4 inline rotate-180 mr-1")}Editar
-            </button>
-          </div>
-
-          {(error || paymentError) && (<div className="p-3 bg-red-100 border border-red-200 rounded-md text-center"><p className="text-sm text-red-700">{error || paymentError}</p></div>)}
-
-          {/* Opção PIX (Botão Customizado) */}
-          <button type="button" onClick={handlePixPayment} className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors disabled:opacity-70`} disabled={loading}>
-            {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(QrCode, "w-5 h-5 mr-2")} Pagar com PIX (R$ 0,99)</>}
-          </button>
-
-          {/* Divisor OU */}
-          <div className="flex items-center gap-2 my-4">
-            <hr className="flex-grow border-t border-gray-200" />
-            <span className="text-sm text-gray-500">OU</span>
-            <hr className="flex-grow border-t border-gray-200" />
-          </div>
-
-          {/* Brick (SÓ CARTÕES) */}
-          <div className="mt-2">
-            <p className="text-sm font-medium text-gray-700 mb-2">Pagar com Cartão</p>
-            <Payment
-              initialization={{
-                amount: 0.99,
-                payer: {
-                  email: email,
-                  identification: { type: 'CPF', number: cpf.replace(/\D/g, '') },
-                },
-              }}
-              customization={paymentBrickCustomization}
-              onSubmit={handleCardPaymentSubmit}
-              onError={(error) => {
-                setPaymentError(error.message || "Erro ao processar dados de pagamento.");
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Passo 3: Exibição do PIX e Polling */}
-      {step === 3 && pixData && (
-        <div className="flex flex-col items-center p-4">
-          <p className="text-lg font-semibold text-gray-800 mb-4">Seu PIX foi gerado com sucesso!</p>
-
-          <img
-            src={`data:image/png;base64,${pixData.qr_code_base64}`}
-            alt="PIX QR Code"
-            className="w-48 h-48 border-4 border-cyan-300 shadow-lg rounded-xl mb-4"
-          />
-
-          <p className="text-sm text-gray-600 mb-2">Código Copia e Cola:</p>
-          <div className="w-full relative">
-            <textarea readOnly value={pixData.qr_code} className="w-full p-2 pr-12 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50 resize-none h-20" />
-            <button type="button" onClick={() => copyToClipboard(pixData.qr_code)} className={`absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg ${CIANO_BG_CLASS} text-white hover:opacity-90 transition-opacity`}>
-              {renderIcon(copied ? Check : Copy, "w-4 h-4")}
-            </button>
-          </div>
-
-          <div className={`flex items-center justify-center gap-2 mt-6 ${CIANO_TEXT_CLASS} bg-cyan-50 p-3 rounded-lg w-full`}>
-            {renderIcon(Loader2, "w-5 h-5 animate-spin")}
-            <span className="font-medium text-sm">Aguardando confirmação do PIX...</span>
-          </div>
-
-          <p className="text-xs text-gray-500 mt-2">Você será redirecionado automaticamente ao ser aprovado.</p>
-        </div>
-      )}
-
-      {/* Passo 4: Tela de Sucesso */}
-      {step === 4 && (
-        <div className="text-center p-6 space-y-4">
-          {renderIcon(Check, "w-16 h-16 mx-auto text-green-500 bg-green-100 p-2 rounded-full")}
-          <h3 className="text-2xl font-bold text-gray-900">Pagamento Confirmado!</h3>
-          <p className="text-lg text-gray-600">Sua conta {BRAND_NAME} Pro está **ATIVA** e pronta para gerenciar seus agendamentos!</p>
-          <button
-            onClick={() => { closeModal(); navigate('/login'); }}
-            className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors mt-6`}
-          >
-            {renderIcon(LogIn, "w-5 h-5 mr-2")} Fazer Login Agora
-          </button>
-          <Link to="/ajuda" className={`${CIANO_TEXT_CLASS} text-sm hover:underline block pt-2`}>Precisa de ajuda?</Link>
-        </div>
-      )}
-
-      {/* Rodapé do Modal (exceto no Sucesso) */}
-      {step !== 4 && (
-        <div className="text-center text-sm text-gray-600 pt-4 border-t border-gray-100 mt-4">
-          Já tem uma conta?{' '}
-          <Link to="/login" className={`font-semibold ${CIANO_TEXT_CLASS} hover:underline`}>
-            Acesse seu Painel {renderIcon(LogIn, "w-4 h-4 inline")}
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// =======================================================
-// === 2. COMPONENTE PRINCIPAL (LANDING PAGE) ===
-// =======================================================
-
-export function LandingPage() {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isModalOpen, setIsModalOpen] = useState(false); // ADICIONADO: Estado para o Modal
-    const precosRef = useRef(null);
-    const navigate = useNavigate();
-
-    // --- <<< NOVO: EFEITO PARA BLOQUEAR A ROLAGEM >>> ---
-    useEffect(() => {
-        if (isModalOpen) {
-            document.body.style.overflow = 'hidden'; // Adiciona overflow-hidden
-        } else {
-            document.body.style.overflow = ''; // Remove (volta ao normal)
-        }
-        
-        // Limpeza: Garante que a rolagem seja reativada se o componente for desmontado
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [isModalOpen]);
-
+  // --- HANDLERS ---
   const handleScrollToPrecos = (e) => {
     e.preventDefault();
-    precosRef.current.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
-    if (isMenuOpen) {
-      setIsMenuOpen(false);
-    }
+    precosRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (isMenuOpen) { setIsMenuOpen(false); }
   };
 
-  // --- DEFINIÇÃO LOCAL DO renderIcon ---
-  const renderIcon = (IconComponent, extraClasses = "") => (
-    <IconComponent className={`stroke-current ${extraClasses}`} />
-  );
-  // --- FIM DA DEFINIÇÃO LOCAL ---
-
-  // --- DADOS PARA O CARROSSEL (Seu código original) ---
+  // --- DADOS PARA O CARROSSEL ---
   const carouselSlides = [
     {
       imgSrc: "/pagina-agendamentos.png",
@@ -538,14 +109,6 @@ export function LandingPage() {
       description: "Acompanhe sua receita, novos agendamentos e futuros em um dashboard que mostra o que realmente importa para o seu sucesso."
     }
   ];
-
-  useEffect(() => {
-    AOS.init({
-      duration: 1000,
-      once: true,
-      offset: 100,
-    });
-  }, []);
 
 
   return (
@@ -604,7 +167,6 @@ export function LandingPage() {
 
       {/* Hero Section */}
       <div data-aos="fade-in" className="relative bg-white py-20">
-        {/* ... (resto do seu código principal, inalterado) ... */}
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Column */}
@@ -658,7 +220,6 @@ export function LandingPage() {
 
       {/* How It Works Section */}
       <div className="py-20 bg-gray-50">
-        {/* ... (O restante da sua Landing Page está inalterado) ... */}
         <div className="max-w-7xl mx-auto px-6">
           <div data-aos="fade-up" className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4 text-gray-900">Como Funciona</h2>
@@ -707,7 +268,6 @@ export function LandingPage() {
 
       {/* --- SEÇÃO DE CARROSSEL --- */}
       <div className="py-20 bg-white">
-        {/* ... (continua seu código) ... */}
         <div className="max-w-7xl mx-auto px-6">
           <div data-aos="fade-up" className="text-center mb-16 max-w-3xl mx-auto">
             <h2 className="text-3xl font-bold mb-4 text-gray-900">Conheça o {BRAND_NAME} por Dentro</h2>
@@ -755,37 +315,37 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Estilos das Setas */}
+        {/* Estilos das Setas (Mantidos no JSX, mas idealmente em um arquivo CSS global) */}
         <style>{`
-          .horalis-swiper-container {
-            position: relative;
-            width: 100%;
-          }
-          .horalis-swiper .swiper-button-prev,
-          .horalis-swiper .swiper-button-next {
-            color: ${CIANO_RGB_COLOR};
-            transition: all 0.2s ease-in-out;
-            background-color: rgba(255, 255, 255, 0.9);
-            width: 44px;
-            height: 44px;
-            border-radius: 9999px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-          }
-          .horalis-swiper .swiper-button-prev::after,
-          .horalis-swiper .swiper-button-next::after {
-            font-size: 1.25rem;
-            font-weight: 700;
-          }
-          .horalis-swiper .swiper-button-prev:hover,
-          .horalis-swiper .swiper-button-next:hover {
-            transform: scale(1.05);
-            background-color: rgba(255, 255, 255, 1);
-          }
-          .horalis-swiper .swiper-pagination-bullet-active {
-            background-color: ${CIANO_RGB_COLOR};
-          }
-        `}</style>
+                    .horalis-swiper-container {
+                        position: relative;
+                        width: 100%;
+                    }
+                    .horalis-swiper .swiper-button-prev,
+                    .horalis-swiper .swiper-button-next {
+                        color: ${CIANO_RGB_COLOR};
+                        transition: all 0.2s ease-in-out;
+                        background-color: rgba(255, 255, 255, 0.9);
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 9999px;
+                        border: 1px solid rgba(0, 0, 0, 0.05);
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                    }
+                    .horalis-swiper .swiper-button-prev::after,
+                    .horalis-swiper .swiper-button-next::after {
+                        font-size: 1.25rem;
+                        font-weight: 700;
+                    }
+                    .horalis-swiper .swiper-button-prev:hover,
+                    .horalis-swiper .swiper-button-next:hover {
+                        transform: scale(1.05);
+                        background-color: rgba(255, 255, 255, 1);
+                    }
+                    .horalis-swiper .swiper-pagination-bullet-active {
+                        background-color: ${CIANO_RGB_COLOR};
+                    }
+                `}</style>
       </div>
 
 
@@ -925,7 +485,7 @@ export function LandingPage() {
         </div>
       </div>
 
-      {/* --- ESTRUTURA DO MODAL --- */}
+      {/* --- ESTRUTURA DO MODAL (usa o novo componente) --- */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm transition-opacity duration-300 ease-out"
@@ -940,7 +500,6 @@ export function LandingPage() {
             <SignupModalContent
               closeModal={() => setIsModalOpen(false)}
               isModalOpen={isModalOpen}
-              renderIcon={renderIcon}
             />
           </div>
         </div>
