@@ -43,11 +43,15 @@ const FeatureItem = ({ text }) => (
 
 const proFeatures = [
   "Agendamentos Ilimitados",
+  "Pagamento de Sinal integrado",
   "Link para Agendamentos Personalizado",
   "Integração com Google Agenda",
   "Notificações por E-mail",
   "Lembretes Automáticos",
-  "Gestão de Clientes"
+  "Gestão de Clientes",
+  "E-mail Marketing",
+  "Dashboards previsão de caixa e muito mais"
+
 ];
 
 // --- ÚNICA DEFINIÇÃO DO renderIcon ---
