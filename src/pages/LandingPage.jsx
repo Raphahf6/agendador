@@ -9,7 +9,6 @@ import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 // import { parseApiError } from '@/utils/apiHelpers'; // Não é necessário aqui, mas mantemos o comentário para referência
-
 // Imports do Swiper
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay } from 'swiper/modules';
@@ -468,7 +467,7 @@ export function LandingPage() {
             onClick={() => setIsModalOpen(true)}
             className={`inline-flex items-center justify-center bg-white ${CIANO_TEXT_CLASS} hover:bg-gray-100 px-12 py-4 text-base font-semibold rounded-lg shadow-xl hover:shadow-2xl transition-all transform hover:scale-105`}
           >
-            Começar agora (R$ 0,99)
+            Começar agora {DISPLAY_PRICE_SETUP}
             {renderIcon(ArrowRight, "ml-2 w-5 h-5")}
           </button>
         </div>
