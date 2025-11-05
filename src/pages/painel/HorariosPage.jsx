@@ -76,9 +76,9 @@ const DayCard = React.memo(({ dayKey, dayName, daySchedule, updateSchedule, disa
     const handleChange = useCallback((field, value) => {
         // Se desativarmos o almoço, limpamos os valores no estado principal para não salvar lixo
         if (field === 'hasLunch' && value === false) {
-             updateSchedule(dayKey, { hasLunch: false, lunchStart: null, lunchEnd: null });
+            updateSchedule(dayKey, { hasLunch: false, lunchStart: null, lunchEnd: null });
         } else {
-             updateSchedule(dayKey, { [field]: value });
+            updateSchedule(dayKey, { [field]: value });
         }
     }, [dayKey, updateSchedule]);
 
@@ -111,7 +111,7 @@ const DayCard = React.memo(({ dayKey, dayName, daySchedule, updateSchedule, disa
             {/* Configurações (Apenas se o dia estiver aberto e expandido) */}
             {daySchedule.isOpen && isExpanded && (
                 <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-                    
+
                     {/* Horário de Funcionamento Principal */}
                     <div className="grid grid-cols-2 gap-4">
                         <TimeInput
@@ -163,7 +163,7 @@ const DayCard = React.memo(({ dayKey, dayName, daySchedule, updateSchedule, disa
                             </div>
                         )}
                         {!daySchedule.hasLunch && (
-                             <p className="text-xs text-gray-500 text-center py-2">Não há intervalo de almoço neste dia.</p>
+                            <p className="text-xs text-gray-500 text-center py-2">Não há intervalo de almoço neste dia.</p>
                         )}
                     </div>
                 </div>
@@ -176,7 +176,6 @@ const DayCard = React.memo(({ dayKey, dayName, daySchedule, updateSchedule, disa
 // --- COMPONENTE PRINCIPAL ---
 export default function HorariosPage() {
     const { salaoId } = useSalon();
-    // Estado único para a agenda
     const [schedule, setSchedule] = useState(initialSchedule);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -184,6 +183,7 @@ export default function HorariosPage() {
 
     // 1. Lógica de Busca (GET)
     const fetchHorarios = useCallback(async () => {
+        // ... (Seu código de fetch permanece inalterado) ...
         if (!salaoId) { setLoading(false); return; }
 
         const currentUser = auth.currentUser;
@@ -196,13 +196,10 @@ export default function HorariosPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = response.data;
-            
-            // >>> MUDANÇA CRÍTICA: Mapeamento de dados antigos para a nova estrutura <<<
+
             if (data.horario_trabalho_detalhado) {
-                 setSchedule(prev => ({ ...prev, ...data.horario_trabalho_detalhado }));
+                setSchedule(prev => ({ ...prev, ...data.horario_trabalho_detalhado }));
             } else if (data.dias_trabalho) {
-                // Se o backend ainda enviar a estrutura antiga (dias_trabalho e hora global),
-                // fazemos a conversão para a nova estrutura de forma inteligente.
                 const newSchedule = DIAS_DA_SEMANA.reduce((acc, item) => {
                     const isWorking = data.dias_trabalho.includes(item.dbKey);
                     acc[item.dbKey] = {
@@ -210,14 +207,11 @@ export default function HorariosPage() {
                         isOpen: isWorking,
                         openTime: data.horario_inicio || initialSchedule[item.dbKey].openTime,
                         closeTime: data.horario_fim || initialSchedule[item.dbKey].closeTime,
-                        // Mantemos o almoço ativo e padrão na conversão
                     };
                     return acc;
                 }, {});
                 setSchedule(newSchedule);
             }
-            // Fim do mapeamento
-            
         } catch (err) {
             setError("Não foi possível carregar os horários. Usando padrão.");
         } finally { setLoading(false); }
@@ -232,13 +226,27 @@ export default function HorariosPage() {
 
     // 2. Handler para atualizar o estado localmente (usado pelo DayCard)
     const updateSchedule = useCallback((dayKey, newValues) => {
-        setSchedule(prevSchedule => ({
-            ...prevSchedule,
-            [dayKey]: {
-                ...prevSchedule[dayKey],
-                ...newValues,
-            },
-        }));
+        setSchedule(prevSchedule => {
+            const updatedDay = { ...prevSchedule[dayKey], ...newValues };
+
+            // >>> CORREÇÃO CRÍTICA: Inicializa os valores ao ativar o almoço <<<
+            // Verifica se está ativando o almoço E se os campos estão vazios no estado
+            if (newValues.hasLunch === true) {
+                updatedDay.lunchStart = updatedDay.lunchStart || '12:00';
+                updatedDay.lunchEnd = updatedDay.lunchEnd || '13:00';
+            }
+
+            // Limpa o estado se desativar o almoço (boa prática)
+            if (newValues.hasLunch === false) {
+                updatedDay.lunchStart = null;
+                updatedDay.lunchEnd = null;
+            }
+
+            return {
+                ...prevSchedule,
+                [dayKey]: updatedDay,
+            };
+        });
     }, []);
 
     // 3. Lógica de Salvamento (PUT)
@@ -247,8 +255,7 @@ export default function HorariosPage() {
         setIsSaving(true); setError(null);
 
         if (!salaoId) { setError("Erro: ID do salão não carregado."); setIsSaving(false); return; }
-        
-        // Validação de horários (aqui estava o corte do código)
+
         const workingDays = Object.values(schedule).filter(day => day.isOpen);
         if (workingDays.length === 0) { setError("Selecione pelo menos um dia de trabalho."); setIsSaving(false); return; }
 
@@ -256,31 +263,34 @@ export default function HorariosPage() {
         for (const day of workingDays) {
             const dayName = DIAS_DA_SEMANA.find(d => d.dbKey === Object.keys(schedule).find(key => schedule[key] === day)).name;
 
-            if (day.openTime >= day.closeTime) { 
-                setError(`O horário de fechamento em ${dayName} deve ser posterior ao de abertura.`); 
-                setIsSaving(false); 
-                return; 
+            if (day.openTime >= day.closeTime) {
+                setError(`O horário de fechamento em ${dayName} deve ser posterior ao de abertura.`);
+                setIsSaving(false);
+                return;
             }
 
             if (day.hasLunch) {
-                if (day.lunchStart >= day.lunchEnd) {
-                    setError(`O fim do almoço em ${dayName} deve ser posterior ao início.`); 
-                    setIsSaving(false); 
-                    return; 
-                }
-                
-                // Validação de intervalo de almoço dentro do horário de funcionamento
-                // lunchStart deve ser depois de openTime
-                // lunchEnd deve ser antes de closeTime
-                if (day.lunchStart <= day.openTime || day.lunchEnd >= day.closeTime || day.lunchStart >= day.closeTime || day.lunchEnd <= day.openTime) {
-                    setError(`O intervalo de almoço em ${dayName} deve estar completamente dentro do horário de funcionamento (${day.openTime} às ${day.closeTime}).`); 
-                    setIsSaving(false); 
+                // MUDANÇA CRÍTICA: A validação do frontend é executada aqui
+
+                if (!day.lunchStart || !day.lunchEnd) {
+                    // Esta checagem é redundante se updateSchedule funcionar, mas a mantemos como segurança final.
+                    setError(`Obrigatório: Os horários de início e fim do almoço em ${dayName} devem ser preenchidos.`);
+                    setIsSaving(false);
                     return;
                 }
-                
-                // Validação para evitar que o almoço comece depois do fim ou termine antes do início (quebra de lógica)
+
+                // Validação de ordem (aonde o erro estava)
                 if (day.lunchStart >= day.lunchEnd) {
-                    setError(`O fim do almoço em ${dayName} deve ser posterior ao início.`); setIsSaving(false); return; 
+                    setError(`O fim do almoço em ${dayName} deve ser posterior ao início.`);
+                    setIsSaving(false);
+                    return;
+                }
+
+                // Validação de intervalo de almoço dentro do horário de funcionamento
+                if (day.lunchStart <= day.openTime || day.lunchEnd >= day.closeTime || day.lunchStart >= day.closeTime || day.lunchEnd <= day.openTime) {
+                    setError(`O intervalo de almoço em ${dayName} deve estar completamente dentro do horário de funcionamento (${day.openTime} às ${day.closeTime}).`);
+                    setIsSaving(false);
+                    return;
                 }
             }
         }
@@ -292,24 +302,19 @@ export default function HorariosPage() {
             if (!currentUser) throw new Error("Sessão expirada.");
 
             const token = await currentUser.getIdToken();
-            
-            // Busca dados completos (necessário para PUT)
+
             const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
             const salonData = salonResponse.data;
-            
-            // >>> MUDANÇA CRÍTICA: Enviar a estrutura detalhada ao Backend <<<
+
             const payload = {
-                ...salonData, 
+                ...salonData,
                 id: salaoId,
-                // NOVO CAMPO: Estrutura detalhada (substitui dias_trabalho, horario_inicio, horario_fim)
-                horario_trabalho_detalhado: schedule, 
-                // Remove os campos antigos que agora são redundantes, se necessário, no payload:
+                horario_trabalho_detalhado: schedule,
                 dias_trabalho: undefined,
                 horario_inicio: undefined,
                 horario_fim: undefined,
             };
-            
-            // Envia PUT
+
             await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
 
             toast.success("Horários salvos com sucesso!");
@@ -324,7 +329,7 @@ export default function HorariosPage() {
     if (loading || !salaoId) {
         return (
             <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-               {!salaoId ? <HourglassLoading message="Carregando dados do painel..."/>: <HourglassLoading message='Carregando horarios...'/>}
+                {!salaoId ? <HourglassLoading message="Carregando dados do painel..." /> : <HourglassLoading message='Carregando horarios...' />}
             </div>
         );
     }
@@ -347,14 +352,14 @@ export default function HorariosPage() {
 
             <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                 <form onSubmit={handleSubmit}>
-                    
+
                     {error && !isSaving && <p className="text-sm text-red-600 mb-4 text-center p-2 bg-red-50 rounded-lg">{error}</p>}
 
                     {/* Cards de Dias da Semana (Novo Fluxo) */}
                     <div className="space-y-4">
                         <p className="font-semibold text-gray-700 mb-2 border-b pb-2">Configuração Detalhada por Dia:</p>
                         {DIAS_DA_SEMANA.map((item) => (
-                            <DayCard 
+                            <DayCard
                                 key={item.dbKey}
                                 dayKey={item.dbKey}
                                 dayName={item.name}
