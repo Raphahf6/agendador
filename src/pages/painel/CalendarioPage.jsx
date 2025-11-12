@@ -457,22 +457,46 @@ function CalendarioPage() {
 
 // --- FUNÇÃO HELPER: Construtor de Link WhatsApp ---
 const buildWhatsappLink = (phone, name, service) => {
-  if (!phone) return null;
+    if (!phone) return null;
+    
+    // 1. Limpa o número de todos os caracteres não numéricos
+    const cleanedPhone = phone.replace(/\D/g, ''); 
+    let targetPhone = cleanedPhone;
 
-  // 1. Limpa o número (remove +55 ou qualquer +/DDI/DDD) para o wa.me funcionar
-  // O wa.me funciona melhor com DDI+DDD+número (5511...)
-  const cleanedPhone = phone.replace(/\D/g, '');
+    // 2. Garante o prefixo DDI (55) para o Brasil, se o número for local (10 ou 11 dígitos)
+    // Isso é crucial para o wa.me. O PABX do salão deve usar o DDD correto (11 no seu exemplo).
+    if ((targetPhone.length === 10 || targetPhone.length === 11) && !targetPhone.startsWith('55')) {
+         targetPhone = '55' + targetPhone;
+    }
+    
+    // 3. Define a mensagem pré-preenchida
+    const greeting = name ? `Olá ${name},` : 'Olá,';
+    const serviceDetails = service ? ` sobre o seu agendamento para ${service}.` : ' sobre o seu horário.';
+    
+    const message = `${greeting} estou entrando em contato${serviceDetails} Por favor, confirme seu horário.`;
 
-  // 2. Define a mensagem pré-preenchida
-  const greeting = name ? `Olá ${name},` : 'Olá,';
-  const serviceDetails = service ? ` sobre o seu agendamento para ${service}.` : ' sobre o seu horário.';
-
-  const message = `${greeting} estou entrando em contato${serviceDetails} Por favor, confirme seu horário.`;
-
-  // 3. Constrói o link
-  return `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
+    // 4. Constrói o link
+    return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
 };
 // --- FIM DA FUNÇÃO HELPER ---
+
+// --- FUNÇÃO HELPER: Formatação de Telefone para Display (OPCIONAL, mas recomendado) ---
+const formatPhoneNumber = (phone) => {
+    if (!phone) return 'N/A';
+    const cleaned = ('' + phone).replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+    if (match) {
+        // Formato (DDD) XXXXX-XXXX
+        return `(${match[1]}) ${match[2]}-${match[3]}`;
+    }
+    // Caso tenha DDI, tenta um formato internacional
+    const matchDDI = cleaned.match(/^(\d{2})(\d{2})(\d{4,5})(\d{4})$/);
+    if (matchDDI) {
+         // Formato +DDI (DDD) XXXXX-XXXX
+        return `+${matchDDI[1]} (${matchDDI[2]}) ${matchDDI[3]}-${matchDDI[4]}`;
+    }
+    return phone; // Retorna o número bruto se não conseguir formatar
+};
 
 
 const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess }) => {
