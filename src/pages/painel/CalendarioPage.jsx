@@ -470,7 +470,7 @@ const buildWhatsappLink = (phone, name, service, dateTime) => {
 
   // 3. Define a mensagem pré-preenchida (INCLUINDO DATA E HORA)
   const greeting = name ? `Olá ${name},` : 'Olá,';
-  const serviceDetails = service ? ` para o serviço de ${service}` : '';
+  const serviceDetails = service ? ` para confirmar seu agendamento. ${service}` : '';
   const dateText = dateTime ? ` no dia ${dateTime}` : '';
 
   const message = `${greeting} estou entrando em contato${serviceDetails}${dateText}. Por favor, confirme seu horário.`;
@@ -512,7 +512,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
   } = extendedProps;
 
   // 1. FORMATAÇÃO DA DATA E HORA
-  const formattedDateTime = event.start ? format(event.start, 'dd/MM [às] HH:mm') : '';
+  const formattedDateTime = event.start ? format(event.start, 'dd/MM HH:mm') : '';
 
   // Assumindo que format e differenceInMinutes estão importados
   const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A");
@@ -596,7 +596,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
                     disabled={!whatsappLink}
                   >
                     <Icon icon={MessageCircle} className="w-4 h-4 mr-1 stroke-current" />
-                    Mandar Zap
+                    WhatsApp
                   </a>
                 </div>
               )}
