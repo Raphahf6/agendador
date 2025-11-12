@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import HoralisCalendar from '@/components/HoralisCalendar';
 import {
   Loader2, X, Clock, User, Phone, Mail,
-  ChevronLeft, ChevronRight, Plus,MessageCircle
+  ChevronLeft, ChevronRight, Plus, MessageCircle
 } from "lucide-react";
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (ajuste o caminho se necessário)
@@ -456,46 +456,45 @@ function CalendarioPage() {
 }
 
 // --- FUNÇÃO HELPER: Construtor de Link WhatsApp ---
-const buildWhatsappLink = (phone, name, service) => {
-    if (!phone) return null;
-    
-    // 1. Limpa o número de todos os caracteres não numéricos
-    const cleanedPhone = phone.replace(/\D/g, ''); 
-    let targetPhone = cleanedPhone;
+const buildWhatsappLink = (phone, name, service, dateTime) => {
+  if (!phone) return null;
 
-    // 2. Garante o prefixo DDI (55) para o Brasil, se o número for local (10 ou 11 dígitos)
-    // Isso é crucial para o wa.me. O PABX do salão deve usar o DDD correto (11 no seu exemplo).
-    if ((targetPhone.length === 10 || targetPhone.length === 11) && !targetPhone.startsWith('55')) {
-         targetPhone = '55' + targetPhone;
-    }
-    
-    // 3. Define a mensagem pré-preenchida
-    const greeting = name ? `Olá ${name},` : 'Olá,';
-    const serviceDetails = service ? ` sobre o seu agendamento para ${service}.` : ' sobre o seu horário.';
-    
-    const message = `${greeting} estou entrando em contato${serviceDetails} Por favor, confirme seu horário.`;
+  // 1. Limpa o número (DDI+DDD+Número)
+  const cleanedPhone = phone.replace(/\D/g, '');
+  let targetPhone = cleanedPhone;
 
-    // 4. Constrói o link
-    return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+  // 2. Garante o prefixo DDI (55) para o Brasil, se o número for local (10 ou 11 dígitos)
+  if ((targetPhone.length === 10 || targetPhone.length === 11) && !targetPhone.startsWith('55')) {
+    targetPhone = '55' + targetPhone;
+  }
+
+  // 3. Define a mensagem pré-preenchida (INCLUINDO DATA E HORA)
+  const greeting = name ? `Olá ${name},` : 'Olá,';
+  const serviceDetails = service ? ` para o serviço de ${service}` : '';
+  const dateText = dateTime ? ` no dia ${dateTime}` : '';
+
+  const message = `${greeting} estou entrando em contato${serviceDetails}${dateText}. Por favor, confirme seu horário.`;
+
+  // 4. Constrói o link
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
 };
 // --- FIM DA FUNÇÃO HELPER ---
 
-// --- FUNÇÃO HELPER: Formatação de Telefone para Display (OPCIONAL, mas recomendado) ---
+// --- FUNÇÃO HELPER: Formatação de Telefone para Display ---
 const formatPhoneNumber = (phone) => {
-    if (!phone) return 'N/A';
-    const cleaned = ('' + phone).replace(/\D/g, '');
-    const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
-    if (match) {
-        // Formato (DDD) XXXXX-XXXX
-        return `(${match[1]}) ${match[2]}-${match[3]}`;
-    }
-    // Caso tenha DDI, tenta um formato internacional
-    const matchDDI = cleaned.match(/^(\d{2})(\d{2})(\d{4,5})(\d{4})$/);
-    if (matchDDI) {
-         // Formato +DDI (DDD) XXXXX-XXXX
-        return `+${matchDDI[1]} (${matchDDI[2]}) ${matchDDI[3]}-${matchDDI[4]}`;
-    }
-    return phone; // Retorna o número bruto se não conseguir formatar
+  if (!phone) return 'N/A';
+  const cleaned = ('' + phone).replace(/\D/g, '');
+  const match = cleaned.match(/^(\d{2})(\d{4,5})(\d{4})$/);
+  if (match) {
+    // Formato (DDD) XXXXX-XXXX
+    return `(${match[1]}) ${match[2]}-${match[3]}`;
+  }
+  const matchDDI = cleaned.match(/^(\d{2})(\d{2})(\d{4,5})(\d{4})$/);
+  if (matchDDI) {
+    // Formato +DDI (DDD) XXXXX-XXXX
+    return `+${matchDDI[1]} (${matchDDI[2]}) ${matchDDI[3]}-${matchDDI[4]}`;
+  }
+  return phone; // Retorna o número bruto se não conseguir formatar
 };
 
 
@@ -512,11 +511,14 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
     customerEmail
   } = extendedProps;
 
+  // 1. FORMATAÇÃO DA DATA E HORA
+  const formattedDateTime = event.start ? format(event.start, 'dd/MM [às] HH:mm') : '';
+
   // Assumindo que format e differenceInMinutes estão importados
   const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A");
 
-  // Constrói o link do WhatsApp
-  const whatsappLink = buildWhatsappLink(customerPhone, customerName, serviceName);
+  // 2. Constrói o link do WhatsApp (passando a data/hora)
+  const whatsappLink = buildWhatsappLink(customerPhone, customerName, serviceName, formattedDateTime);
 
   const handleCancelAppointment = async () => {
     if (!window.confirm("Cancelar este agendamento?")) return;
@@ -553,7 +555,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <Icon icon={Clock} className="w-5 h-5 text-gray-400 flex-shrink-0" />
             <div>
-              <p className="text-base font-semibold text-gray-800">{event.start ? format(event.start, 'dd/MM HH:mm') : ''} - {event.end ? format(event.end, 'HH:mm') : ''}</p>
+              <p className="text-base font-semibold text-gray-800">{formattedDateTime}</p>
               <p className="text-xs text-gray-500">Serviço: {serviceName || event.title?.split(' - ')[0] || 'N/A'} ({duration} min)</p>
             </div>
           </div>
@@ -582,7 +584,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
                 <div className="flex items-center justify-between gap-4 py-2">
                   <div className="flex items-center gap-3">
                     <Icon icon={Phone} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
-                    <span className="text-gray-600 font-medium">{customerPhone}</span>
+                    <span className="text-gray-600 font-medium">{formatPhoneNumber(customerPhone)}</span>
                   </div>
 
                   {/* BOTÃO WHATSAPP (NOVA FUNÇÃO) */}
@@ -594,7 +596,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
                     disabled={!whatsappLink}
                   >
                     <Icon icon={MessageCircle} className="w-4 h-4 mr-1 stroke-current" />
-                    Whatsapp
+                    Mandar Zap
                   </a>
                 </div>
               )}
