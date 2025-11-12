@@ -11,10 +11,11 @@ import { auth, db } from '@/firebaseConfig';
 import { collection, onSnapshot } from "firebase/firestore";
 import toast from 'react-hot-toast';
 
+
 import HoralisCalendar from '@/components/HoralisCalendar';
 import {
   Loader2, X, Clock, User, Phone, Mail,
-  ChevronLeft, ChevronRight, Plus
+  ChevronLeft, ChevronRight, Plus,MessageCircle
 } from "lucide-react";
 
 // IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (ajuste o caminho se necessário)
@@ -454,7 +455,26 @@ function CalendarioPage() {
   );
 }
 
-// --- Componente MODAL DE DETALHES (Agora usa salaoId do props) ---
+// --- FUNÇÃO HELPER: Construtor de Link WhatsApp ---
+const buildWhatsappLink = (phone, name, service) => {
+  if (!phone) return null;
+
+  // 1. Limpa o número (remove +55 ou qualquer +/DDI/DDD) para o wa.me funcionar
+  // O wa.me funciona melhor com DDI+DDD+número (5511...)
+  const cleanedPhone = phone.replace(/\D/g, '');
+
+  // 2. Define a mensagem pré-preenchida
+  const greeting = name ? `Olá ${name},` : 'Olá,';
+  const serviceDetails = service ? ` sobre o seu agendamento para ${service}.` : ' sobre o seu horário.';
+
+  const message = `${greeting} estou entrando em contato${serviceDetails} Por favor, confirme seu horário.`;
+
+  // 3. Constrói o link
+  return `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(message)}`;
+};
+// --- FIM DA FUNÇÃO HELPER ---
+
+
 const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   if (!isOpen || !event) return null;
@@ -467,7 +487,12 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
     durationMinutes,
     customerEmail
   } = extendedProps;
+
+  // Assumindo que format e differenceInMinutes estão importados
   const duration = durationMinutes || (event.end && event.start ? differenceInMinutes(event.end, event.start) : "N/A");
+
+  // Constrói o link do WhatsApp
+  const whatsappLink = buildWhatsappLink(customerPhone, customerName, serviceName);
 
   const handleCancelAppointment = async () => {
     if (!window.confirm("Cancelar este agendamento?")) return;
@@ -475,7 +500,6 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
     const toastId = toast.loading("Cancelando...");
     try {
       const token = await auth.currentUser.getIdToken();
-      // salaoId está sendo usado corretamente aqui
       await axios.delete(`${API_BASE_URL}/admin/calendario/${salaoId}/agendamentos/${event.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -485,7 +509,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
       toast.error(err.response?.data?.detail || "Falha ao cancelar.", { id: toastId });
     } finally { setIsLoading(false); }
   };
-  // ... (restante do modal mantido)
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden">
@@ -497,8 +521,11 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
             <Icon icon={X} className="w-6 h-6" />
           </button>
         </div>
+
         <div className="p-5 space-y-4">
           <p className="text-sm font-medium text-gray-700">Detalhes:</p>
+
+          {/* Detalhes de Data/Hora */}
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <Icon icon={Clock} className="w-5 h-5 text-gray-400 flex-shrink-0" />
             <div>
@@ -506,25 +533,57 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
               <p className="text-xs text-gray-500">Serviço: {serviceName || event.title?.split(' - ')[0] || 'N/A'} ({duration} min)</p>
             </div>
           </div>
+
+          {/* Bloco de Contato do Cliente */}
           <div className="pt-3 border-t border-gray-100">
             <p className="text-sm font-medium text-gray-700 mb-2">Cliente:</p>
-            <div className="flex items-center gap-3 mb-1">
-              <Icon icon={User} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
-              <span className="font-semibold text-gray-900">{customerName || 'Não Informado'}</span>
+            <div className="flex flex-col space-y-1">
+
+              {/* Nome do Cliente */}
+              <div className="flex items-center gap-3">
+                <Icon icon={User} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
+                <span className="font-semibold text-gray-900">{customerName || 'Não Informado'}</span>
+              </div>
+
+              {/* E-mail */}
+              {customerEmail && (
+                <div className="flex items-center gap-3">
+                  <Icon icon={Mail} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
+                  <span className="text-gray-600">{customerEmail}</span>
+                </div>
+              )}
+
+              {/* Telefone e Botão de WhatsApp */}
+              {customerPhone && (
+                <div className="flex items-center justify-between gap-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <Icon icon={Phone} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
+                    <span className="text-gray-600 font-medium">{customerPhone}</span>
+                  </div>
+
+                  {/* BOTÃO WHATSAPP (NOVA FUNÇÃO) */}
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-500 rounded-lg shadow-md hover:bg-green-600 transition-colors"
+                    disabled={!whatsappLink}
+                  >
+                    <Icon icon={MessageCircle} className="w-4 h-4 mr-1 stroke-current" />
+                    Whatsapp
+                  </a>
+                </div>
+              )}
+              {!customerPhone && (
+                <p className="text-sm text-yellow-600 flex items-center gap-2">
+                  <Icon icon={AlertTriangle} className="w-4 h-4" />
+                  Telefone indisponível.
+                </p>
+              )}
             </div>
-            {customerEmail && (
-              <div className="flex items-center gap-3">
-                <Icon icon={Mail} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
-                <span className="text-gray-600">{customerEmail}</span>
-              </div>
-            )}
-            {customerPhone && (
-              <div className="flex items-center gap-3">
-                <Icon icon={Phone} className={`w-5 h-5 ${CIANO_COLOR_TEXT}`} />
-                <span className="text-gray-600">{customerPhone}</span>
-              </div>
-            )}
           </div>
+
+          {/* Botão Cancelar Agendamento */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
               onClick={handleCancelAppointment}
@@ -540,6 +599,7 @@ const EventDetailsModal = ({ isOpen, onClose, event, salaoId, onCancelSuccess })
     </div>
   );
 };
+
 
 
 // --- Componente MODAL DE AGENDAMENTO (ManualBookingModal) ---

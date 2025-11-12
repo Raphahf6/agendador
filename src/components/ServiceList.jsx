@@ -119,7 +119,7 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
 
                             {/* Aplica a cor primária no link de ação */}
                             <div className={`flex items-center gap-1.5 font-medium text-sm mt-3`} style={{ color: primary }}>
-                                <Icon icon={Sparkles} className="w-4 h-4" />
+                                
                                 <span>Agende agora</span>
                                 <Icon icon={ArrowRight} className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
                             </div>
