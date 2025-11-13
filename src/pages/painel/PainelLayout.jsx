@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import {
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // ----------------------------------------------------
-// I. PALETA DE CORES (UX Light Theme Ajustada)
+// I. PALETA DE CORES (Mantida)
 // ----------------------------------------------------
 const PALETTE = {
     BG_BASE_LIGHT: '#FFFFFF',
@@ -26,7 +26,7 @@ const PALETTE = {
 
 
 // ----------------------------------------------------
-// --- CONTEXTO & PROVEDOR (Mantidos) ---
+// --- 1. CONTEXTO GLOBAL DE DADOS DO SALÃO ---
 // ----------------------------------------------------
 const SalonContext = createContext({
     salonDetails: null,
@@ -35,11 +35,16 @@ const SalonContext = createContext({
     salaoId: null
 });
 
+// Hook customizado para consumir o contexto
 export const useSalon = () => useContext(SalonContext);
 
+// ----------------------------------------------------
+// --- 2. PROVEDOR DE DADOS DO SALÃO ---
+// ----------------------------------------------------
 function SalonProvider({ children }) {
     const { salaoId } = useParams();
-    const [salonDetails, setSalonDetails] = useState(null);
+    // Estado inicial deve ser null para permitir a checagem no 'if (loading || !salonDetails)'
+    const [salonDetails, setSalonDetails] = useState(null); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
@@ -47,12 +52,56 @@ function SalonProvider({ children }) {
     const primaryColorHex = '#00ACC1'; 
 
     useEffect(() => {
-        if (!salaoId) { /* ... (lógica) ... */ return; }
-        const unsubscribe = onAuthStateChanged(auth, async (user) => { /* ... (lógica) ... */ });
+        if (!salaoId) {
+            setError("ID do salão não fornecido na URL.");
+            setLoading(false);
+            return;
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                navigate('/login', { replace: true });
+                return;
+            }
+
+            try {
+                const token = await user.getIdToken();
+                const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (response.data && response.data.nome_salao) {
+                    setSalonDetails(response.data);
+                    setError(null);
+                } else {
+                    // Se a resposta veio, mas o nome do salão está faltando
+                    throw new Error("Dados do salão incompletos. Nome ausente.");
+                }
+
+            } catch (err) {
+                console.error("Erro ao buscar dados do salão:", err);
+
+                if (err.response?.status === 403) {
+                    toast.error("Sua assinatura não está ativa. Redirecionando...");
+                    navigate(`/painel/${salaoId}/assinatura`, { replace: true });
+                } else if (err.response?.status === 401) {
+                    toast.error("Sessão inválida. Faça login novamente.");
+                    signOut(auth);
+                } else {
+                    setError(err.response?.data?.detail || "Não foi possível carregar os dados do salão.");
+                }
+            } finally {
+                // Seta loading para false após a tentativa de fetch (sucesso ou falha)
+                setLoading(false); 
+            }
+        });
+
         return () => unsubscribe();
     }, [salaoId, navigate]);
 
-    if (loading) {
+    // Renderização de Loading / Erro (Tela de Bloqueio Central)
+    // 🌟 CORRIGIDO: Só libera o conteúdo se não estiver em loading E tiver os detalhes básicos.
+    if (loading || !salonDetails) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: PALETTE.BG_BASE_LIGHT }}>
                 <Loader2 className="w-8 h-8 animate-spin" style={{ color: primaryColorHex }} />
@@ -106,25 +155,19 @@ function PainelLayoutComponent() {
     const COLLAPSED_WIDTH_CLASS = 'w-20'; // 80px
     const EXPANDED_WIDTH_CLASS = 'w-64'; // 256px
     
-    // 🌟 CORREÇÃO FINAL: Usaremos um estado para controlar o colapso
-    const [isMobile, setIsMobile] = useState(false); 
+    // 🌟 CORREÇÃO ANTI-LOOP 🌟
+    // O estado é usado para forçar a re-renderização quando a tela muda, resolvendo o bug de layout.
+    const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1025);
 
     useEffect(() => {
-        const checkMobile = () => {
-            // Se for maior ou igual a 1024px, NÃO é mobile (False)
-            setIsMobile(window.innerWidth < 1024);
-        };
-
-        checkMobile(); 
-        window.addEventListener('resize', checkMobile);
-
-        return () => window.removeEventListener('resize', checkMobile);
+        const handleResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []); 
 
-    // isCollapsed é TRUE no mobile, FALSE no desktop (largura > 1024px)
-    const isCollapsed = isMobile;
-
-    const handleLogout = async () => { /* ... (lógica mantida) ... */ };
+    const isCollapsed = width < 1024;
+    
+    const handleLogout = async () => { /* ... */ };
     const isCurrent = (pathSuffix) => location.pathname === `/painel/${salaoId}/${pathSuffix}`;
     
 
@@ -138,7 +181,6 @@ function PainelLayoutComponent() {
                 <div className={`flex flex-col overflow-hidden ${isCollapsed ? 'items-center px-0' : 'px-0'}`}>
                     
                     {/* Área do Logo Expandido (Desktop) */}
-                    {/* 🌟 AJUSTADO: Se NÃO estiver colapsado (ou seja, desktop), mostra o logo completo */}
                     <div className={`${isCollapsed ? 'hidden' : 'flex flex-col'}`}>
                         <span 
                             className="text-2xl font-extrabold" 
@@ -151,18 +193,18 @@ function PainelLayoutComponent() {
                             style={{ color: PALETTE.TEXT_SUBTLE }} 
                             title={salonDetails?.nome_salao}
                         >
-                            {salonDetails?.nome_salao || 'Carregando...'}
+                            {/* O nome do salão é garantido pelo Provider */}
+                            {salonDetails?.nome_salao || 'Carregando...'} 
                         </p>
                     </div>
 
                     {/* ÁREA DO LOGO COLAPSADO (Mobile) */}
-                    {/* 🌟 AJUSTADO: Se ESTIVER colapsado (ou seja, mobile), mostra o logo abreviado */}
                     {isCollapsed && (
                         <div 
                             className="w-10 h-10 rounded-lg flex items-center justify-center text-white" 
-                           
+                            
                         >
-                             <img src="/favicon.png" alt="Logo" />
+                             <img src="/favicon.png" alt="logo" />
                         </div>
                     )}
                 </div>
@@ -221,19 +263,16 @@ function PainelLayoutComponent() {
     return (
         <div className="min-h-screen flex flex-col bg-white text-gray-800">
             
-            {/* 🌟 SIDEBAR: Fixa com largura condicional 🌟 */}
+            {/* SIDEBAR MOBILE/FIXA (< lg) e DESKTOP (>= lg) */}
             <div 
-                // Largura no mobile: w-20. Largura no desktop: lg:w-64
                 className={`fixed inset-y-0 left-0 z-30 flex flex-col ${COLLAPSED_WIDTH_CLASS} lg:${EXPANDED_WIDTH_CLASS}`} 
                 style={{ borderColor: PALETTE.BORDER_DARK }}
             >
-                {/* O isCollapsed é passado para controlar o TEXTO */}
                 <SidebarContent isCollapsed={isCollapsed} />
             </div>
 
             {/* --- Conteúdo Principal --- */}
             <div 
-                // Padding esquerdo: pl-20 (mobile) E lg:pl-64 (desktop)
                 className="pl-20 lg:pl-64 flex flex-col flex-1 min-h-screen"
             >
                 <main className="flex-1">
