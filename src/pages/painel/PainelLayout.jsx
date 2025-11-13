@@ -5,7 +5,9 @@ import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-rout
 import { cn } from "@/lib/utils";
 import {
     Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
-    BarChart2, CreditCard, Users, Send, Loader2
+    BarChart2, CreditCard, Users, Send, Loader2,
+    CirclePercent,
+    Boxes
 } from 'lucide-react';
 import axios from 'axios';
 import { signOut, onAuthStateChanged } from "firebase/auth";
@@ -94,6 +96,8 @@ const navigation = [
     { name: 'Calendário', href: 'calendario', icon: Calendar },
     { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
     { name: 'Meus Clientes', href: 'clientes', icon: Users },
+    { name: 'Financeiro', href: 'financeiro', icon: CirclePercent },
+    { name: 'Estoque', href: 'estoque', icon: Boxes },
     { name: 'Marketing', href: 'marketing', icon: Send },
     { name: 'Horários', href: 'horarios', icon: TimerIcon },
     { name: 'Personalização', href: 'personalizacao', icon: Palette },

@@ -40,6 +40,8 @@ import FullScreenLoading from './components/FullScreenLoading';
 // --- Imports do Mercado Pago ---
 import { initMercadoPago } from '@mercadopago/sdk-react';
 import { SalonMicrosite } from './components/SalonMicrosite';
+import FinanceiroPage from './pages/painel/FinanceiroPage';
+import EstoquePage from './pages/painel/EstoquePage';
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // --- Componente de Loading (Ampulheta - Reutilizável) ---
@@ -133,6 +135,8 @@ function App() {
                     <Route path="configuracoes" element={<ConfiguracoesPage />} />
                     <Route path="assinatura" element={<AssinaturaPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
+                    <Route path="financeiro" element={<FinanceiroPage/>} />
+                    <Route path="estoque" element={<EstoquePage/>} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />
