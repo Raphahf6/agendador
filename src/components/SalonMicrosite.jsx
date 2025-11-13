@@ -336,13 +336,7 @@ export function SalonMicrosite() {
                 {/* COLUNA LATERAL: HORÁRIOS, COMODIDADES E PAGAMENTO */}
                 <div className="lg:col-span-4 space-y-8">
                     
-                    <div className="sm:hidden flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-                        <span className="font-semibold text-gray-700">Status</span>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${isOpenNow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            <div className={`w-2 h-2 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
-                            {isOpenNow ? 'Aberto Agora' : 'Fechado'}
-                        </div>
-                    </div>
+                    
 
                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 sticky top-8">
                         <h3 className="font-bold text-gray-900 mb-4 flex items-center">
@@ -376,7 +370,7 @@ export function SalonMicrosite() {
 
                         <div className="mt-8 pt-6 border-t border-gray-200/60">
                             <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider flex items-center">
-                                <Icon icon={DollarSign} className="w-4 h-4 mr-1" style={{ color: salonDetails.cor_primaria }} />
+                            
                                 Pagamento
                             </h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
