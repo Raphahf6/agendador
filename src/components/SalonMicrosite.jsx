@@ -320,13 +320,7 @@ export function SalonMicrosite() {
                 {/* COLUNA LATERAL: HORÁRIOS, COMODIDADES E PAGAMENTO */}
                 <div className="lg:col-span-4 space-y-8">
                     
-                    <div className="sm:hidden flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
-                        <span className="font-semibold text-gray-700">Status</span>
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${isOpenNow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            <div className={`w-2 h-2 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
-                            {isOpenNow ? 'Aberto Agora' : 'Fechado'}
-                        </div>
-                    </div>
+                    
 
                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 sticky top-8">
                         <h3 className="font-bold text-gray-900 mb-4 flex items-center">
