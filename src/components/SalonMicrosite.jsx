@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
     ArrowLeft, Clock, MapPin, Wifi, Car, Coffee, Users, 
-    Phone, Instagram, Facebook, Share2, CalendarCheck, MessageCircle 
+    Phone, Instagram, Facebook, Share2, CalendarCheck, MessageCircle,
+    DollarSign, Star // 🌟 ADICIONADO 'Star' E 'DollarSign'
 } from 'lucide-react';
 
 // Swiper
@@ -26,8 +27,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- HELPERS DE FORMATAÇÃO ---
-
+// --- HELPERS DE FORMATAÇÃO (Mantidos) ---
 const formatPhoneVisual = (phone) => {
     if (!phone) return "";
     let numbers = phone.replace(/\D/g, '');
@@ -42,45 +42,35 @@ const formatPhoneVisual = (phone) => {
     }
     return numbers;
 };
-
 const getWhatsAppLink = (phone) => {
     if (!phone) return "#";
     const numbers = phone.replace(/\D/g, '');
     return `https://wa.me/${numbers}`;
 };
-
 const checkIsOpen = (schedule) => {
     if (!schedule || typeof schedule !== 'object') return false;
-
     const now = new Date();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const currentDayKey = days[now.getDay()]; 
     const todayData = schedule[currentDayKey];
-
     if (!todayData || !todayData.isOpen) return false;
-
     const getMinutes = (timeStr) => {
         if (!timeStr) return 0;
         const [h, m] = timeStr.split(':').map(Number);
         return h * 60 + m;
     };
-
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const openMinutes = getMinutes(todayData.openTime);
     const closeMinutes = getMinutes(todayData.closeTime);
-
     if (todayData.hasLunch) {
         const lunchStart = getMinutes(todayData.lunchStart);
         const lunchEnd = getMinutes(todayData.lunchEnd);
         if (currentMinutes >= lunchStart && currentMinutes < lunchEnd) return false;
     }
-
     return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
 };
-
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const dayNames = { monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua', thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom' };
-
 const formatHoursForDisplay = (map) => {
     if (!map || typeof map !== 'object') return [];
     return dayOrder.map(k => {
@@ -89,12 +79,12 @@ const formatHoursForDisplay = (map) => {
         return { day: dayNames[k], ...d };
     }).filter(Boolean);
 };
-
 const amenitiesMap = {
     wifi: { icon: Wifi, label: 'Wi-Fi' },
     estacionamento: { icon: Car, label: 'Estacionamento' },
     cafe: { icon: Coffee, label: 'Café' },
 };
+// --- Fim Helpers ---
 
 // --- SUB-COMPONENTE: SPLASH SCREEN PREMIUM ---
 const PremiumSplash = ({ isFadingOut, primaryColor }) => (
@@ -107,7 +97,7 @@ const PremiumSplash = ({ isFadingOut, primaryColor }) => (
     </div>
 );
 
-// --- SUB-COMPONENTE: HERO SECTION ---
+// --- SUB-COMPONENTE: HERO SECTION (COM RATING) ---
 const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
     const photos = details.fotos_carousel?.length > 0 ? details.fotos_carousel : [{ url: "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop", alt: "Atmosphere" }];
 
@@ -155,7 +145,22 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                         <p className="text-white/80 text-lg lg:text-xl font-light line-clamp-2 mb-4">
                             {details.tagline || "Experiência única em beleza e bem-estar."}
                         </p>
+                        
+                        {/* 🌟 NOVO: BLOCO DE RATING 5.0 🌟 */}
+                        <div className="flex items-center gap-2 mt-4" title="Avaliação 5.0">
+                            <div className="flex items-center gap-0.5">
+                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                            </div>
+                            <span className="text-white font-bold text-lg">5.0</span>
+                            {/* <span className="text-white/70 text-sm">(100+ Avaliações)</span> */}
+                        </div>
                     </div>
+                    
+                    {/* Status Aberto/Fechado */}
                     <div className={`flex items-center gap-2 backdrop-blur-md border px-4 py-2 rounded-full ${isOpenNow ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'}`}>
                         <div className={`w-2 h-2 rounded-full animate-pulse ${isOpenNow ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span className={`text-sm font-medium ${isOpenNow ? 'text-green-100' : 'text-red-100'}`}>
@@ -226,23 +231,9 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
     </div>
 );
 
-const SalonSuspended = () => (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-100">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Clock className="w-10 h-10 text-gray-400" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-3">Agendamento Indisponível</h1>
-            <p className="text-gray-600 mb-6">
-                O sistema de agendamento deste estabelecimento está temporariamente pausado.
-            </p>
-            <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-800">
-                Por favor, entre em contato diretamente com o estabelecimento por telefone ou redes sociais para agendar.
-            </div>
-            <p className="mt-8 text-xs text-gray-400">Powered by Horalis</p>
-        </div>
-    </div>
-);
+// --- SUB-COMPONENTE: DETALHES RICOS (REMOVIDO) ---
+// (Informações agora estão na barra lateral da home)
+
 // ----------------------------------------------------
 // --- COMPONENTE PRINCIPAL ---
 // ----------------------------------------------------
@@ -251,7 +242,7 @@ export function SalonMicrosite() {
     const [selectedService, setSelectedService] = useState(null);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
     const [deviceId, setDeviceId] = useState(null);
-    const [isSuspended, setIsSuspended] = useState(false); // 🌟 NOVO ESTADO
+    const [isSuspended, setIsSuspended] = useState(false);
 
     const [salonDetails, setSalonDetails] = useState({
         nome_salao: '', tagline: '', url_logo: '', cor_primaria: '#0E7490', cor_secundaria: '#FFFFFF',
@@ -284,17 +275,13 @@ export function SalonMicrosite() {
 
     const handleDataLoaded = useCallback((details, err) => {
         setLoading(false);
-        if (err) { setError(err); return; }
-        if (error) {
-            // Se o erro for 403 (Forbidden), ativamos a tela de suspenso
-            if (error.includes("403") || error.toLowerCase().includes("indisponível")) {
+        if (err) { 
+            if (err.includes("403")) {
                 setIsSuspended(true);
-                return;
+            } else {
+                setError(err); 
             }
-            
-            setErrorSalon(error);
-            // ...
-            return;
+            return; 
         }
         if (details) {
             setSalonDetails(prev => ({ ...prev, ...details }));
@@ -328,10 +315,6 @@ export function SalonMicrosite() {
             ) : <div className="py-20 flex justify-center"><HourglassLoading message="Carregando Pagamento..." primaryColor={salonDetails.cor_primaria} /></div>;
         }
 
-        if (isSuspended) {
-        return <SalonSuspended />;
-    }
-
         return (
             <div className="max-w-5xl mx-auto grid lg:grid-cols-12 gap-10">
                 
@@ -353,7 +336,13 @@ export function SalonMicrosite() {
                 {/* COLUNA LATERAL: HORÁRIOS, COMODIDADES E PAGAMENTO */}
                 <div className="lg:col-span-4 space-y-8">
                     
-                    
+                    <div className="sm:hidden flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <span className="font-semibold text-gray-700">Status</span>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${isOpenNow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <div className={`w-2 h-2 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
+                            {isOpenNow ? 'Aberto Agora' : 'Fechado'}
+                        </div>
+                    </div>
 
                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 sticky top-8">
                         <h3 className="font-bold text-gray-900 mb-4 flex items-center">
@@ -372,7 +361,6 @@ export function SalonMicrosite() {
                             ))}
                         </ul>
 
-                        {/* Comodidades */}
                         {Object.keys(salonDetails.comodidades).length > 0 && (
                             <div className="mt-8">
                                 <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider">Comodidades</h3>
@@ -386,10 +374,9 @@ export function SalonMicrosite() {
                             </div>
                         )}
 
-                        {/* 🌟 PAGAMENTO (MOVIDO PARA CÁ) 🌟 */}
                         <div className="mt-8 pt-6 border-t border-gray-200/60">
                             <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider flex items-center">
-                              
+                                <Icon icon={DollarSign} className="w-4 h-4 mr-1" style={{ color: salonDetails.cor_primaria }} />
                                 Pagamento
                             </h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
@@ -404,6 +391,11 @@ export function SalonMicrosite() {
 
     const isSchedulingFlowActive = !!selectedService || !!appointmentConfirmed;
 
+    // --- RENDERIZAÇÃO FINAL ---
+    if (isSuspended) {
+        return <SalonSuspended />;
+    }
+    
     return (
         <>
             {showSplash && <PremiumSplash isFadingOut={isFadingOut} primaryColor={salonDetails.cor_primaria} />}
@@ -424,8 +416,6 @@ export function SalonMicrosite() {
                 <div className="px-4 py-12 lg:py-16">
                     {renderMainContent()}
                 </div>
-
-                {/* REMOVIDA SEÇÃO DE DETALHES RICOS DO FINAL POIS AGORA ESTÁ NA SIDEBAR */}
 
                 <footer className="py-8 text-center border-t border-gray-200 mt-auto bg-white">
                     <p className="text-sm text-gray-400 font-medium">

@@ -244,11 +244,7 @@ export default function PersonalizacaoPage() {
                                 <Icon icon={Feather} className={INPUT_ICON} />
                                 <input name="tagline" value={formData.tagline || ''} onChange={handleChange} className={INPUT_FIELD} placeholder="Ex: Onde a beleza acontece" />
                             </div>
-                            <div className={INPUT_CONTAINER}>
-                                <label className={LABEL_CLASS}>URL da Logo</label>
-                                <Icon icon={ImageIcon} className={INPUT_ICON} />
-                                <input name="url_logo" value={formData.url_logo || ''} onChange={handleChange} className={INPUT_FIELD} placeholder="https://..." />
-                            </div>
+                            
                             <div>
                                 <label className={LABEL_CLASS}>Cor da Marca</label>
                                 <div className="flex items-center gap-3 mt-1 bg-gray-50 p-2 rounded-xl border border-gray-100 w-full sm:w-auto">
