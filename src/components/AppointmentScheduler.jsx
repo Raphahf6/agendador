@@ -1,62 +1,49 @@
-// frontend/src/components/AppointmentScheduler.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { format, isBefore, startOfToday, parseISO } from 'date-fns';
-import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy } from 'lucide-react';
+import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy, Sun, Moon, Sunset } from 'lucide-react';
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
 import { QRCodeCanvas } from 'qrcode.react';
+import HourglassLoading from './HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
-
-// --- DEFINIÇÕES DE COR FIXAS REMOVIDAS ---
-// O estilo será aplicado via CSS Variables ou Inline Style
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- Componente PIX (Ajustado para usar a cor primária no botão) ---
+// --- Componente PIX (Ajustado para o novo design) ---
 const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess, primaryColor }) => {
+  const primary = primaryColor || '#0E7490';
 
-  const primary = primaryColor || '#0E7490'; // Fallback
-
-  // Polling para verificar o status do pagamento (mantido)
+  // Polling (Lógica mantida, sem alterações)
   useEffect(() => {
-    if (!pixData?.payment_id || !salaoId || !agendamentoId) {
-      console.warn("[PIX Polling] IDs ausentes. Polling não iniciado.");
-      return;
-    }
-
+    if (!pixData?.payment_id || !salaoId || !agendamentoId) return;
     console.log(`[PIX Polling] Iniciando verificação para Agendamento ID: ${agendamentoId}`);
 
     const intervalId = setInterval(async () => {
       try {
-        // Chama o endpoint público de verificação de agendamento
         const response = await axios.get(`${API_BASE_URL}/auth/check-agendamento-status/${salaoId}/${agendamentoId}`);
-
         if (response.data.status === 'approved') {
           console.log("[PIX Polling] Pagamento APROVADO!");
           clearInterval(intervalId);
           toast.success("Pagamento PIX confirmado!");
-          onPaymentSuccess(); // Chama a função de sucesso principal
-        } else {
-          console.log(`[PIX Polling] Status: ${response.data.status}`);
+          onPaymentSuccess();
         }
       } catch (err) {
-        console.error("[PIX Polling] Erro ao verificar status:", err);
+        console.error("[PIX Polling] Erro:", err);
       }
-    }, 5000); // Verifica a cada 5 segundos
+    }, 5000);
 
     return () => clearInterval(intervalId);
-
   }, [pixData?.payment_id, salaoId, agendamentoId, onPaymentSuccess]);
 
   return (
-    <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
-      <h4 className="text-lg font-semibold text-gray-800">Pague com PIX</h4>
+    <div className="flex flex-col items-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+      <h4 className="text-xl font-bold text-gray-800">Pague com PIX</h4>
       <p className="text-sm text-gray-600 mt-1 mb-4 text-center">Escaneie o QR Code abaixo com seu app do banco.</p>
-      <div className="p-3 bg-white border border-gray-300 rounded-lg">
+      <div className="p-3 bg-white border border-gray-300 rounded-lg shadow-sm">
         <QRCodeCanvas
           value={pixData.qr_code}
           size={200}
@@ -66,14 +53,13 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess,
         />
       </div>
       <p className="text-sm text-gray-600 mt-4 text-center">Ou copie o código:</p>
-      <div className="w-full p-2 bg-gray-200 border border-gray-300 rounded-lg text-xs text-gray-700 break-words my-2">
+      <div className="w-full p-2 bg-gray-200 border border-gray-300 rounded-lg text-xs text-gray-700 break-words my-2 font-mono">
         {pixData.qr_code}
       </div>
       <button
         onClick={() => onCopy(pixData.qr_code)}
-        // APLICAÇÃO DA COR NO BOTÃO
-        style={{ backgroundColor: primary, borderColor: primary }}
-        className={`w-full flex items-center justify-center mt-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90`}
+        style={{ backgroundColor: primary }}
+        className={`w-full flex items-center justify-center mt-2 px-4 py-3 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90 shadow-lg`}
       >
         <Icon icon={Copy} className="w-4 h-4 mr-2" />
         Copiar Código PIX
@@ -87,20 +73,62 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess,
 // --- FIM DO COMPONENTE PIX ---
 
 
-// --- COMPONENTE PRINCIPAL ---
-function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists, primaryColor }) {
-  //                                                                                                                       ^ NOVO PROP
-  const primary = primaryColor || '#0E7490'; // Fallback
-  // Define as classes de foco dinamicamente
-  const focusRingClass = `focus:ring-[${primary}]`;
-  const focusBorderClass = `focus:border-[${primary}]`;
+// ----------------------------------------------------
+// --- SUB-COMPONENTE: GRUPO DE HORÁRIOS (NOVO) ---
+// ----------------------------------------------------
+const TimeSlotGroup = ({ title, icon, slots, selectedSlot, onSelect, isDisabled, primaryColor }) => {
+  if (slots.length === 0) return null; // Não renderiza grupos vazios
+
+  return (
+    <div className="mb-5">
+      <h3 className="text-base font-semibold text-gray-500 mb-3 flex items-center">
+        <Icon icon={icon} className="w-4 h-4 mr-2" />
+        {title}
+      </h3>
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+        {slots.map((slotDate) => {
+          const isSelected = selectedSlot && selectedSlot.getTime() === slotDate.getTime();
+          const isPast = isBefore(slotDate, new Date()); // Desabilita horários passados
+
+          return (
+            <button
+              key={slotDate.toISOString()}
+              onClick={() => { if (!isPast) onSelect(slotDate); }}
+              className={`
+                                p-3 rounded-full text-sm font-semibold transition duration-150 ease-in-out 
+                                focus:outline-none focus:ring-2 focus:ring-offset-1 
+                                ${isPast ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
+                                ${!isPast && isSelected ? 'text-white shadow-md' : ''}
+                                ${!isPast && !isSelected ? 'bg-gray-50 text-gray-700 border border-gray-100 hover:border-gray-300' : ''}
+                            `}
+              style={{
+                backgroundColor: isSelected ? primaryColor : (isPast ? undefined : undefined),
+                borderColor: isSelected ? primaryColor : (isPast ? 'transparent' : undefined),
+                '--tw-ring-color': primaryColor,
+              }}
+              disabled={isDisabled || isPast}
+            >
+              {format(slotDate, 'HH:mm')}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+// ----------------------------------------------------
+// --- COMPONENTE PRINCIPAL (REIMAGINADO) ---
+// ----------------------------------------------------
+function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists, primaryColor, onBackClick }) {
+  const primary = primaryColor || '#0E7490';
 
   // --- LÓGICA DO FLUXO INTELIGENTE ---
   const requiresPayment = publicKeyExists && sinalValor > 0;
   const sinalAmount = sinalValor || 0;
-  // --- FIM DA LÓGICA ---
 
-  // --- Estados do Fluxo (mantidos) ---
+  // --- Estados do Fluxo ---
   const [step, setStep] = useState(1);
   const [pixData, setPixData] = useState(null);
   const [agendamentoIdPendente, setAgendamentoIdPendente] = useState(null);
@@ -112,7 +140,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [errorSlots, setErrorSlots] = useState(null);
   const [isBooking, setIsBooking] = useState(false);
 
-  // --- Estados do Formulário (mantidos) ---
+  // --- Estados do Formulário ---
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -124,22 +152,12 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   // --- EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA (mantido) ---
   useEffect(() => {
     const existingScript = document.querySelector('script[src="https://www.mercadopago.com/v2/security.js"]');
-    if (existingScript) {
-      console.log("MP Security Script já presente.");
-      return;
-    }
+    if (existingScript) return;
 
     const script = document.createElement('script');
     script.src = "https://www.mercadopago.com/v2/security.js";
     script.setAttribute('view', 'checkout');
     script.setAttribute('output', 'deviceId');
-    script.onload = () => {
-      console.log("MP Security Script carregado e Device ID gerado.");
-    };
-    script.onerror = (e) => {
-      console.error("Erro ao carregar MP Security Script:", e);
-    };
-
     document.body.appendChild(script);
 
     return () => {
@@ -148,7 +166,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       }
     };
   }, []);
-  // --- FIM DO EFEITO ---
 
   // --- Validação Condicional do CPF (mantida) ---
   const isFormValid =
@@ -169,10 +186,8 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     let isMounted = true;
     const fetchSlots = async () => {
       if (!selectedDate || !salaoId || !selectedService?.id) {
-        if (isMounted) {
-          setErrorSlots("Selecione um serviço e data.");
-          setAvailableSlots([]); setLoadingSlots(false);
-        } return;
+        if (isMounted) { setErrorSlots("Selecione um serviço e data."); setAvailableSlots([]); setLoadingSlots(false); }
+        return;
       }
       if (isMounted) { setLoadingSlots(true); setSelectedSlot(null); setValidationError(''); setErrorSlots(null); }
       try {
@@ -196,7 +211,27 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     return () => { isMounted = false; };
   }, [selectedDate, selectedService?.id, salaoId]);
 
-  // --- Handle DateSelect (mantido) ---
+  // 🌟 NOVO: AGRUPAMENTO DE HORÁRIOS (Manhã, Tarde, Noite) 🌟
+  const groupedSlots = useMemo(() => {
+    const manha = [];
+    const tarde = [];
+    const noite = [];
+
+    availableSlots.forEach(slotDate => {
+      const hour = slotDate.getHours();
+      if (hour < 12) {
+        manha.push(slotDate);
+      } else if (hour >= 12 && hour < 18) { // 12:00 a 17:59
+        tarde.push(slotDate);
+      } else { // 18:00+
+        noite.push(slotDate);
+      }
+    });
+    return { manha, tarde, noite };
+  }, [availableSlots]);
+
+
+  // --- Handlers de Ação (mantidos) ---
   const handleDateSelect = (date) => {
     if (isBefore(date, startOfToday())) return;
     setSelectedDate(date);
@@ -204,7 +239,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     setValidationError('');
   };
 
-  // --- FUNÇÃO DE AGENDAMENTO GRATUITO (mantida) ---
   const handleFreeBooking = async () => {
     setIsBooking(true);
     setValidationError('');
@@ -212,7 +246,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
 
     try {
       const startTimeISO = selectedSlot.toISOString();
-
       await axios.post(`${API_BASE_URL}/agendamentos`, {
         salao_id: salaoId,
         service_id: selectedService.id,
@@ -221,26 +254,20 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         customer_email: customerEmail.trim(),
         customer_phone: customerPhone.replace(/\D/g, ''),
       });
-
       toast.success("Agendamento confirmado!", { id: toastId });
-
       onAppointmentSuccess({
         serviceName,
         startTime: startTimeISO,
         customerName: customerName.trim(),
         paymentStatus: 'free',
-        paymentData: null
       });
-
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao agendar. Tente novamente.', { id: toastId });
+      toast.error(error.response?.data?.detail || 'Erro ao agendar.', { id: toastId });
       setValidationError(`Erro: ${error.response?.data?.detail || 'Tente novamente.'}`);
       setIsBooking(false);
     }
   };
-  // --- FIM DO FLUXO GRATUITO ---
 
-  // --- FUNÇÃO: GERAÇÃO DIRETA DO PIX (mantida) ---
   const handleGeneratePix = async () => {
     setIsBooking(true);
     setPaymentError(null);
@@ -249,28 +276,23 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     try {
       const payload = createBasePayload('pix');
       const response = await axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, payload);
-
       setPixData(response.data.payment_data);
       setAgendamentoIdPendente(response.data.payment_data.agendamento_id_ref);
-
     } catch (err) {
       console.error("Erro ao gerar PIX:", err.response);
       const detail = err.response?.data?.detail || "Não foi possível gerar o PIX.";
       setPaymentError(detail);
-      setStep(1); // Volta para o passo de dados se falhar
+      setStep(1);
     } finally {
       setIsBooking(false);
     }
   };
-  // --- FIM DA GERAÇÃO PIX ---
 
-  // --- FUNÇÃO PRINCIPAL DE PROSSEGUIR (mantida) ---
   const handleProceed = (e) => {
     e.preventDefault();
     setValidationError('');
     setPaymentError(null);
 
-    // Validações
     if (!isFormValid) {
       if (customerPhone !== confirmCustomerPhone) setValidationError("Os telefones não coincidem.");
       else if (requiresPayment && customerCpf.replace(/\D/g, '').length !== 11) setValidationError("CPF inválido (11 dígitos).");
@@ -280,25 +302,15 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(customerEmail.trim())) { setValidationError("Formato de e-mail inválido."); return; }
 
-    // --- Bifurcação da Lógica ---
     if (requiresPayment) {
-      // 1. FLUXO PAGO: Vai direto para a Geração do PIX
       handleGeneratePix();
     } else {
-      // 2. FLUXO GRATUITO: Chama o agendamento direto (endpoint antigo)
       handleFreeBooking();
     }
   };
-  // --- FIM DA FUNÇÃO ---
 
-  // --- Helper: Cria o payload base (mantido) ---
   const createBasePayload = (paymentMethodId) => {
     const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID;
-
-    if (!deviceId) {
-      console.warn("MP Device ID não encontrado. O risco de fraude aumenta. Checar carregamento do script.");
-    }
-
     return {
       salao_id: salaoId,
       service_id: selectedService.id,
@@ -311,14 +323,10 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       device_session_id: deviceId || null,
       payer: {
         email: customerEmail.trim(),
-        identification: {
-          type: 'CPF',
-          number: customerCpf.replace(/\D/g, '')
-        }
+        identification: { type: 'CPF', number: customerCpf.replace(/\D/g, '') }
       }
     };
   };
-  // REMOVIDO: handleCardPaymentSubmit e cardPaymentBrickCustomization
 
   const handleCopyPix = (code) => {
     navigator.clipboard.writeText(code).then(() => {
@@ -328,37 +336,34 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     });
   };
 
-
   // --- Renderização ---
   return (
-    <div className="px-4 pb-32 font-sans">
+    <div className="font-sans">
 
       {/* --- ETAPA 1: DADOS E HORÁRIOS --- */}
       <div style={{ display: step === 1 ? 'block' : 'none' }}>
-        {/* Card detalhes do serviço */}
-        <div className="bg-white rounded-xl p-5 mb-6 shadow-sm border border-gray-100">
+
+        {/* 🌟 NOVO DESIGN: Detalhes do Serviço (Plano/Limpo) */}
+        <div className="bg-gray-50/80 rounded-xl p-4 sm:p-5 mb-6 border border-gray-100">
           <h2 className="text-xl font-bold mb-1" style={{ color: primary }}>
             {serviceName}
           </h2>
-          <div className="flex items-center gap-4 text-sm text-gray-500 font-light mt-2">
+          <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
             <div className="flex items-center gap-1.5">
               <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
-              <span>Duração: {serviceDuration} min</span>
+              <span>{serviceDuration} min</span>
             </div>
-            {/* Mostra "Sinal" apenas se o pagamento for obrigatório */}
             {requiresPayment && (
-              <div className="flex items-center gap-1.5">
-               
-                <span className=' gap-4 text-sm text-gray-500 font-light'>Sinal de Reserva: R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
+              <div className="flex items-center gap-1.5 text-gray-700 font-medium">
+                Sinal de: R$ {sinalAmount.toFixed(2).replace('.', ',')}
               </div>
             )}
-
           </div>
         </div>
 
         {/* Seção 1: Calendário */}
         <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2 text-sm text-center">1. Escolha a Data</label>
+          <label className="block text-gray-700 font-medium mb-3 text-sm">1. Escolha a Data</label>
           <HoralisCalendar
             selectedDate={selectedDate}
             onDateSelect={handleDateSelect}
@@ -366,110 +371,104 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           />
         </div>
 
-        {/* Seção 2: Horários */}
+        {/* Seção 2: Horários (REFORMULADO) */}
         <div className="mb-8">
-          <label className="block text-gray-700 font-medium mb-3 text-sm text-center">2. Selecione o Horário</label>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 max-h-[300px] overflow-y-auto">
-            {loadingSlots && (<p className="text-center text-sm text-gray-500 py-4">Buscando horários...</p>)}
-            {errorSlots && (<div className="p-3 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{errorSlots}</p></div>)}
-            {!loadingSlots && !errorSlots && availableSlots.length === 0 && (
-              <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Nenhum horário disponível para esta data.</p></div>
-            )}
-            {!loadingSlots && !errorSlots && availableSlots.length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {availableSlots.map((slotDate) => {
-                  const isSelected = selectedSlot && selectedSlot.getTime() === slotDate.getTime();
-                  const isDisabled = isBefore(slotDate, new Date());
-                  return (
-                    <button
-                      key={slotDate.toISOString()}
-                      onClick={() => { if (!isDisabled) { setSelectedSlot(slotDate); setValidationError(''); } }}
-                      className={`p-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1`}
-                      // ESTILIZAÇÃO DINÂMICA
-                      style={{
-                        color: isSelected ? 'white' : 'inherit',
-                        backgroundColor: isSelected ? primary : (isDisabled ? 'rgb(229, 231, 235)' : 'white'),
-                        borderColor: isDisabled ? 'rgb(209, 213, 219)' : (isSelected ? primary : 'rgb(209, 213, 219)'),
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        // Adiciona o foco da cor primária
-                        '--tw-ring-color': primary,
-                        '--tw-border-color': isSelected ? primary : 'rgb(209, 213, 219)'
-                      }}
-                      disabled={loadingSlots || isBooking || isDisabled}
-                    >
-                      {format(slotDate, 'HH:mm')}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <label className="block text-gray-700 font-medium mb-4 text-sm">2. Selecione o Horário</label>
+
+          {loadingSlots && (<p className="text-center text-sm text-gray-500 py-4">Buscando horários...</p>)}
+          {errorSlots && (<div className="p-3 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{errorSlots}</p></div>)}
+
+          {!loadingSlots && !errorSlots && availableSlots.length === 0 && (
+            <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Nenhum horário disponível para esta data.</p></div>
+          )}
+
+          {!loadingSlots && !errorSlots && availableSlots.length > 0 && (
+            <div>
+              {/* 🌟 GRUPOS DE HORÁRIOS 🌟 */}
+              <TimeSlotGroup
+                title="Manhã"
+                icon={Sun}
+                slots={groupedSlots.manha}
+                selectedSlot={selectedSlot}
+                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
+                isDisabled={isBooking}
+                primaryColor={primary}
+              />
+              <TimeSlotGroup
+                title="Tarde"
+                icon={Sunset}
+                slots={groupedSlots.tarde}
+                selectedSlot={selectedSlot}
+                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
+                isDisabled={isBooking}
+                primaryColor={primary}
+              />
+              <TimeSlotGroup
+                title="Noite"
+                icon={Moon}
+                slots={groupedSlots.noite}
+                selectedSlot={selectedSlot}
+                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
+                isDisabled={isBooking}
+                primaryColor={primary}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Seção 3: Dados do Cliente */}
+        {/* Seção 3: Dados do Cliente (Design Limpo) */}
         {selectedSlot && (
-          <div className="mb-8 p-4 bg-white rounded-lg shadow-sm border border-gray-100 space-y-4">
-            <h3 className="text-gray-700 font-medium text-sm mb-3 border-b pb-2">3. Seus Dados</h3>
+          <div className="mb-8 space-y-4 animate-in fade-in duration-300">
+            <h3 className="text-gray-700 font-medium text-sm mb-3 border-t border-gray-100 pt-6">3. Seus Dados</h3>
 
-            {/* Campos de formulário - Aplicação da cor de foco */}
             <div>
               <label htmlFor="customerName" className="block text-xs font-medium text-gray-600 mb-1"> Seu Nome* </label>
               <div className="relative">
                 <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerName" type="text" autoComplete="name" required placeholder="Nome Completo"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
                   style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerName} onChange={(e) => setCustomerName(e.target.value)} disabled={isBooking} />
               </div>
             </div>
-            {/* Campo E-mail */}
             <div>
               <label htmlFor="customerEmail" className="block text-xs font-medium text-gray-600 mb-1"> Seu E-mail* </label>
               <div className="relative">
                 <Icon icon={Mail} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerEmail" type="email" autoComplete="email" required placeholder="seuemail@dominio.com"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
                   style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} disabled={isBooking} />
               </div>
             </div>
-            {/* Campo Telefone */}
             <div>
               <label htmlFor="customerPhone" className="block text-xs font-medium text-gray-600 mb-1"> Seu Telefone (WhatsApp)* </label>
               <div className="relative">
                 <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="customerPhone" type="tel" autoComplete="tel" required placeholder="DDD + Número"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1`}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
                   style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} disabled={isBooking} />
               </div>
             </div>
-            {/* Campo Confirmação Telefone */}
             <div>
               <label htmlFor="confirmCustomerPhone" className="block text-xs font-medium text-gray-600 mb-1"> Confirme seu Telefone* </label>
               <div className="relative">
                 <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input id="confirmCustomerPhone" type="tel" required placeholder="Digite novamente"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone
-                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                    : `border-gray-300`
-                    }`}
-                  style={{
-                    '--tw-ring-color': primary,
-                    '--tw-border-color': primary
-                  }}
+                  className={`appearance-none block w-full pl-9 pr-3 py-2 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'}`}
+                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                   value={confirmCustomerPhone} onChange={(e) => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} />
               </div>
             </div>
 
-            {/* Campo CPF (Renderização Condicional) */}
             {requiresPayment && (
               <div>
                 <label htmlFor="customerCpf" className="block text-xs font-medium text-gray-600 mb-1"> Seu CPF (para o pagamento)* </label>
                 <div className="relative">
                   <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input id="customerCpf" type="tel" autoComplete="off" required={requiresPayment} placeholder="000.000.000-00"
-                    className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm`}
+                    className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm`}
                     style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
                     value={customerCpf} onChange={(e) => setCustomerCpf(e.target.value)} disabled={isBooking} />
                 </div>
@@ -482,7 +481,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
       </div>
 
 
-      {/* ETAPA 2: EXECUÇÃO DO PAGAMENTO (APENAS PIX) */}
+      {/* --- ETAPA 2: EXECUÇÃO DO PAGAMENTO (APENAS PIX) --- */}
       <div style={{ display: step === 2 ? 'block' : 'none' }}>
         <h3 className="text-gray-700 font-medium text-lg mb-4 text-center">4. Finalizar Pagamento via PIX</h3>
 
@@ -503,14 +502,13 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           </div>
         )}
 
-        {/* Caso: PIX */}
         {pixData && !isBooking ? (
           <PixPayment
             pixData={pixData}
             salaoId={salaoId}
             agendamentoId={agendamentoIdPendente}
             onCopy={handleCopyPix}
-            primaryColor={primary} // Passa a cor para o subcomponente PIX
+            primaryColor={primary}
             onPaymentSuccess={() => onAppointmentSuccess({
               serviceName,
               startTime: selectedSlot.toISOString(),
@@ -521,14 +519,13 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           />
         ) : (
           <div className="relative h-64 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: primary }} />
-            <p className="text-sm text-gray-600 ml-2">Gerando PIX...</p>
+            <HourglassLoading message="Gerando PIX..." primaryColor={primary} />
           </div>
         )}
       </div>
 
 
-      {/* --- Botão Final de Ação --- */}
+      {/* --- Botão Final de Ação (Sticky Footer) --- */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] z-10">
         <div className="max-w-md mx-auto">
           {/* Botão do Passo 1 (Inteligente) */}
@@ -536,10 +533,10 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
             onClick={handleProceed}
             style={{
               display: step === 1 ? 'flex' : 'none',
-              backgroundColor: isFormValid ? primary : 'rgb(156, 163, 175)', // bg-gray-400
-              opacity: isFormValid ? 1 : 0.6 // Controla o hover/disabled
+              backgroundColor: isFormValid ? primary : 'rgb(156, 163, 175)',
+              opacity: isFormValid ? 1 : 0.6
             }}
-            className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-md flex items-center justify-center cursor-pointer`}
+            className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-lg flex items-center justify-center cursor-pointer`}
             disabled={!isFormValid || isBooking}
           >
             {isBooking ? (
@@ -559,7 +556,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
           {/* Botão "Voltar" do Passo 2 (Pagamento) */}
           <button
             onClick={() => {
-              setStep(1); // Sempre volta para o passo 1
+              setStep(1);
               setPaymentError(null);
               setPixData(null);
               setAgendamentoIdPendente(null);

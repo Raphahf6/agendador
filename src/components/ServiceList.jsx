@@ -1,25 +1,16 @@
-// frontend/src/components/ServiceList.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import LoadingSpinner from './LoadingSpinner';
-import { DollarSign, Clock, Sparkles, ArrowRight } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2 } from 'lucide-react';
 import HourglassLoading from './HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// Helper Ícone Simples
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-
-
-// Adicionado prop primaryColor
 function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
-
-    // Variável de cor primária para uso em style
     const primary = primaryColor || '#0E7490';
-
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -38,19 +29,16 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
             let fetchError = null;
 
             try {
-                // ASSUMIMOS QUE ESTE É UM ENDPOINT PÚBLICO (sem token de autorização)
                 const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`);
-
                 if (response.data && typeof response.data === 'object') {
                     responseData = response.data;
                     servicesData = Array.isArray(response.data.servicos) ? response.data.servicos : [];
                 } else {
-                    throw new Error("Formato de resposta inesperado da API.");
+                    throw new Error("Formato de resposta inesperado.");
                 }
             } catch (err) {
-                console.error("ServiceList: ERRO na chamada axios:", err);
-                // Se a API retornar 403/401, o erro será tratado aqui sem loop infinito
-                fetchError = err.response?.data?.detail || err.message || "Não foi possível carregar os dados.";
+                console.error("ServiceList Error:", err);
+                fetchError = err.response?.data?.detail || err.message || "Erro ao carregar dados.";
                 responseData = null;
                 servicesData = [];
             } finally {
@@ -58,7 +46,7 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
                     setServices(servicesData);
                     setError(fetchError);
                     onDataLoaded(responseData, fetchError);
-                    setLoading(false); // Garante que o loading para
+                    setLoading(false);
                 }
             }
         };
@@ -67,66 +55,82 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
     }, [salaoId, onDataLoaded]);
 
     if (loading) {
-        return (
-          <HourglassLoading message="Carregando Serviços" primaryColor={primaryColor} />
-        );
+        return <HourglassLoading message="Carregando Serviços" primaryColor={primary} />;
     }
 
     if (error) {
         return (
-            <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-center">
-                <p className="text-red-700 font-medium">Erro ao carregar</p>
-                <p className="text-sm text-red-600 mt-1">{error}</p>
+            <div className="py-12 text-center">
+                <p className="text-red-500 font-medium">Não foi possível carregar os serviços.</p>
+                <button onClick={() => window.location.reload()} className="mt-4 text-sm underline text-gray-500 hover:text-gray-800">Tentar Novamente</button>
             </div>
         );
     }
 
     if (services.length === 0) {
         return (
-            <div className="p-6 bg-gray-100 border border-gray-200 rounded-lg text-center">
-                <p className="text-gray-600">Nenhum serviço cadastrado.</p>
+            <div className="py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="text-gray-500">Nenhum serviço disponível no momento.</p>
             </div>
         );
     }
 
     return (
-        <div className="px-1 sm:px-4 pb-4">
-            <div className="space-y-4">
-                {services.map((service) => (
-                    <div
-                        key={service.id}
-                        onClick={() => onServiceClick(service)}
-                        // Aplica cor da borda lateral via style inline
-                        className={`group bg-white rounded-lg border border-l-4 border-gray-200 shadow-sm cursor-pointer transition-all duration-300 ease-in-out hover:shadow-lg hover:-translate-y-1`}
-                        style={{ borderLeftColor: primary, borderRightColor: 'rgb(229, 231, 235)', borderTopColor: 'rgb(229, 231, 235)', borderBottomColor: 'rgb(229, 231, 235)' }}
-                    >
-                        <div className="p-4">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2 transition-colors">
+        <div className="space-y-6">
+            {services.map((service) => (
+                <div
+                    key={service.id}
+                    onClick={() => onServiceClick(service)}
+                    // 🌟 NOVO DESIGN: Item de Lista Limpo (Sem Card)
+                    className="group relative flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 sm:p-6 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-300 cursor-pointer"
+                >
+                    {/* Informações do Serviço */}
+                    <div className="flex-1 pr-4">
+                        <div className="flex items-center justify-between sm:justify-start gap-3 mb-1">
+                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-gray-700 transition-colors">
                                 {service.nome_servico}
                             </h3>
-
-                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-3 text-sm">
-                                <div className="flex items-center gap-1.5 text-gray-500">
-                                    <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
-                                    <span>{service.duracao_minutos} min</span>
-                                </div>
-                                {service.preco != null && service.preco >= 0 && (
-                                    <div className="flex items-center gap-1 text-green-700 font-medium">
-                                        <span>R$ {Number(service.preco).toFixed(2).replace('.', ',')}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Aplica a cor primária no link de ação */}
-                            <div className={`flex items-center gap-1.5 font-medium text-sm mt-3`} style={{ color: primary }}>
-                                
-                                <span>Agende agora</span>
-                                <Icon icon={ArrowRight} className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
-                            </div>
+                            {/* Preço Mobile (Visível apenas em telas pequenas) */}
+                            <span className="sm:hidden font-bold text-lg" style={{ color: primary }}>
+                                {service.preco != null ? `R$ ${Number(service.preco).toFixed(2).replace('.', ',')}` : 'Grátis'}
+                            </span>
+                        </div>
+                        
+                        {service.descricao && (
+                            <p className="text-sm text-gray-500 line-clamp-2 mb-2 sm:mb-0 leading-relaxed">
+                                {service.descricao}
+                            </p>
+                        )}
+                        
+                        {/* Duração (Mobile/Desktop) */}
+                        <div className="flex items-center gap-1 text-xs font-medium text-gray-400 mt-1">
+                            <Icon icon={Clock} className="w-3 h-3" />
+                            <span>{service.duracao_minutos} min</span>
                         </div>
                     </div>
-                ))}
-            </div>
+
+                    {/* Coluna de Ação (Preço + Botão) - Desktop */}
+                    <div className="hidden sm:flex flex-col items-end gap-3 pl-4 border-l border-gray-100 min-w-[140px]">
+                        <span className="text-xl font-bold tracking-tight" style={{ color: primary }}>
+                            {service.preco != null ? `R$ ${Number(service.preco).toFixed(2).replace('.', ',')}` : 'Grátis'}
+                        </span>
+                        
+                        <button 
+                            className="opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-300 inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold text-white shadow-sm"
+                            style={{ backgroundColor: primary }}
+                        >
+                            Agendar <Icon icon={ArrowRight} className="w-3 h-3 ml-1" />
+                        </button>
+                    </div>
+
+                    {/* Botão Mobile (Sempre visível, sutil) */}
+                    <div className="sm:hidden w-full mt-4 pt-3 border-t border-gray-50 flex justify-end">
+                        <span className="text-xs font-bold uppercase tracking-wider flex items-center" style={{ color: primary }}>
+                            Agendar Horário <Icon icon={ArrowRight} className="w-3 h-3 ml-1" />
+                        </span>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }
