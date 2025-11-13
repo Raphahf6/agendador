@@ -1,47 +1,30 @@
-// frontend/src/pages/painel/VisaoGeralPage.jsx
 import React, { useState, useEffect, useRef } from 'react';
-// REMOVIDO: { useParams }
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { auth, db } from '@/firebaseConfig';
 import {
     collection, query, where, getDocs, onSnapshot, orderBy, limit, Timestamp
 } from "firebase/firestore";
-import { format, startOfDay, endOfDay, addDays, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-    Loader2, Calendar, Users, BarChart2, Bell, CheckCircle, AlertTriangle, TrendingUp, CalendarDays,
-    Filter, Check, Link as LinkIcon, Edit, UserPlus,
-    Hourglass
+    Loader2, Calendar, Users, BarChart2, Bell, TrendingUp, Filter, Check, UserPlus, DollarSign, Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import toast from 'react-hot-toast';
 import axios from 'axios';
-// IMPORTAÇÃO CRÍTICA: Use o hook do PainelLayout (assumindo que SalonProvider está configurado)
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
-// Ajuste o caminho conforme a estrutura real do seu projeto
+
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// --- DEFINIÇÕES DE COR (idênticas) ---
-const CIANO_TEXT_CLASS = 'text-cyan-800';
-const CIANO_BG_CLASS = 'bg-cyan-800';
-const CIANO_BG_HOVER_CLASS = 'hover:bg-cyan-900';
-const CIANO_LIGHT_BG = 'bg-cyan-50';
-const CIANO_RING_FOCUS = 'focus:ring-cyan-800';
-const CIANO_FILL_COLOR = '#0E7490';
-
-// --- Helper Ícone Simples (idêntico) ---
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- Hook customizado para fechar dropdown ao clicar fora (idêntico) ---
+// Hook para clicar fora
 function useOnClickOutside(ref, handler) {
     useEffect(() => {
         const listener = (event) => {
-            if (!ref.current || ref.current.contains(event.target)) {
-                return;
-            }
+            if (!ref.current || ref.current.contains(event.target)) return;
             handler(event);
         };
         document.addEventListener("mousedown", listener);
@@ -52,455 +35,322 @@ function useOnClickOutside(ref, handler) {
         };
     }, [ref, handler]);
 }
-// --- Fim do Hook ---
 
-// --- Componente ChartFilter (idêntico) ---
-const ChartFilter = ({ currentPeriod, onPeriodChange, filterOptions }) => {
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const dropdownRef = useRef(null);
-    useOnClickOutside(dropdownRef, () => setIsFilterOpen(false));
-
-    const handleFilterSelect = (value) => {
-        onPeriodChange(value);
-        setIsFilterOpen(false);
-    };
-
-    const currentLabel = filterOptions.find(opt => opt.value === currentPeriod)?.label || 'Período';
+// --- Componente de Filtro Moderno ---
+const ChartFilter = ({ currentPeriod, onPeriodChange, filterOptions, primaryColor }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef(null);
+    useOnClickOutside(ref, () => setIsOpen(false));
+    const label = filterOptions.find(opt => opt.value === currentPeriod)?.label || 'Período';
 
     return (
-        <div className="relative inline-block text-left" ref={dropdownRef}>
+        <div className="relative" ref={ref}>
             <button
-                type="button"
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className={`flex items-center text-sm font-semibold transition-colors rounded-lg px-2 py-1 ${CIANO_LIGHT_BG} ${CIANO_TEXT_CLASS} hover:bg-cyan-100`}
-                aria-expanded={isFilterOpen}
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center text-xs font-semibold bg-white border border-gray-200 rounded-full px-3 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
             >
-                <Icon icon={Filter} className="w-4 h-4 mr-1" />
-                {currentLabel}
+                <Icon icon={Filter} className="w-3 h-3 mr-1.5" />
+                {label}
             </button>
-            {isFilterOpen && (
-                <div className="origin-top-right absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 focus:outline-none">
-                    <div className="py-1">
-                        {filterOptions.map((option) => (
-                            <button
-                                key={option.value}
-                                onClick={() => handleFilterSelect(option.value)}
-                                className={`w-full text-left flex items-center px-4 py-2 text-sm ${currentPeriod === option.value
-                                    ? `font-semibold text-cyan-900 ${CIANO_LIGHT_BG}`
-                                    : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                            >
-                                {currentPeriod === option.value && (
-                                    <Icon icon={Check} className="w-4 h-4 mr-2 -ml-1" />
-                                )}
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-gray-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    {filterOptions.map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => { onPeriodChange(opt.value); setIsOpen(false); }}
+                            className={`w-full text-left px-4 py-2.5 text-xs font-medium flex items-center transition-colors ${currentPeriod === opt.value ? 'bg-gray-50 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            {currentPeriod === opt.value && <Icon icon={Check} className="w-3 h-3 mr-2 text-green-500" />}
+                            {opt.label}
+                        </button>
+                    ))}
                 </div>
             )}
         </div>
     );
 };
-// --- Fim ChartFilter ---
 
-// --- Componente KpiCard (idêntico) ---
-const KpiCard = ({
-    title,
-    value,
-    icon: IconComp,
-    isLoading,
-    filterPeriod,
-    onFilterChange,
-    filterOptions
-}) => {
-    const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const dropdownRef = useRef(null);
-    useOnClickOutside(dropdownRef, () => setIsFilterOpen(false));
-    const hasFilter = typeof onFilterChange === 'function';
-
-    // Obtém o rótulo do filtro ativo ou usa o Título base
-    const currentLabel = filterOptions?.find(opt => opt.value === filterPeriod)?.label || title;
-
-    const handleFilterSelect = (value) => {
-        onFilterChange(value);
-        setIsFilterOpen(false);
-    };
-
-    const mainTitle = title;
-
-
+// --- Componente KPI Card Premium ---
+const KpiCard = ({ title, value, icon: IconComp, isLoading, colorClass, bgClass, filterPeriod, onFilterChange, filterOptions, primaryColor }) => {
     return (
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col justify-between min-h-[100px]">
-            <div className="flex justify-between items-start">
-                {/* Título Principal Fixo + Rótulo do Filtro */}
-                <p className="text-sm text-gray-500">
-                    <span className="font-semibold text-gray-700">{mainTitle}</span>
-                    {hasFilter && `: ${currentLabel}`}
-                </p>
-
-                {hasFilter && (
-                    <div className="relative inline-block text-left" ref={dropdownRef}>
-                        <button
-                            type="button"
-                            onClick={() => setIsFilterOpen(!isFilterOpen)}
-                            className="h-6 w-6 text-gray-400 hover:text-gray-700 -mt-1 -mr-1 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
-                            title="Filtrar período"
-                        >
-                            <Icon icon={Filter} className="w-4 h-4" />
-                            <span className="sr-only">Filtrar período</span>
-                        </button>
-                        {isFilterOpen && (
-                            <div className="origin-top-right absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10 focus:outline-none">
-                                <div className="py-1">
-                                    {filterOptions.map((option) => (
-                                        <button
-                                            key={option.value}
-                                            onClick={() => handleFilterSelect(option.value)}
-                                            className={`w-full text-left flex items-center px-4 py-2 text-sm ${filterPeriod === option.value
-                                                ? `font-semibold text-cyan-900 ${CIANO_LIGHT_BG}`
-                                                : 'text-gray-700 hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            {filterPeriod === option.value && (
-                                                <Icon icon={Check} className="w-4 h-4 mr-2 -ml-1" />
-                                            )}
-                                            {option.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group transition-all duration-300 hover:shadow-md">
+            {/* Header do Card */}
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${bgClass}`}>
+                    <Icon icon={IconComp} className={`w-6 h-6 ${colorClass}`} />
+                </div>
+                {filterOptions && (
+                    <ChartFilter
+                        currentPeriod={filterPeriod}
+                        onPeriodChange={onFilterChange}
+                        filterOptions={filterOptions}
+                        primaryColor={primaryColor}
+                    />
                 )}
             </div>
-            <div className="flex items-center space-x-3 mt-2">
-                <div className={`p-2.5 rounded-full ${CIANO_LIGHT_BG} ${CIANO_TEXT_CLASS}`}>
-                    <Icon icon={IconComp} className="w-5 h-5" />
-                </div>
+
+            {/* Valor e Título */}
+            <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
                 {isLoading ? (
-                    <Loader2 className="w-6 h-6 animate-spin text-cyan-600" />
+                    <div className="h-8 w-24 bg-gray-100 rounded animate-pulse" />
                 ) : (
-                    <p className="text-3xl font-bold text-gray-900">{value ?? '-'}</p>
+                    <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                        {value ?? '-'}
+                    </h3>
                 )}
             </div>
         </div>
     );
 };
-// --- Fim KpiCard ---
 
-// --- Componente ProximoAgendamentoItem (idêntico) ---
-const ProximoAgendamentoItem = ({ agendamento }) => {
-    const formattedTime = agendamento.startTime
-        ? format(agendamento.startTime.toDate(), "dd/MM 'às' HH:mm', 'yy", { locale: ptBR })
-        : 'Data inválida';
+// --- Componente Item de Agendamento (Timeline) ---
+const TimelineItem = ({ agendamento, primaryColor }) => {
+    const time = agendamento.startTime ? format(agendamento.startTime.toDate(), "HH:mm") : '--:--';
+    const date = agendamento.startTime ? format(agendamento.startTime.toDate(), "dd/MM") : '--/--';
 
     return (
-        <li className="flex items-start space-x-3 py-3 border-b border-gray-100 last:border-b-0">
-            <div className={`p-1.5 rounded-full ${CIANO_LIGHT_BG} ${CIANO_TEXT_CLASS} mt-1`}>
-                <Icon icon={Calendar} className="w-4 h-4" />
+        <div className="flex group p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+            {/* Coluna Hora */}
+            <div className="flex flex-col items-center mr-4 pt-1">
+                <span className="text-sm font-bold text-gray-900">{time}</span>
+                <span className="text-[10px] font-medium text-gray-400 uppercase">{date}</span>
             </div>
+
+            {/* Linha Vertical (Visual) */}
+            <div className="w-1 bg-gray-100 rounded-full mr-4 group-hover:bg-gray-200 transition-colors" style={{ backgroundColor: `${primaryColor}20` }}></div>
+
+            {/* Detalhes */}
             <div className="flex-1">
-                <p className="text-sm text-gray-800 leading-snug">
-                    <span className="font-semibold">{agendamento.serviceName || 'Serviço'}</span> com <span className="font-semibold">{agendamento.customerName || 'Cliente'}</span>
+                <h4 className="text-sm font-bold text-gray-900 mb-0.5">{agendamento.customerName || 'Cliente'}</h4>
+                <p className="text-xs text-gray-500 font-medium flex items-center">
+                    {agendamento.serviceName || 'Serviço'}
                 </p>
-                <p className="text-sm font-medium text-gray-500 mt-0.5">{formattedTime}</p>
             </div>
-        </li>
+
+            {/* Status (Exemplo simples) */}
+            <div className="self-center">
+                <div className="w-2 h-2 rounded-full bg-green-500" title="Confirmado"></div>
+            </div>
+        </div>
     );
 };
-// --- Fim ProximoAgendamentoItem ---
 
 
-// --- Componente Principal da Página ---
-function VisaoGeralPage() {
-    // REMOÇÃO: Não precisa mais do useParams!
-    // const { salaoId } = useParams();
-
-    // <<<< NOVO: Obtém o salaoId e outros dados globais do contexto >>>>
-    const { salaoId } = useSalon();
-
+export default function VisaoGeralPage() {
+    const { salaoId, salonDetails } = useSalon(); // Pega cores do contexto
     const navigate = useNavigate();
+
+    // Cores
+    const primaryColor = salonDetails?.cor_primaria || '#0E7490';
+
+    // Estados de Filtro
     const [agendamentosFoco, setAgendamentosFoco] = useState('hoje');
-    const [kpiData, setKpiData] = useState({
-        receitaEstimada: null,
-        agendamentosFocoValor: null,
-        novosClientesValor: null,
-        hoje: null,
-        prox7dias: null,
-        novos24h: null
-    });
-
-    const [proximosAgendamentos, setProximosAgendamentos] = useState([]);
     const [novosClientesPeriodo, setNovosClientesPeriodo] = useState('hoje');
+    const [receitaPeriodo, setReceitaPeriodo] = useState('hoje');
     const [agendamentosPeriodo, setAgendamentosPeriodo] = useState(7);
-    const [chartData, setChartData] = useState([]);
 
-    // Mantemos o loading de dados específicos desta página
+    // Estados de Dados
+    const [kpiData, setKpiData] = useState({});
+    const [chartData, setChartData] = useState([]);
+    const [proximosAgendamentos, setProximosAgendamentos] = useState([]);
+
+    // Loadings
     const [loadingKpi, setLoadingKpi] = useState(true);
     const [loadingProximos, setLoadingProximos] = useState(true);
-    const [loadingChart, setLoadingChart] = useState(true);
     const [error, setError] = useState(null);
 
-    const [receitaPeriodo, setReceitaPeriodo] = useState('hoje');
-    const [receitaTitulo, setReceitaTitulo] = useState('Receita Estimada');
-    const [linkCopied, setLinkCopied] = useState(false);
-    const copyTimeoutRef = useRef(null);
-
-    // --- Opções de Filtro (idênticas) ---
-    const receitaFilterOptions = [
+    // Opções de Filtro
+    const periodOptions = [
         { value: 'hoje', label: 'Hoje' },
-        { value: 'semana', label: 'Próx. 7 Dias' },
-        { value: 'mes', label: 'Mês Atual' }
+        { value: 'semana', label: '7 Dias' },
+        { value: 'mes', label: 'Mês' }
     ];
-    const agendamentosFilterOptions = [
-        { value: 7, label: 'Últimos 7 Dias' },
-        { value: 15, label: 'Últimos 15 Dias' },
-        { value: 30, label: 'Últimos 30 Dias' },
-    ];
-    const novosClientesFilterOptions = [
-        { value: 'hoje', label: 'Hoje' },
-        { value: '7dias', label: 'Últimos 7 Dias' },
-        { value: '30dias', label: 'Últimos 30 Dias' }
+    const chartOptions = [
+        { value: 7, label: '7 Dias' },
+        { value: 15, label: '15 Dias' },
+        { value: 30, label: '30 Dias' },
     ];
 
-    // --- fetchKpiData (Agora usa salaoId do contexto) ---
-    // Mantemos a função interna ao useEffect para evitar o erro de re-renderização
-    const fetchKpiData = async () => {
-        if (!salaoId || !auth.currentUser) return; // Garante que o salaoId existe
-
-        setLoadingKpi(true);
-        setLoadingChart(true);
-
-        try {
-            const token = await auth.currentUser.getIdToken();
-
-            const response = await axios.get(`${API_BASE_URL}/admin/dashboard-data/${salaoId}`, {
-                params: {
-                    agendamentos_foco_periodo: agendamentosFoco,
-                    novos_clientes_periodo: novosClientesPeriodo,
-                    agendamentos_grafico_dias: agendamentosPeriodo,
-                    receita_periodo: receitaPeriodo,
-                },
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            const data = response.data;
-
-            // --- ATUALIZAÇÃO DOS ESTADOS ---
-            setKpiData(prev => ({
-                ...prev,
-                receitaEstimada: data.receita_estimada,
-                agendamentosFocoValor: data.agendamentos_foco_valor,
-                novosClientesValor: data.novos_clientes_valor,
-            }));
-
-            setChartData(data.chart_data);
-
-            setLoadingKpi(false);
-            setLoadingChart(false);
-
-        } catch (err) {
-            console.error("Erro ao buscar dados do Dashboard:", err);
-            if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário."); }
-            else if (err.response?.status === 403) { setError("Acesso negado. Assinatura pendente ou expirada."); }
-            else { setError(err.response?.data?.detail || "Não foi possível carregar os dados do dashboard."); }
-
-            setLoadingKpi(false);
-            setLoadingChart(false);
-        }
-    };
-
-    // --- Listener Próximos Agendamentos (Firestore) ---
-    // AGORA DEPENDE APENAS DE salaoId
+    // Fetch KPI Data
     useEffect(() => {
-        if (!salaoId) return; // Bloqueia se o ID ainda não chegou do contexto
+        const fetchData = async () => {
+            if (!salaoId || !auth.currentUser) return;
+            setLoadingKpi(true);
+            try {
+                const token = await auth.currentUser.getIdToken();
+                const response = await axios.get(`${API_BASE_URL}/admin/dashboard-data/${salaoId}`, {
+                    params: {
+                        agendamentos_foco_periodo: agendamentosFoco,
+                        novos_clientes_periodo: novosClientesPeriodo,
+                        agendamentos_grafico_dias: agendamentosPeriodo,
+                        receita_periodo: receitaPeriodo,
+                    },
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setKpiData(response.data);
+                setChartData(response.data.chart_data);
+            } catch (err) {
+                console.error(err);
+                setError("Erro ao carregar dados.");
+            } finally {
+                setLoadingKpi(false);
+            }
+        };
+        fetchData();
+    }, [salaoId, agendamentosFoco, novosClientesPeriodo, receitaPeriodo, agendamentosPeriodo]);
 
-        setLoadingProximos(true);
-        const agendamentosRef = collection(db, 'cabeleireiros', salaoId, 'agendamentos');
+    // Fetch Próximos Agendamentos (Firestore Realtime)
+    useEffect(() => {
+        if (!salaoId) return;
         const q = query(
-            agendamentosRef,
+            collection(db, 'cabeleireiros', salaoId, 'agendamentos'),
             where("startTime", ">=", Timestamp.now()),
             where("status", "!=", "cancelado"),
             orderBy("startTime", "asc"),
             limit(5)
         );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const proximos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setProximosAgendamentos(proximos);
-            setLoadingProximos(false);
-        }, (err) => {
-            console.error("Erro no listener de próximos agendamentos:", err);
-            if (err.code === 'failed-precondition') { setError("Índice do Firestore necessário para 'Próximos Agendamentos'. Verifique o console."); }
-            else { setError("Erro ao carregar próximos agendamentos."); }
+        const unsubscribe = onSnapshot(q, (snap) => {
+            setProximosAgendamentos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
             setLoadingProximos(false);
         });
         return () => unsubscribe();
-    }, [salaoId]); // Depende do salaoId do contexto
+    }, [salaoId]);
 
-    // --- Busca KPIs e Gráfico (API) ---
-    useEffect(() => {
-        if (salaoId) { // Só busca se o salaoId for válido
-            fetchKpiData();
-        }
-    }, [
-        salaoId, // Novo: Gatilho inicial
-        receitaPeriodo,
-        agendamentosPeriodo,
-        agendamentosFoco,
-        novosClientesPeriodo
-    ]);
+    if (!salaoId) return <div className="p-8 text-center"><HourglassLoading /></div>;
 
-    // --- Função Copiar Link (mantida) ---
-    const copyLink = () => {
-        if (!salaoId) return; // Garante que o ID existe antes de tentar copiar
-        const publicUrl = `https://horalis.app/agendar/${salaoId}`;
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-        navigator.clipboard.writeText(publicUrl).then(() => {
-            setLinkCopied(true);
-            toast.success("Link público copiado!");
-            copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
-        }).catch(err => {
-            toast.error('Erro ao copiar link.');
-            console.error('Erro ao copiar: ', err);
-        });
-    };
-    useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current); }, []);
-
-    // --- Helper para o Título do KPI Consolidado (mantido) ---
-    const getAgendamentosFocoTitle = () => {
-        const option = [
-            { value: 'hoje', label: 'Agendamentos Hoje' },
-            { value: 'prox7dias', label: 'Próx. 7 Dias' },
-            { value: 'novos24h', label: 'Novos Agend. (24h)' }
-        ].find(opt => opt.value === agendamentosFoco);
-        return option ? option.label : 'Agendamentos';
-    };
-
-
-    // --- Renderização (Mantida) ---
     return (
-        <div className="font-sans space-y-6">
-            {/* Título e Botão Copiar Link */}
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <h2 className={`text-2xl font-bold text-gray-900 flex items-center ${CIANO_TEXT_CLASS}`}>
-                    <Icon icon={BarChart2} className="w-6 h-6 mr-3" />
+        <div className="font-sans pb-20">
+            {/* Header */}
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                        <Icon icon={BarChart2} className="w-6 h-6" style={{ color: primaryColor }} />
+                    </div>
                     Visão Geral
-                </h2>
-
-               
+                </h1>
+                <p className="text-gray-500 mt-1 ml-12 text-sm">Acompanhe o desempenho do seu negócio em tempo real.</p>
             </div>
 
-            {error && (
-                <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 flex items-center gap-2">
-                    <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" /> <p>{error}</p>
-                </div>
-            )}
+            {error && <div className="p-4 mb-6 bg-red-50 text-red-600 rounded-lg border border-red-100 text-sm">{error}</div>}
 
-            {/* 1. KPIs (4 COLUNAS) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* Grid de KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
 
-                {/* 1. KPI CONSOLIDADO DE AGENDAMENTOS */}
                 <KpiCard
-                    title="Agendamentos em Foco"
-                    value={kpiData.agendamentosFocoValor}
-                    icon={CalendarDays}
-                    isLoading={loadingKpi}
+                    title="Agendamentos"
+                    value={kpiData.agendamentos_foco_valor}
+                    icon={Calendar}
+                    colorClass="text-blue-600"
+                    bgClass="bg-blue-50"
                     filterPeriod={agendamentosFoco}
                     onFilterChange={setAgendamentosFoco}
-                    filterOptions={[
-                        { value: 'hoje', label: 'Hoje' },
-                        { value: 'prox7dias', label: 'Próx. 7 Dias' },
-                        { value: 'novos24h', label: 'Novos (24h)' }
-                    ]}
+                    filterOptions={[{ value: 'hoje', label: 'Hoje' }, { value: 'prox7dias', label: '7 Dias' }]}
+                    isLoading={loadingKpi}
+                    primaryColor={primaryColor}
                 />
 
-                {/* 2. KPI RECEITA */}
                 <KpiCard
-                    title={receitaTitulo}
-                    value={kpiData.receitaEstimada !== null ? `R$ ${kpiData.receitaEstimada}` : null}
-                    icon={TrendingUp} isLoading={loadingKpi}
-                    filterPeriod={receitaPeriodo} onFilterChange={setReceitaPeriodo} filterOptions={receitaFilterOptions}
+                    title="Receita Estimada"
+                    value={kpiData.receita_estimada ? `R$ ${kpiData.receita_estimada}` : null}
+                    icon={DollarSign}
+                    colorClass="text-green-600"
+                    bgClass="bg-green-50"
+                    filterPeriod={receitaPeriodo}
+                    onFilterChange={setReceitaPeriodo}
+                    filterOptions={periodOptions}
+                    isLoading={loadingKpi}
+                    primaryColor={primaryColor}
                 />
 
-                {/* 3. NOVO KPI CLIENTES */}
                 <KpiCard
                     title="Novos Clientes"
-                    value={kpiData.novosClientesValor}
+                    value={kpiData.novos_clientes_valor}
                     icon={UserPlus}
-                    isLoading={loadingKpi}
+                    colorClass="text-purple-600"
+                    bgClass="bg-purple-50"
                     filterPeriod={novosClientesPeriodo}
                     onFilterChange={setNovosClientesPeriodo}
-                    filterOptions={novosClientesFilterOptions}
+                    filterOptions={periodOptions}
+                    isLoading={loadingKpi}
+                    primaryColor={primaryColor}
                 />
 
-                {/* 4. Coluna extra (Total no Mês) */}
                 <KpiCard
                     title="Total no Mês"
-                    value={kpiData.novos24h} icon={Users} isLoading={loadingKpi} />
-
+                    value={kpiData.novos24h} // Ajuste conforme seu backend retorna o total do mês
+                    icon={Users}
+                    colorClass="text-orange-600"
+                    bgClass="bg-orange-50"
+                    isLoading={loadingKpi}
+                    primaryColor={primaryColor}
+                />
             </div>
 
-            {/* 2. Gráfico e Próximos Agendamentos (Grid de 2 colunas) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Coluna Gráfico */}
-                <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800">Agendamentos Históricos</h3>
+            {/* Conteúdo Principal: Gráfico + Timeline */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                        {/* Filtro do Gráfico (idêntico) */}
+                {/* Coluna 1: Gráfico (2/3) */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-gray-900">Fluxo de Agendamentos</h3>
                         <ChartFilter
                             currentPeriod={agendamentosPeriodo}
                             onPeriodChange={setAgendamentosPeriodo}
-                            filterOptions={agendamentosFilterOptions}
+                            filterOptions={chartOptions}
+                            primaryColor={primaryColor}
                         />
                     </div>
 
-                    {loadingChart ? (
-                        <div className="flex justify-center items-center h-64 sm:h-80">
-                          <HourglassLoading message='Carregando dados...' />
-                        </div>
-                    ) : chartData.length === 0 ? (
-                        <div className="flex justify-center items-center h-64 sm:h-80 text-gray-500">
-                            <p>Nenhum agendamento encontrado para este período.</p>
-                        </div>
-                    ) : (
-                        <div className="w-full h-64 sm:h-80">
+                    <div className="h-80 w-full">
+                        {loadingKpi ? (
+                            <div className="h-full flex items-center justify-center"><HourglassLoading /></div>
+                        ) : chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                                    <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} />
+                                <BarChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '8px' }}
-                                        labelStyle={{ color: '#000', fontWeight: 'bold' }}
+                                        cursor={{ fill: '#F3F4F6' }}
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                                     />
-                                    <Bar dataKey="Agendamentos" fill={CIANO_FILL_COLOR} radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="Agendamentos" fill={primaryColor} radius={[6, 6, 0, 0]} barSize={40} />
                                 </BarChart>
                             </ResponsiveContainer>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados para o período.</div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Coluna Próximos Agendamentos */}
-                <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
-                        <Icon icon={Bell} className={`w-5 h-5 mr-2 ${CIANO_TEXT_CLASS}`} />
-                        Próximos Agendamentos
-                    </h3>
+                {/* Coluna 2: Próximos Agendamentos (1/3) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-gray-900">Próximos</h3>
+                        <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">Em breve</span>
+                    </div>
+
                     {loadingProximos ? (
-                        <div className="flex justify-center py-4"> <Loader2 className={`w-6 h-6 animate-spin ${CIANO_TEXT_CLASS}`} /> </div>
-                    ) : proximosAgendamentos.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-4">Nenhum agendamento futuro.</p>
+                        <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+                    ) : proximosAgendamentos.length > 0 ? (
+                        <div className="space-y-2">
+                            {proximosAgendamentos.map(agd => (
+                                <TimelineItem key={agd.id} agendamento={agd} primaryColor={primaryColor} />
+                            ))}
+                        </div>
                     ) : (
-                        <ul className="space-y-1 max-h-[340px] overflow-y-auto">
-                            {proximosAgendamentos.map(agd => <ProximoAgendamentoItem key={agd.id} agendamento={agd} />)}
-                        </ul>
+                        <div className="py-10 text-center text-gray-400 text-sm">
+                            Nenhum agendamento futuro.
+                        </div>
                     )}
+
+                    <button className="w-full mt-6 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors border border-dashed border-gray-200 hover:border-gray-300">
+                        Ver Agenda Completa
+                    </button>
                 </div>
+
             </div>
         </div>
     );
 }
-
-export default VisaoGeralPage;

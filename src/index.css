@@ -53,6 +53,8 @@
 }
 
 
+
+
 /* 2. Diretivas do Tailwind */
 @tailwind base;
 @tailwind components;
@@ -69,3 +71,4 @@
 
 /* Se o import acima causar problemas, a alternativa é colocar DEPOIS de @tailwind utilities */
 /* @import 'react-day-picker/dist/style.css'; */
+
