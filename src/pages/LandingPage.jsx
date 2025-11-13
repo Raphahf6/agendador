@@ -1,41 +1,82 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Menu, X, Smartphone, Mail, Star, ShieldCheck, LogIn } from 'lucide-react';
+import { 
+    Calendar, Link as LinkIcon, Clock, Users, Zap, Check, 
+    ArrowRight, Menu, X, BarChart2, Smartphone, Mail, ShieldCheck, 
+    DollarSign, PieChart, Settings, HelpCircle, ChevronDown, ChevronUp, 
+    Bell, Megaphone, CreditCard, Globe, TrendingUp, Eye
+} from 'lucide-react';
 import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 import SignupModalContent from '@/components/landing/SignupModalContent';
-import { ImageWithFallback } from '@/ui/ImageWithFallback';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, Pagination, Autoplay, EffectFade } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/effect-fade';
+import { ImageWithFallback } from '@/ui/ImageWithFallback'; 
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
-// Configs
-const BRAND_NAME = "Horalis";
-const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1,%20quero%20conhecer%20o%20Horalis!";
-
-// Cores do SaaS (Usando Ciano como base)
-const PRIMARY_COLOR = '#0E7490'; 
-const PRIMARY_BG_CLASS = 'bg-cyan-800';
-const PRIMARY_HOVER_CLASS = 'hover:bg-cyan-900';
-const TEXT_PRIMARY_CLASS = 'text-cyan-800';
+// --- CONFIGURAÇÕES ---
+const WHATSAPP_LNK = "https://wa.me/5511936200327";
+const REAL_MICROSITE_LINK = "https://horalis.app/agendar/5511988062634"; // Seu link real
+const PRIMARY_COLOR_CLASS = "text-cyan-700";
+const BUTTON_PRIMARY = "bg-cyan-700 hover:bg-cyan-800 text-white";
+const BUTTON_OUTLINE = "border border-slate-300 text-slate-700 hover:bg-slate-50";
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
+// --- COMPONENTE: ITEM DE FAQ ---
+const FaqItem = ({ question, answer }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+        <div className="border-b border-slate-200 last:border-0">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center justify-between w-full py-5 text-left focus:outline-none group"
+            >
+                <span className="text-base font-semibold text-slate-800 group-hover:text-cyan-700 transition-colors">{question}</span>
+                {isOpen ? <ChevronUp className="w-5 h-5 text-cyan-600" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+            </button>
+            <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-48 opacity-100 pb-5' : 'max-h-0 opacity-0'}`}>
+                <p className="text-slate-600 text-sm leading-relaxed">{answer}</p>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENTE: CARD DE FUNCIONALIDADE ---
+const FeatureCard = ({ icon: IconComp, title, description }) => (
+    <div className="p-8 bg-white border border-slate-200 rounded-xl hover:shadow-xl hover:border-cyan-100 transition-all duration-300 group h-full" data-aos="fade-up">
+        <div className="w-12 h-12 bg-cyan-50 rounded-lg flex items-center justify-center mb-6 group-hover:bg-cyan-100 transition-colors">
+            <IconComp className="w-6 h-6 text-cyan-700" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-3">{title}</h3>
+        <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
+    </div>
+);
+
+// --- COMPONENTE: PASSO A PASSO ---
+const StepCard = ({ number, title, description }) => (
+    <div className="relative flex flex-col items-center text-center p-6" data-aos="fade-up">
+        <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center text-xl font-bold mb-4 shadow-lg shadow-slate-200">
+            {number}
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+        <p className="text-sm text-slate-600">{description}</p>
+    </div>
+);
+
+// =============================================================================
+// PÁGINA PRINCIPAL
+// =============================================================================
+
 export function LandingPage() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const precosRef = useRef(null);
 
     useEffect(() => {
-        AOS.init({ duration: 800, once: true });
+        AOS.init({ duration: 600, once: true });
         const script = document.createElement('script');
         script.src = "https://www.mercadopago.com/v2/security.js";
-        script.setAttribute('data-public-key', "APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311"); 
+        script.setAttribute('data-public-key', "APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311");
         document.body.appendChild(script);
         return () => { if (document.body.contains(script)) document.body.removeChild(script); };
     }, []);
@@ -45,232 +86,289 @@ export function LandingPage() {
         return () => { document.body.style.overflow = ''; };
     }, [isModalOpen]);
 
-    const handleScrollToPrecos = (e) => {
-        e.preventDefault();
-        precosRef.current?.scrollIntoView({ behavior: 'smooth' });
-        setIsMenuOpen(false);
-    };
-
-    const carouselSlides = [
-        { imgSrc: "/visao-geral.png", title: "Painel de Controle Completo", desc: "Tenha uma visão 360º do seu negócio em tempo real." },
-        { imgSrc: "/calendario.png", title: "Agenda Inteligente", desc: "Organize seus horários e evite conflitos automaticamente." },
-        { imgSrc: "/pagina-agendamentos.png", title: "Site de Agendamento", desc: "Seu cliente agenda sozinho, 24h por dia." }
-    ];
-
     return (
-        <div className="min-h-screen bg-white font-sans text-gray-900 overflow-x-hidden selection:bg-cyan-100">
+        <div className="min-h-screen bg-white font-sans text-slate-900">
             
-            {/* --- NAVBAR FLUTUANTE --- */}
-            <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${isMenuOpen ? 'bg-white' : 'bg-white/90 backdrop-blur-md'} border-b border-gray-100`}>
+            {/* --- NAVBAR --- */}
+            <nav className="fixed top-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300">
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        {/* Logo Simples */}
-                        <div className={`w-10 h-10 rounded-xl ${PRIMARY_BG_CLASS} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>H</div>
-                        <span className="text-2xl font-bold tracking-tight">Horalis</span>
+                        <div className="w-8 h-8 bg-cyan-700 rounded-lg flex items-center justify-center text-white font-bold text-lg">H</div>
+                        <span className="text-xl font-bold tracking-tight text-slate-900">Horalis</span>
                     </div>
 
-                    {/* Desktop Menu */}
                     <div className="hidden md:flex items-center gap-8">
-                        <a href="#funcionalidades" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Funcionalidades</a>
-                        <a href="#precos" onClick={handleScrollToPrecos} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Preços</a>
-                        <div className="flex items-center gap-4 ml-4">
-                            <Link to="/login" className="text-sm font-semibold text-gray-900 hover:text-cyan-700">Entrar</Link>
-                            <button onClick={() => setIsModalOpen(true)} className={`px-5 py-2.5 text-sm font-bold text-white rounded-full shadow-lg shadow-cyan-500/30 ${PRIMARY_BG_CLASS} ${PRIMARY_HOVER_CLASS} transition-all hover:-translate-y-0.5`}>
-                                Testar Grátis
+                        <a href="#sobre" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Sobre</a>
+                        <a href="#funcionalidades" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Funcionalidades</a>
+                        <a href="#planos" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Planos</a>
+                        
+                        <div className="flex items-center gap-3 ml-4">
+                            <Link to="/login" className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors ${BUTTON_OUTLINE}`}>
+                                Login
+                            </Link>
+                            <button onClick={() => setIsModalOpen(true)} className={`px-5 py-2 text-sm font-semibold rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 ${BUTTON_PRIMARY}`}>
+                                Criar Conta
                             </button>
                         </div>
                     </div>
 
-                    {/* Mobile Menu Button */}
-                    <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-2 text-gray-600">
+                    <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-2 text-slate-600">
                         <Icon icon={isMenuOpen ? X : Menu} className="w-6 h-6" />
                     </button>
                 </div>
 
-                {/* Mobile Menu */}
                 {isMenuOpen && (
-                    <div className="md:hidden bg-white border-t border-gray-100 absolute w-full p-6 flex flex-col gap-4 shadow-xl">
-                        <Link to="/login" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 font-medium"><Icon icon={LogIn} className="w-5 h-5"/> Acessar Painel</Link>
-                        <button onClick={() => {setIsModalOpen(true); setIsMenuOpen(false);}} className={`w-full py-3 rounded-xl text-white font-bold ${PRIMARY_BG_CLASS}`}>Começar Agora</button>
+                    <div className="md:hidden bg-white border-t border-slate-200 absolute w-full p-6 flex flex-col gap-4 shadow-xl">
+                        <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Acessar Painel</Link>
+                        <button onClick={() => {setIsModalOpen(true); setIsMenuOpen(false);}} className={`w-full py-3 rounded-lg font-bold ${BUTTON_PRIMARY}`}>Cadastre-se</button>
                     </div>
                 )}
             </nav>
 
-            {/* --- HERO SECTION --- */}
-            <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-                {/* Background Decorativo */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[1000px] bg-cyan-50/50 rounded-full blur-3xl -z-10"></div>
-                
-                <div className="max-w-7xl mx-auto px-6 text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-50 border border-cyan-100 text-cyan-800 text-sm font-medium mb-8 animate-fade-in-up">
-                        <Icon icon={Sparkles} className="w-4 h-4" /> O sistema mais simples para o seu salão
-                    </div>
+            {/* --- HERO SECTION (Com Mockup Celular e Botão) --- */}
+            <section className="pt-32 pb-20 lg:pt-48 lg:pb-32 bg-slate-50 border-b border-slate-200 overflow-hidden">
+                <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
                     
-                    <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight mb-6 text-gray-900 leading-tight" data-aos="fade-up">
-                        Sua agenda cheia.<br/>
-                        <span className={`text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-blue-600`}>Seu tempo livre.</span>
-                    </h1>
-                    
-                    <p className="text-xl text-gray-600 mb-10 max-w-2xl mx-auto leading-relaxed" data-aos="fade-up" data-aos-delay="100">
-                        Automatize agendamentos, reduza faltas e gerencie seu negócio de beleza com a plataforma feita para quem quer crescer.
-                    </p>
-                    
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16" data-aos="fade-up" data-aos-delay="200">
-                        <button onClick={() => setIsModalOpen(true)} className={`px-8 py-4 rounded-full text-white font-bold text-lg shadow-xl shadow-cyan-600/20 ${PRIMARY_BG_CLASS} ${PRIMARY_HOVER_CLASS} transition-all hover:-translate-y-1 w-full sm:w-auto flex items-center justify-center gap-2`}>
-                            Começar Gratuitamente <Icon icon={ArrowRight} className="w-5 h-5" />
-                        </button>
-                        <p className="text-sm text-gray-500">Sem cartão de crédito • Cancela quando quiser</p>
+                    {/* LADO ESQUERDO: Texto e CTA */}
+                    <div className="text-center lg:text-left z-10 order-2 lg:order-1" data-aos="fade-right">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-cyan-700 text-xs font-bold uppercase tracking-wide mb-6 shadow-sm">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                            </span>
+                            Gestão Profissional
+                        </div>
+                        
+                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
+                            O sistema de gestão que o seu salão <span className="text-cyan-700">merece</span>.
+                        </h1>
+                        
+                        <p className="text-lg text-slate-600 mb-8 leading-relaxed">
+                            Profissionalize seu agendamento, controle o financeiro e fidelize clientes. Uma plataforma completa, segura e sem complexidade.
+                        </p>
+                        
+                        <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                            <button onClick={() => setIsModalOpen(true)} className={`px-8 py-4 rounded-lg font-bold text-lg shadow-lg transition-transform hover:-translate-y-0.5 w-full sm:w-auto flex items-center justify-center gap-2 ${BUTTON_PRIMARY}`}>
+                                Começar Teste Grátis
+                            </button>
+                            <a href="#funcionalidades" className={`px-8 py-4 rounded-lg font-bold text-lg transition-colors w-full sm:w-auto flex items-center justify-center ${BUTTON_OUTLINE}`}>
+                                Conhecer Recursos
+                            </a>
+                        </div>
+                        
+                        <div className="mt-8 flex items-center justify-center lg:justify-start gap-6 text-sm text-slate-500 font-medium">
+                            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-cyan-700"/> Dados Seguros</span>
+                            <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-cyan-700"/> Setup Rápido</span>
+                        </div>
                     </div>
 
-                    {/* Hero Image (Dashboard Preview) */}
-                    <div className="relative max-w-5xl mx-auto mt-12" data-aos="fade-up" data-aos-delay="300">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl blur opacity-20"></div>
-                        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-200/50 bg-white">
-                            <ImageWithFallback src="/visao-geral.png" alt="Dashboard Horalis" className="w-full h-auto" />
+                    {/* LADO DIREITO: Visual com Moldura de CELULAR (Corrigido e com Botão) */}
+                    <div className="relative w-full flex items-center justify-center order-1 lg:order-2" data-aos="fade-left">
+                        <div className="relative"> 
+                            {/* Efeito de brilho atrás */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-gradient-to-tr from-cyan-200 to-blue-200 rounded-full blur-3xl opacity-50"></div>
+                            
+                            {/* MOLDURA DE CELULAR (PHONE MOCKUP) */}
+                            <div className="relative mx-auto border-gray-900 bg-gray-900 border-[8px] rounded-[2.5rem] h-[600px] w-[300px] shadow-2xl flex flex-col overflow-hidden transform rotate-[-2deg] hover:rotate-0 transition-transform duration-500">
+                                {/* Notch / Câmera */}
+                                <div className="absolute top-0 w-full h-6 bg-transparent z-20 flex justify-center">
+                                    <div className="h-4 w-32 bg-gray-900 rounded-b-xl"></div>
+                                </div>
+
+                                {/* Botões laterais (simulados com borda) */}
+                                <div className="absolute top-24 -right-[10px] h-16 w-[10px] bg-gray-800 rounded-r-md"></div>
+                                <div className="absolute top-24 -left-[10px] h-10 w-[10px] bg-gray-800 rounded-l-md"></div>
+
+                                {/* Tela do Celular */}
+                                <div className="h-full w-full bg-white overflow-hidden relative rounded-[2rem]">
+                                    <ImageWithFallback 
+                                        src="/pagina-agendamentos.png" 
+                                        alt="Exemplo de Microsite Horalis no Celular" 
+                                        className="w-full h-full object-cover object-top" 
+                                    />
+                                    {/* BOTÃO SOBREPOSTO */}
+                                    <a 
+                                        href={REAL_MICROSITE_LINK} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-cyan-600 text-white font-bold rounded-full shadow-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
+                                    >
+                                        <Eye className="w-5 h-5" /> Visualizar Microsite
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* --- FEATURES GRID --- */}
-            <section id="funcionalidades" className="py-24 bg-white">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold mb-4">Tudo o que você precisa</h2>
-                        <p className="text-gray-500">Ferramentas poderosas em uma interface simples.</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 gap-8">
+            {/* --- SOBRE E OBJETIVO (Institucional) --- */}
+            <section id="sobre" className="py-24 bg-white">
+                <div className="max-w-4xl mx-auto px-6 text-center">
+                    <span className="text-sm font-bold text-cyan-700 uppercase tracking-wider mb-2 block">Sobre o Horalis</span>
+                    <h2 className="text-3xl font-bold text-slate-900 mb-8">Tecnologia a serviço da beleza</h2>
+                    <p className="text-lg text-slate-600 leading-relaxed mb-12">
+                        Nascemos com o propósito de eliminar a desorganização que impede o crescimento de pequenos e médios negócios. 
+                        Sabemos que o seu talento está no atendimento, não em planilhas.
+                    </p>
+                    
+                    <div className="grid md:grid-cols-3 gap-8 mt-12">
                         {[
-                            { icon: Link2, title: "Link na Bio", desc: "Seu site próprio de agendamento. O cliente clica, escolhe e agenda em segundos." },
-                            { icon: Calendar, title: "Agenda Google", desc: "Sincronização bidirecional. Seus compromissos pessoais e profissionais em um só lugar." },
-                            { icon: Zap, title: "Sem No-Shows", desc: "Cobrança de sinal (PIX) automática para garantir que o cliente compareça." },
-                            { icon: Mail, title: "Marketing Automático", desc: "E-mails para aniversariantes e clientes sumidos para lotar sua agenda." },
-                            { icon: Users, title: "CRM Simples", desc: "Histórico completo de cada cliente: o que fez, quanto gastou e quando volta." },
-                            { icon: Smartphone, title: "100% Mobile", desc: "Gerencie seu salão pelo celular, de onde estiver. Sem apps pesados." }
-                        ].map((feat, i) => (
-                            <div key={i} className="p-8 rounded-2xl bg-gray-50 hover:bg-white border border-transparent hover:border-gray-100 hover:shadow-xl transition-all duration-300 group" data-aos="fade-up" data-aos-delay={i * 100}>
-                                <div className={`w-12 h-12 rounded-xl ${PRIMARY_BG_CLASS} flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform`}>
-                                    <Icon icon={feat.icon} className="w-6 h-6" />
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-900 mb-3">{feat.title}</h3>
-                                <p className="text-gray-600 leading-relaxed">{feat.desc}</p>
+                            { title: "Objetivo", desc: "Automatizar processos manuais para que você ganhe tempo livre." },
+                            { title: "Visão", desc: "Ser a plataforma de gestão mais confiável e intuitiva do mercado." },
+                            { title: "Segurança", desc: "Seus dados protegidos com criptografia de ponta e backups diários." }
+                        ].map((item, i) => (
+                            <div key={i} className="p-6 bg-slate-50 rounded-xl border border-slate-100 hover:border-cyan-200 transition-colors">
+                                <h3 className="font-bold text-slate-900 text-xl mb-2">{item.title}</h3>
+                                <p className="text-slate-600 text-sm">{item.desc}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* --- CAROUSEL SECTION (Mantida mas com estilo novo) --- */}
-            <section className="py-24 bg-gray-900 text-white overflow-hidden">
+            {/* --- FUNCIONALIDADES DETALHADAS (Grid Expandido) --- */}
+            <section id="funcionalidades" className="py-24 bg-slate-50 border-y border-slate-200">
                 <div className="max-w-7xl mx-auto px-6">
-                    <div className="grid lg:grid-cols-2 gap-12 items-center">
-                        <div data-aos="fade-right">
-                            <h2 className="text-3xl md:text-4xl font-bold mb-6">Veja o Horalis em ação</h2>
-                            <p className="text-gray-400 text-lg mb-8">
-                                Uma interface pensada para quem não tem tempo a perder. Rápida, bonita e eficiente.
-                            </p>
-                            <div className="flex flex-col gap-4">
-                                {carouselSlides.map((slide, i) => (
-                                    <div key={i} className="flex items-start gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors">
-                                        <div className="mt-1 w-6 h-6 rounded-full border border-cyan-500 flex items-center justify-center text-xs text-cyan-500 font-bold">{i+1}</div>
-                                        <div>
-                                            <h4 className="font-bold text-lg">{slide.title}</h4>
-                                            <p className="text-sm text-gray-400">{slide.desc}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        
-                        <div className="relative h-[500px] w-full" data-aos="fade-left">
-                            <Swiper
-                                modules={[Navigation, Pagination, Autoplay, EffectFade]}
-                                effect="fade"
-                                autoplay={{ delay: 4000 }}
-                                loop={true}
-                                className="h-full rounded-2xl shadow-2xl border border-white/10 bg-gray-800"
-                            >
-                                {carouselSlides.map((slide, index) => (
-                                    <SwiperSlide key={index}>
-                                        <img src={slide.imgSrc} alt={slide.title} className="w-full h-full object-cover opacity-90" />
-                                        <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/90 to-transparent">
-                                            <p className="text-white font-bold">{slide.title}</p>
-                                        </div>
-                                    </SwiperSlide>
-                                ))}
-                            </Swiper>
-                        </div>
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl font-bold text-slate-900 mb-4">Funcionalidades do App</h2>
+                        <p className="text-slate-600 max-w-2xl mx-auto">
+                            Uma suíte completa de ferramentas desenhada para cobrir todas as necessidades operacionais do seu negócio.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                        {/* Grupo Agendamento */}
+                        <FeatureCard 
+                            icon={Smartphone} title="Microsite Próprio" 
+                            description="Seu link exclusivo (horalis.app/voce). O cliente acessa e agenda sem baixar app." 
+                        />
+                        <FeatureCard 
+                            icon={Calendar} title="Agenda Digital" 
+                            description="Visualize sua semana, bloqueie horários e reorganize compromissos facilmente." 
+                        />
+                        <FeatureCard 
+                            icon={Globe} title="Acesso Remoto" 
+                            description="Gerencie tudo pelo celular, tablet ou computador, de onde estiver." 
+                        />
+
+                        {/* Grupo Financeiro & Gestão */}
+                        <FeatureCard 
+                            icon={Zap} title="Sinal via PIX" 
+                            description="Cobre um valor antecipado no agendamento e reduza o no-show a zero." 
+                        />
+                        <FeatureCard 
+                            icon={CreditCard} title="Integração Mercado Pago" 
+                            description="Receba pagamentos de forma segura e automática, direto na sua conta." 
+                        />
+                        <FeatureCard 
+                            icon={TrendingUp} title="Relatórios Gerenciais" 
+                            description="Descubra quais dias têm menos movimento. Use dados para criar campanhas e lotar horários vazios." 
+                        />
+
+                        {/* Grupo Marketing & Inteligência */}
+                        <FeatureCard 
+                            icon={Bell} title="Lembretes Automáticos" 
+                            description="O sistema avisa seu cliente sobre o horário, evitando esquecimentos." 
+                        />
+                        <FeatureCard 
+                            icon={Megaphone} title="Marketing e Fidelização" 
+                            description="Envie promoções e recupere clientes inativos com campanhas prontas." 
+                        />
+                        <FeatureCard 
+                            icon={ShieldCheck} title="Sincronia Google" 
+                            description="Integração nativa com Google Agenda para evitar conflitos de horário." 
+                        />
                     </div>
                 </div>
             </section>
 
-            {/* --- PRICING SECTION --- */}
-            <section id="precos" ref={precosRef} className="py-24 bg-white relative">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-bold mb-4">Investimento Simples</h2>
-                        <p className="text-gray-500">Tudo incluso. Sem surpresas.</p>
+            {/* --- COMO COMEÇAR --- */}
+            <section className="py-24 bg-white">
+                <div className="max-w-5xl mx-auto px-6">
+                    <h2 className="text-3xl font-bold text-slate-900 text-center mb-16">Como começar a usar</h2>
+                    
+                    <div className="grid md:grid-cols-3 gap-8 relative">
+                        <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-slate-100 -z-10"></div>
+                        
+                        <StepCard number="1" title="Crie sua conta" description="Cadastro gratuito em menos de 2 minutos. Sem cartão de crédito." />
+                        <StepCard number="2" title="Personalize" description="Configure serviços, horários, logo e cores para deixar com a sua cara." />
+                        <StepCard number="3" title="Compartilhe" description="Envie seu link de agendamento para clientes e veja a mágica acontecer." />
                     </div>
 
-                    <div className="max-w-lg mx-auto" data-aos="zoom-in">
-                        <div className="relative p-8 rounded-3xl bg-white border-2 border-cyan-100 shadow-2xl shadow-cyan-100/50 overflow-hidden">
-                            <div className="absolute top-0 right-0 bg-cyan-100 text-cyan-800 text-xs font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wide">Mais Popular</div>
-                            
-                            <h3 className="text-xl font-bold text-gray-900">Plano PRO</h3>
-                            <div className="mt-4 flex items-baseline gap-1">
-                                <span className="text-5xl font-extrabold text-gray-900">{DISPLAY_PRICE_SETUP}</span>
-                                <span className="text-gray-500 font-medium">/mês</span>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-2">Teste grátis. Cancele quando quiser.</p>
+                    <div className="text-center mt-12">
+                        <button onClick={() => setIsModalOpen(true)} className={`px-10 py-3 rounded-lg font-bold text-lg shadow-md transition-all transform hover:-translate-y-0.5 ${BUTTON_PRIMARY}`}>
+                            Criar Conta Agora
+                        </button>
+                    </div>
+                </div>
+            </section>
 
-                            <hr className="my-8 border-gray-100"/>
+            {/* --- PREÇOS --- */}
+            <section id="planos" className="py-24 bg-slate-900 text-white">
+                <div className="max-w-7xl mx-auto px-6 text-center">
+                    <h2 className="text-3xl font-bold mb-4">Preço justo e transparente</h2>
+                    <p className="text-slate-400 mb-12">Sem pegadinhas.</p>
 
-                            <ul className="space-y-4 mb-8">
-                                {[
-                                    "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento de Sinal (PIX)",
-                                    "Notificações Automáticas", "Gestão de Clientes", "Suporte Prioritário"
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-gray-700">
-                                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
-                                            <Check className="w-3 h-3" />
-                                        </div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <button 
-                                onClick={() => setIsModalOpen(true)}
-                                className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg ${PRIMARY_BG_CLASS} ${PRIMARY_HOVER_CLASS} transition-all hover:scale-[1.02]`}
-                            >
-                                Começar Agora
-                            </button>
+                    <div className="max-w-md mx-auto bg-white text-slate-900 rounded-2xl p-8 shadow-2xl border-4 border-cyan-600 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 bg-cyan-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl uppercase tracking-wide">Recomendado</div>
+                        <h3 className="text-2xl font-bold mb-2">Horalis PRO</h3>
+                        <div className="flex items-baseline justify-center gap-1 mb-8 border-b border-slate-100 pb-8">
+                            <span className="text-5xl font-extrabold">{DISPLAY_PRICE_SETUP}</span>
+                            <span className="text-lg text-slate-500 font-medium">/mês</span>
                         </div>
+                        <ul className="space-y-4 mb-8 text-left">
+                            {[
+                                "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento Online (PIX)",
+                                "Lembretes Automáticos", "Relatórios Gerenciais", "Suporte Prioritário"
+                            ].map((item, i) => (
+                                <li key={i} className="flex items-center gap-3 text-slate-700 font-medium text-sm">
+                                    <Check className="w-5 h-5 text-cyan-600 flex-shrink-0" /> {item}
+                                </li>
+                            ))}
+                        </ul>
+                        <button onClick={() => setIsModalOpen(true)} className={`w-full py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${BUTTON_PRIMARY}`}>
+                            Começar Teste Grátis
+                        </button>
+                        <p className="text-xs text-slate-400 mt-4">7 dias grátis • Cancele quando quiser</p>
+                    </div>
+                </div>
+            </section>
+
+            {/* --- FAQ (Perguntas Frequentes) --- */}
+            <section id="faq" className="py-24 bg-white border-b border-slate-200">
+                <div className="max-w-3xl mx-auto px-6">
+                    <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">Dúvidas Frequentes</h2>
+                    <div className="space-y-2">
+                        <FaqItem question="Preciso cadastrar cartão para testar?" answer="Não. Você pode criar sua conta e usar todas as funcionalidades gratuitamente por 7 dias sem informar dados de pagamento." />
+                        <FaqItem question="Como recebo o dinheiro dos agendamentos?" answer="O sistema é integrado ao Mercado Pago. O valor do sinal cai diretamente na sua conta do Mercado Pago na hora, com segurança total." />
+                        <FaqItem question="O que são os Relatórios Gerenciais?" answer="São gráficos inteligentes que mostram quais dias da semana e horários têm menos movimento, ajudando você a criar promoções estratégicas para preencher sua agenda." />
+                        <FaqItem question="Posso cancelar minha assinatura?" answer="Sim, a qualquer momento. Não temos contrato de fidelidade. Basta acessar as configurações e cancelar." />
+                        <FaqItem question="Funciona no celular?" answer="Sim! O Horalis é 100% responsivo e funciona perfeitamente em qualquer celular, tablet ou computador, sem precisar instalar nada." />
                     </div>
                 </div>
             </section>
 
             {/* --- FOOTER --- */}
-            <footer className="bg-gray-50 pt-16 pb-8 border-t border-gray-200">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
+            <footer className="bg-slate-50 py-12">
+                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg ${PRIMARY_BG_CLASS} flex items-center justify-center text-white font-bold`}>H</div>
-                        <span className="text-xl font-bold text-gray-900">Horalis</span>
+                        <div className="w-8 h-8 bg-cyan-700 rounded flex items-center justify-center text-white font-bold">H</div>
+                        <span className="font-bold text-slate-900 text-lg">Horalis</span>
                     </div>
-                    <div className="flex gap-8 text-sm text-gray-600 font-medium">
-                        <a href="#" className="hover:text-cyan-700">Termos de Uso</a>
-                        <a href="#" className="hover:text-cyan-700">Privacidade</a>
-                        <a href={WHATSAPP_LNK} className="hover:text-cyan-700">Contato</a>
+                    <div className="flex gap-8 text-sm text-slate-500 font-medium">
+                        <a href="#" className="hover:text-cyan-700 transition-colors">Termos de Uso</a>
+                        <a href="#" className="hover:text-cyan-700 transition-colors">Política de Privacidade</a>
+                        <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Fale Conosco</a>
                     </div>
-                    <p className="text-sm text-gray-400">© {new Date().getFullYear()} Horalis Inc.</p>
+                    <p className="text-sm text-slate-400">© {new Date().getFullYear()} Horalis Inc.</p>
                 </div>
             </footer>
 
             {/* --- MODAL DE CADASTRO --- */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setIsModalOpen(false)}>
-                    <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setIsModalOpen(false)}>
+                    <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>
                         <SignupModalContent closeModal={() => setIsModalOpen(false)} isModalOpen={isModalOpen} />
                     </div>
                 </div>
