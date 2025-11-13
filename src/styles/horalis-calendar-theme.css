@@ -1,0 +1,85 @@
+/* -------------------------------------------
+ * FullCalendar Custom Theme - Dark Mode (Hora lis)
+ * ------------------------------------------- */
+
+/* Cores Base do Tema */
+:root {
+    /* Fundo da célula da grade (Azul Escuro Secundário) */
+    --fc-page-bg-color: #243144;
+    /* Cor principal da grade e cabeçalhos */
+    --fc-neutral-bg-color: #243144; 
+    /* Cor das bordas das células e separadores */
+    --fc-border-color: #34455C; 
+    /* Cor de fundo para dias não úteis (mantido igual ao BG para simplicidade) */
+    --fc-non-business-color: #243144; 
+}
+
+/* 1. Ajuste Global de Fundo e Texto */
+.fc {
+    font-family: inherit;
+    /* Fundo da área de tempo */
+    background-color: #243144; 
+    color: #FFFFFF; /* Texto Geral */
+}
+
+/* 2. Cabeçalhos (Dias da Semana) */
+.fc .fc-col-header {
+    background-color: #1A2333; /* Fundo mais escuro para o cabeçalho */
+    border-bottom: 1px solid #34455C;
+}
+
+.fc .fc-col-header-cell-cushion {
+    /* Nome dos dias da semana */
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+/* 3. Visualização de Mês (DayGrid) */
+/* Números dos dias */
+.fc .fc-daygrid-day-number {
+    color: #FFFFFF;
+    font-weight: 500;
+}
+
+/* Bordas e linhas da grade */
+.fc .fc-scrollgrid-section-body > td {
+    border-color: #34455C;
+}
+.fc .fc-timegrid-slots table {
+    border-color: #34455C;
+}
+.fc .fc-timegrid-slot {
+    height: 1.5em;
+    border-color: #34455C;
+}
+
+/* 4. Destaques e Interações */
+
+/* Dia Atual ("Hoje") */
+.fc .fc-day-today {
+    /* Amarelo/Laranja Secundário do logo para destacar o dia atual */
+    background-color: #FFB74D30 !important; 
+}
+
+/* Seleção de Horário (Slot Mirror) */
+.fc-highlight {
+    /* Azul/Ciano do logo (HORALIS_PRIMARY_COLOR) com transparência */
+    background: #42A5F540 !important; 
+}
+
+/* Indicador de Horário Atual */
+.fc-timegrid-now-indicator-line {
+    /* Laranja de Ação do logo (HORALIS_ACTION_COLOR) */
+    border-color: #FF8C42 !important; 
+}
+
+/* 5. Eventos (Garantir que o texto do evento seja visível) */
+.fc-event {
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.fc-event-title, .fc-event-time {
+    color: #FFFFFF !important;
+    font-weight: 600;
+}

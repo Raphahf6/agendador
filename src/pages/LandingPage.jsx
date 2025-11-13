@@ -192,10 +192,7 @@ export function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left Column */}
             <div className="space-y-8" data-aos="fade-up">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 bg-cyan-50 rounded-full border border-cyan-100 shadow-sm`}>
-                {renderIcon(Sparkles, `w-4 h-4 ${CIANO_TEXT_CLASS}`)}
-                <span className={`text-sm font-medium ${CIANO_TEXT_CLASS}`}>{BRAND_NAME} Agendamento Inteligente</span>
-              </div>
+              
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-gray-900 leading-tight">
                 <span className="block">Foque no seu Trabalho.</span>
                 <span className={`block ${CIANO_TEXT_CLASS}`}>

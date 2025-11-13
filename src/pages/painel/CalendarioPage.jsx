@@ -24,9 +24,9 @@ import HourglassLoading from '@/components/HourglassLoading';
 
 // --- Configurações ---
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
-const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-800';
-const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
+const CIANO_COLOR_TEXT = 'text-[#00ACC1]';
+const CIANO_COLOR_BG = 'bg-[#00ACC1]';
+const CIANO_COLOR_BG_HOVER = 'hover:bg-[#0092A6]';
 const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
 const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
 const HORALIS_EVENT_COLORS = ['#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'];
