@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
-    ArrowLeft, Clock, MapPin, DollarSign, Wifi, Car, Coffee, Users, 
+    ArrowLeft, Clock, MapPin, Wifi, Car, Coffee, Users, 
     Phone, Instagram, Facebook, Share2, CalendarCheck, MessageCircle 
 } from 'lucide-react';
 
@@ -28,7 +28,6 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 
 // --- HELPERS DE FORMATAÇÃO ---
 
-// 1. Formata telefone para (XX) XXXXX-XXXX
 const formatPhoneVisual = (phone) => {
     if (!phone) return "";
     let numbers = phone.replace(/\D/g, '');
@@ -44,14 +43,12 @@ const formatPhoneVisual = (phone) => {
     return numbers;
 };
 
-// 2. Gera link do WhatsApp
 const getWhatsAppLink = (phone) => {
     if (!phone) return "#";
     const numbers = phone.replace(/\D/g, '');
     return `https://wa.me/${numbers}`;
 };
 
-// 3. Verifica se está aberto AGORA
 const checkIsOpen = (schedule) => {
     if (!schedule || typeof schedule !== 'object') return false;
 
@@ -110,7 +107,7 @@ const PremiumSplash = ({ isFadingOut, primaryColor }) => (
     </div>
 );
 
-// --- SUB-COMPONENTE: HERO SECTION (IMERSIVA) ---
+// --- SUB-COMPONENTE: HERO SECTION ---
 const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
     const photos = details.fotos_carousel?.length > 0 ? details.fotos_carousel : [{ url: "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop", alt: "Atmosphere" }];
 
@@ -129,28 +126,23 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                     <SwiperSlide key={i}>
                         <div className="w-full h-full relative">
                             <img src={p.url} alt={p.alt} className="w-full h-full object-cover" />
-                            {/* Gradiente Cinematográfico */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                         </div>
                     </SwiperSlide>
                 ))}
             </Swiper>
 
-            {/* Top Navigation */}
             <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-20">
                 {isFlowActive ? (
                     <button onClick={onBack} className="bg-white/20 backdrop-blur-md text-white p-3 rounded-full hover:bg-white/30 transition-all border border-white/10">
                         <Icon icon={ArrowLeft} className="w-6 h-6" />
                     </button>
-                ) : (
-                    <div /> 
-                )}
+                ) : <div />}
                 <button className="bg-white/20 backdrop-blur-md text-white p-3 rounded-full hover:bg-white/30 transition-all border border-white/10">
                     <Icon icon={Share2} className="w-5 h-5" />
                 </button>
             </div>
 
-            {/* Brand Content (Bottom) */}
             <div className="absolute bottom-0 left-0 w-full p-6 lg:p-12 pb-10 z-20">
                 <div className="flex items-end justify-between">
                     <div className="max-w-2xl">
@@ -163,11 +155,7 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                         <p className="text-white/80 text-lg lg:text-xl font-light line-clamp-2 mb-4">
                             {details.tagline || "Experiência única em beleza e bem-estar."}
                         </p>
-                        
-                        {/* 🌟 ALTERAÇÃO AQUI: Botão de WhatsApp REMOVIDO para dar lugar ao balão de status no mobile */}
                     </div>
-                    
-                    {/* 🌟 ALTERAÇÃO AQUI: Balão de Status agora é visível no mobile ('flex' em vez de 'hidden sm:flex') */}
                     <div className={`flex items-center gap-2 backdrop-blur-md border px-4 py-2 rounded-full ${isOpenNow ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'}`}>
                         <div className={`w-2 h-2 rounded-full animate-pulse ${isOpenNow ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span className={`text-sm font-medium ${isOpenNow ? 'text-green-100' : 'text-red-100'}`}>
@@ -185,7 +173,6 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
     <div className="relative -mt-8 mx-4 lg:mx-auto max-w-5xl z-20">
         <div className="bg-white shadow-xl rounded-2xl p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center gap-6 border border-gray-100">
             
-            {/* Endereço */}
             <div className="flex items-start gap-4 flex-1">
                 <div className="p-3 rounded-xl bg-gray-50 text-gray-600">
                     <Icon icon={MapPin} className="w-6 h-6" />
@@ -211,15 +198,12 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
 
             <div className="w-px h-12 bg-gray-200 hidden lg:block" />
 
-            {/* Contato (WhatsApp Formatado) */}
             <div className="flex items-start gap-4 flex-1">
                 <div className="p-3 rounded-xl bg-green-50 text-green-600">
                     <Icon icon={MessageCircle} className="w-6 h-6" />
                 </div>
                 <div>
-                    <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">WhatsApp</h3>
-                    
-                    {/* Link Direto WhatsApp */}
+                    <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Fale Conosco</h3>
                     <a 
                         href={getWhatsAppLink(details.telefone)}
                         target="_blank"
@@ -228,7 +212,6 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
                     >
                         {formatPhoneVisual(details.telefone) || "Telefone indisponível"}
                     </a>
-
                     <div className="flex gap-3 mt-2">
                         {details.redes_sociais?.instagram && (
                             <a href={details.redes_sociais.instagram} className="text-gray-400 hover:text-pink-600 transition-colors"><Icon icon={Instagram} className="w-5 h-5"/></a>
@@ -268,7 +251,6 @@ export function SalonMicrosite() {
     const orderedHours = useMemo(() => formatHoursForDisplay(salonDetails.horario_trabalho_detalhado), [salonDetails.horario_trabalho_detalhado]);
     const isOpenNow = checkIsOpen(salonDetails.horario_trabalho_detalhado);
 
-    // --- Effects e Handlers ---
     useEffect(() => {
         if (!loading && showSplash && !error) {
             setTimeout(() => {
@@ -300,7 +282,6 @@ export function SalonMicrosite() {
     const handleSuccess = (d) => { setAppointmentConfirmed(d); setSelectedService(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const handleHome = () => { setAppointmentConfirmed(null); setSelectedService(null); };
 
-    // --- RENDERIZAÇÃO DA ÁREA PRINCIPAL (CONTENT) ---
     const renderMainContent = () => {
         if (error) return <div className="text-center py-20 text-red-500">{error}</div>;
         if (appointmentConfirmed) return <ConfirmationPage appointmentDetails={appointmentConfirmed} onGoBack={handleHome} salonName={salonDetails.nome_salao} primaryColor={salonDetails.cor_primaria} />;
@@ -336,11 +317,17 @@ export function SalonMicrosite() {
                     </div>
                 </div>
 
-                {/* COLUNA LATERAL: INFORMAÇÕES EXTRAS */}
+                {/* COLUNA LATERAL: HORÁRIOS, COMODIDADES E PAGAMENTO */}
                 <div className="lg:col-span-4 space-y-8">
                     
-                    {/* Status Aberto/Fechado (VISÍVEL NO MOBILE AQUI SE PRECISAR REPETIR, MAS JÁ ESTÁ NO HERO) */}
-                    {/* Se quiser exibir apenas no desktop aqui, use 'hidden lg:block' */}
+                    <div className="sm:hidden flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <span className="font-semibold text-gray-700">Status</span>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${isOpenNow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <div className={`w-2 h-2 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
+                            {isOpenNow ? 'Aberto Agora' : 'Fechado'}
+                        </div>
+                    </div>
+
                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 sticky top-8">
                         <h3 className="font-bold text-gray-900 mb-4 flex items-center">
                             <Icon icon={Clock} className="w-5 h-5 mr-2" style={{ color: salonDetails.cor_primaria }} />
@@ -371,6 +358,17 @@ export function SalonMicrosite() {
                                 </div>
                             </div>
                         )}
+
+                        {/* 🌟 PAGAMENTO (MOVIDO PARA CÁ) 🌟 */}
+                        <div className="mt-8 pt-6 border-t border-gray-200/60">
+                            <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider flex items-center">
+                              
+                                Pagamento
+                            </h3>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                {salonDetails.formas_pagamento || 'Dinheiro, Cartão, Pix.'}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -385,25 +383,23 @@ export function SalonMicrosite() {
 
             <div className={`min-h-screen bg-[#FAFAFA] font-sans selection:bg-black/10 transition-opacity duration-700 ${showSplash ? 'opacity-0' : 'opacity-100'}`}>
                 
-                {/* 1. HERO SECTION */}
                 <HeroSection 
                     details={salonDetails} 
                     onBack={handleBack} 
                     isFlowActive={isSchedulingFlowActive}
-                    isOpenNow={isOpenNow} // Passa o status para o Hero
+                    isOpenNow={isOpenNow} 
                 />
 
-                {/* 2. INFO BAR (Home apenas) */}
                 {!isSchedulingFlowActive && (
                     <InfoFloatingBar details={salonDetails} primaryColor={salonDetails.cor_primaria} />
                 )}
 
-                {/* 3. MAIN CONTENT */}
                 <div className="px-4 py-12 lg:py-16">
                     {renderMainContent()}
                 </div>
 
-                {/* 4. FOOTER */}
+                {/* REMOVIDA SEÇÃO DE DETALHES RICOS DO FINAL POIS AGORA ESTÁ NA SIDEBAR */}
+
                 <footer className="py-8 text-center border-t border-gray-200 mt-auto bg-white">
                     <p className="text-sm text-gray-400 font-medium">
                         Powered by <span className="text-gray-900 font-bold">Horalis</span>

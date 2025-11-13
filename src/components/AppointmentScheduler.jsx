@@ -5,7 +5,6 @@ import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy, Sun, Moon, Sunset 
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
 import { QRCodeCanvas } from 'qrcode.react';
-import HourglassLoading from './HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -13,29 +12,22 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- Componente PIX (Ajustado para o novo design) ---
+// --- Componente PIX (Mantido) ---
 const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess, primaryColor }) => {
   const primary = primaryColor || '#0E7490';
 
-  // Polling (Lógica mantida, sem alterações)
   useEffect(() => {
     if (!pixData?.payment_id || !salaoId || !agendamentoId) return;
-    console.log(`[PIX Polling] Iniciando verificação para Agendamento ID: ${agendamentoId}`);
-
     const intervalId = setInterval(async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/auth/check-agendamento-status/${salaoId}/${agendamentoId}`);
         if (response.data.status === 'approved') {
-          console.log("[PIX Polling] Pagamento APROVADO!");
           clearInterval(intervalId);
           toast.success("Pagamento PIX confirmado!");
           onPaymentSuccess();
         }
-      } catch (err) {
-        console.error("[PIX Polling] Erro:", err);
-      }
+      } catch (err) { console.error("[PIX Polling] Erro:", err); }
     }, 5000);
-
     return () => clearInterval(intervalId);
   }, [pixData?.payment_id, salaoId, agendamentoId, onPaymentSuccess]);
 
@@ -44,69 +36,45 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess,
       <h4 className="text-xl font-bold text-gray-800">Pague com PIX</h4>
       <p className="text-sm text-gray-600 mt-1 mb-4 text-center">Escaneie o QR Code abaixo com seu app do banco.</p>
       <div className="p-3 bg-white border border-gray-300 rounded-lg shadow-sm">
-        <QRCodeCanvas
-          value={pixData.qr_code}
-          size={200}
-          bgColor={"#ffffff"}
-          fgColor={"#000000"}
-          level={"L"}
-        />
+        <QRCodeCanvas value={pixData.qr_code} size={200} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} />
       </div>
-      <p className="text-sm text-gray-600 mt-4 text-center">Ou copie o código:</p>
-      <div className="w-full p-2 bg-gray-200 border border-gray-300 rounded-lg text-xs text-gray-700 break-words my-2 font-mono">
+      <div className="w-full p-2 bg-gray-200 border border-gray-300 rounded-lg text-xs text-gray-700 break-words my-2 font-mono mt-4">
         {pixData.qr_code}
       </div>
-      <button
-        onClick={() => onCopy(pixData.qr_code)}
-        style={{ backgroundColor: primary }}
-        className={`w-full flex items-center justify-center mt-2 px-4 py-3 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90 shadow-lg`}
-      >
-        <Icon icon={Copy} className="w-4 h-4 mr-2" />
-        Copiar Código PIX
+      <button onClick={() => onCopy(pixData.qr_code)} style={{ backgroundColor: primary }} className={`w-full flex items-center justify-center mt-2 px-4 py-3 text-sm font-semibold text-white rounded-lg transition-colors hover:opacity-90 shadow-lg`}>
+        <Icon icon={Copy} className="w-4 h-4 mr-2" /> Copiar Código PIX
       </button>
-      <p className="text-xs text-gray-500 mt-4 text-center">
-        Após o pagamento, o agendamento será confirmado automaticamente.
-      </p>
     </div>
   );
 };
-// --- FIM DO COMPONENTE PIX ---
 
-
-// ----------------------------------------------------
-// --- SUB-COMPONENTE: GRUPO DE HORÁRIOS (NOVO) ---
-// ----------------------------------------------------
+// --- SUB-COMPONENTE: GRUPO DE HORÁRIOS ---
 const TimeSlotGroup = ({ title, icon, slots, selectedSlot, onSelect, isDisabled, primaryColor }) => {
-  if (slots.length === 0) return null; // Não renderiza grupos vazios
+  if (slots.length === 0) return null;
 
   return (
     <div className="mb-5">
       <h3 className="text-base font-semibold text-gray-500 mb-3 flex items-center">
-        <Icon icon={icon} className="w-4 h-4 mr-2" />
-        {title}
+        <Icon icon={icon} className="w-4 h-4 mr-2" /> {title}
       </h3>
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
         {slots.map((slotDate) => {
           const isSelected = selectedSlot && selectedSlot.getTime() === slotDate.getTime();
-          const isPast = isBefore(slotDate, new Date()); // Desabilita horários passados
-
           return (
             <button
               key={slotDate.toISOString()}
-              onClick={() => { if (!isPast) onSelect(slotDate); }}
+              onClick={() => onSelect(slotDate)}
               className={`
                                 p-3 rounded-full text-sm font-semibold transition duration-150 ease-in-out 
                                 focus:outline-none focus:ring-2 focus:ring-offset-1 
-                                ${isPast ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}
-                                ${!isPast && isSelected ? 'text-white shadow-md' : ''}
-                                ${!isPast && !isSelected ? 'bg-gray-50 text-gray-700 border border-gray-100 hover:border-gray-300' : ''}
+                                ${isSelected ? 'text-white shadow-md transform scale-105' : 'bg-gray-50 text-gray-700 border border-gray-100 hover:border-gray-300 hover:bg-white'}
                             `}
               style={{
-                backgroundColor: isSelected ? primaryColor : (isPast ? undefined : undefined),
-                borderColor: isSelected ? primaryColor : (isPast ? 'transparent' : undefined),
+                backgroundColor: isSelected ? primaryColor : undefined,
+                borderColor: isSelected ? primaryColor : undefined,
                 '--tw-ring-color': primaryColor,
               }}
-              disabled={isDisabled || isPast}
+              disabled={isDisabled}
             >
               {format(slotDate, 'HH:mm')}
             </button>
@@ -119,16 +87,13 @@ const TimeSlotGroup = ({ title, icon, slots, selectedSlot, onSelect, isDisabled,
 
 
 // ----------------------------------------------------
-// --- COMPONENTE PRINCIPAL (REIMAGINADO) ---
+// --- COMPONENTE PRINCIPAL (APPOINTMENT SCHEDULER) ---
 // ----------------------------------------------------
 function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, sinalValor, publicKeyExists, primaryColor, onBackClick }) {
   const primary = primaryColor || '#0E7490';
-
-  // --- LÓGICA DO FLUXO INTELIGENTE ---
   const requiresPayment = publicKeyExists && sinalValor > 0;
   const sinalAmount = sinalValor || 0;
 
-  // --- Estados do Fluxo ---
   const [step, setStep] = useState(1);
   const [pixData, setPixData] = useState(null);
   const [agendamentoIdPendente, setAgendamentoIdPendente] = useState(null);
@@ -140,7 +105,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [errorSlots, setErrorSlots] = useState(null);
   const [isBooking, setIsBooking] = useState(false);
 
-  // --- Estados do Formulário ---
+  // Formulário
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -149,39 +114,23 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   const [validationError, setValidationError] = useState('');
   const [paymentError, setPaymentError] = useState(null);
 
-  // --- EFEITO PARA INJETAR O SCRIPT DE SEGURANÇA (mantido) ---
+  // Script MP
   useEffect(() => {
     const existingScript = document.querySelector('script[src="https://www.mercadopago.com/v2/security.js"]');
     if (existingScript) return;
-
     const script = document.createElement('script');
     script.src = "https://www.mercadopago.com/v2/security.js";
     script.setAttribute('view', 'checkout');
     script.setAttribute('output', 'deviceId');
     document.body.appendChild(script);
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
+    return () => { if (script.parentNode) script.parentNode.removeChild(script); };
   }, []);
 
-  // --- Validação Condicional do CPF (mantida) ---
-  const isFormValid =
-    selectedSlot &&
-    customerName.trim().length > 2 &&
-    customerEmail.trim() &&
-    customerPhone.replace(/\D/g, '').length >= 10 &&
-    customerPhone === confirmCustomerPhone &&
-    (!requiresPayment || (requiresPayment && customerCpf.replace(/\D/g, '').length === 11)) &&
-    !isBooking;
-
+  const isFormValid = selectedSlot && customerName.trim().length > 2 && customerEmail.trim() && customerPhone.replace(/\D/g, '').length >= 10 && customerPhone === confirmCustomerPhone && (!requiresPayment || (requiresPayment && customerCpf.replace(/\D/g, '').length === 11)) && !isBooking;
   const serviceName = selectedService?.nome_servico || 'Serviço';
   const serviceDuration = selectedService?.duracao_minutos || 0;
-  const servicePrice = selectedService?.preco || 0;
 
-  // --- Lógica de busca de horários (mantida) ---
+  // Fetch Slots
   useEffect(() => {
     let isMounted = true;
     const fetchSlots = async () => {
@@ -197,9 +146,7 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
         });
         if (isMounted) {
           if (response.data?.horarios_disponiveis) {
-            const sortedSlots = response.data.horarios_disponiveis
-              .map(slot => parseISO(slot))
-              .sort((a, b) => a - b);
+            const sortedSlots = response.data.horarios_disponiveis.map(slot => parseISO(slot)).sort((a, b) => a - b);
             setAvailableSlots(sortedSlots);
           } else { setErrorSlots("Nenhum horário retornado."); setAvailableSlots([]); }
         }
@@ -211,19 +158,27 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     return () => { isMounted = false; };
   }, [selectedDate, selectedService?.id, salaoId]);
 
-  // 🌟 NOVO: AGRUPAMENTO DE HORÁRIOS (Manhã, Tarde, Noite) 🌟
+  // 🌟 🌟 CORREÇÃO AQUI: AGRUPAMENTO E FILTRAGEM 🌟 🌟
+  // Agora removemos completamente os horários passados da lista visível
   const groupedSlots = useMemo(() => {
+    const now = new Date(); // Hora atual para comparação
     const manha = [];
     const tarde = [];
     const noite = [];
 
     availableSlots.forEach(slotDate => {
+      // 🛑 FILTRO: Se o horário do slot for anterior a AGORA, ignora.
+      // Isso remove os horários "indisponíveis" da visualização.
+      if (isBefore(slotDate, now)) {
+        return;
+      }
+
       const hour = slotDate.getHours();
       if (hour < 12) {
         manha.push(slotDate);
-      } else if (hour >= 12 && hour < 18) { // 12:00 a 17:59
+      } else if (hour >= 12 && hour < 18) {
         tarde.push(slotDate);
-      } else { // 18:00+
+      } else {
         noite.push(slotDate);
       }
     });
@@ -231,7 +186,6 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   }, [availableSlots]);
 
 
-  // --- Handlers de Ação (mantidos) ---
   const handleDateSelect = (date) => {
     if (isBefore(date, startOfToday())) return;
     setSelectedDate(date);
@@ -243,24 +197,14 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
     setIsBooking(true);
     setValidationError('');
     const toastId = toast.loading("Confirmando seu agendamento...");
-
     try {
       const startTimeISO = selectedSlot.toISOString();
       await axios.post(`${API_BASE_URL}/agendamentos`, {
-        salao_id: salaoId,
-        service_id: selectedService.id,
-        start_time: startTimeISO,
-        customer_name: customerName.trim(),
-        customer_email: customerEmail.trim(),
-        customer_phone: customerPhone.replace(/\D/g, ''),
+        salao_id: salaoId, service_id: selectedService.id, start_time: startTimeISO,
+        customer_name: customerName.trim(), customer_email: customerEmail.trim(), customer_phone: customerPhone.replace(/\D/g, ''),
       });
       toast.success("Agendamento confirmado!", { id: toastId });
-      onAppointmentSuccess({
-        serviceName,
-        startTime: startTimeISO,
-        customerName: customerName.trim(),
-        paymentStatus: 'free',
-      });
+      onAppointmentSuccess({ serviceName, startTime: startTimeISO, customerName: customerName.trim(), paymentStatus: 'free' });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Erro ao agendar.', { id: toastId });
       setValidationError(`Erro: ${error.response?.data?.detail || 'Tente novamente.'}`);
@@ -269,304 +213,122 @@ function AppointmentScheduler({ salaoId, selectedService, onAppointmentSuccess, 
   };
 
   const handleGeneratePix = async () => {
-    setIsBooking(true);
-    setPaymentError(null);
-    setStep(2);
-
+    setIsBooking(true); setPaymentError(null); setStep(2);
     try {
       const payload = createBasePayload('pix');
       const response = await axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, payload);
       setPixData(response.data.payment_data);
       setAgendamentoIdPendente(response.data.payment_data.agendamento_id_ref);
     } catch (err) {
-      console.error("Erro ao gerar PIX:", err.response);
-      const detail = err.response?.data?.detail || "Não foi possível gerar o PIX.";
-      setPaymentError(detail);
+      console.error("Erro PIX:", err.response);
+      setPaymentError(err.response?.data?.detail || "Não foi possível gerar o PIX.");
       setStep(1);
-    } finally {
-      setIsBooking(false);
-    }
+    } finally { setIsBooking(false); }
   };
 
   const handleProceed = (e) => {
-    e.preventDefault();
-    setValidationError('');
-    setPaymentError(null);
-
+    e.preventDefault(); setValidationError(''); setPaymentError(null);
     if (!isFormValid) {
       if (customerPhone !== confirmCustomerPhone) setValidationError("Os telefones não coincidem.");
-      else if (requiresPayment && customerCpf.replace(/\D/g, '').length !== 11) setValidationError("CPF inválido (11 dígitos).");
-      else setValidationError("Preencha todos os campos corretamente.");
+      else if (requiresPayment && customerCpf.replace(/\D/g, '').length !== 11) setValidationError("CPF inválido.");
+      else setValidationError("Preencha todos os campos.");
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(customerEmail.trim())) { setValidationError("Formato de e-mail inválido."); return; }
-
-    if (requiresPayment) {
-      handleGeneratePix();
-    } else {
-      handleFreeBooking();
-    }
+    if (!emailRegex.test(customerEmail.trim())) { setValidationError("E-mail inválido."); return; }
+    requiresPayment ? handleGeneratePix() : handleFreeBooking();
   };
 
   const createBasePayload = (paymentMethodId) => {
     const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID;
     return {
-      salao_id: salaoId,
-      service_id: selectedService.id,
-      start_time: selectedSlot.toISOString(),
-      customer_name: customerName.trim(),
-      customer_email: customerEmail.trim(),
-      customer_phone: customerPhone.replace(/\D/g, ''),
-      payment_method_id: paymentMethodId,
-      transaction_amount: sinalAmount,
-      device_session_id: deviceId || null,
-      payer: {
-        email: customerEmail.trim(),
-        identification: { type: 'CPF', number: customerCpf.replace(/\D/g, '') }
-      }
+      salao_id: salaoId, service_id: selectedService.id, start_time: selectedSlot.toISOString(),
+      customer_name: customerName.trim(), customer_email: customerEmail.trim(), customer_phone: customerPhone.replace(/\D/g, ''),
+      payment_method_id: paymentMethodId, transaction_amount: sinalAmount, device_session_id: deviceId || null,
+      payer: { email: customerEmail.trim(), identification: { type: 'CPF', number: customerCpf.replace(/\D/g, '') } }
     };
   };
 
-  const handleCopyPix = (code) => {
-    navigator.clipboard.writeText(code).then(() => {
-      toast.success("Código PIX copiado!");
-    }).catch(err => {
-      toast.error('Erro ao copiar código.');
-    });
-  };
+  const hasAnySlot = groupedSlots.manha.length > 0 || groupedSlots.tarde.length > 0 || groupedSlots.noite.length > 0;
 
-  // --- Renderização ---
   return (
     <div className="font-sans">
-
-      {/* --- ETAPA 1: DADOS E HORÁRIOS --- */}
       <div style={{ display: step === 1 ? 'block' : 'none' }}>
-
-        {/* 🌟 NOVO DESIGN: Detalhes do Serviço (Plano/Limpo) */}
+        {/* Card Serviço */}
         <div className="bg-gray-50/80 rounded-xl p-4 sm:p-5 mb-6 border border-gray-100">
-          <h2 className="text-xl font-bold mb-1" style={{ color: primary }}>
-            {serviceName}
-          </h2>
+          <h2 className="text-xl font-bold mb-1" style={{ color: primary }}>{serviceName}</h2>
           <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
-            <div className="flex items-center gap-1.5">
-              <Icon icon={Clock} className="w-4 h-4 text-gray-400" />
-              <span>{serviceDuration} min</span>
-            </div>
-            {requiresPayment && (
-              <div className="flex items-center gap-1.5 text-gray-700 font-medium">
-                Sinal de: R$ {sinalAmount.toFixed(2).replace('.', ',')}
-              </div>
-            )}
+            <div className="flex items-center gap-1.5"><Icon icon={Clock} className="w-4 h-4 text-gray-400" /><span>{serviceDuration} min</span></div>
+            {requiresPayment && <div className="flex items-center gap-1.5 text-gray-700 font-medium">Sinal: R$ {sinalAmount.toFixed(2).replace('.', ',')}</div>}
           </div>
         </div>
 
-        {/* Seção 1: Calendário */}
+        {/* Calendário */}
         <div className="mb-6">
           <label className="block text-gray-700 font-medium mb-3 text-sm">1. Escolha a Data</label>
-          <HoralisCalendar
-            selectedDate={selectedDate}
-            onDateSelect={handleDateSelect}
-            primaryColor={primary}
-          />
+          <HoralisCalendar selectedDate={selectedDate} onDateSelect={handleDateSelect} primaryColor={primary} />
         </div>
 
-        {/* Seção 2: Horários (REFORMULADO) */}
+        {/* Horários */}
         <div className="mb-8">
           <label className="block text-gray-700 font-medium mb-4 text-sm">2. Selecione o Horário</label>
-
           {loadingSlots && (<p className="text-center text-sm text-gray-500 py-4">Buscando horários...</p>)}
           {errorSlots && (<div className="p-3 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{errorSlots}</p></div>)}
 
-          {!loadingSlots && !errorSlots && availableSlots.length === 0 && (
+          {/* Mensagem se não houver slots APÓS o filtro de horário passado */}
+          {!loadingSlots && !errorSlots && !hasAnySlot && (
             <div className="p-4 text-center bg-gray-100 border border-gray-200 rounded-lg"><p className="text-sm text-gray-500">Nenhum horário disponível para esta data.</p></div>
           )}
 
-          {!loadingSlots && !errorSlots && availableSlots.length > 0 && (
-            <div>
-              {/* 🌟 GRUPOS DE HORÁRIOS 🌟 */}
-              <TimeSlotGroup
-                title="Manhã"
-                icon={Sun}
-                slots={groupedSlots.manha}
-                selectedSlot={selectedSlot}
-                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
-                isDisabled={isBooking}
-                primaryColor={primary}
-              />
-              <TimeSlotGroup
-                title="Tarde"
-                icon={Sunset}
-                slots={groupedSlots.tarde}
-                selectedSlot={selectedSlot}
-                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
-                isDisabled={isBooking}
-                primaryColor={primary}
-              />
-              <TimeSlotGroup
-                title="Noite"
-                icon={Moon}
-                slots={groupedSlots.noite}
-                selectedSlot={selectedSlot}
-                onSelect={(slot) => { setSelectedSlot(slot); setValidationError(''); }}
-                isDisabled={isBooking}
-                primaryColor={primary}
-              />
+          {!loadingSlots && !errorSlots && hasAnySlot && (
+            <div className="animate-in fade-in duration-500">
+              <TimeSlotGroup title="Manhã" icon={Sun} slots={groupedSlots.manha} selectedSlot={selectedSlot} onSelect={setSelectedSlot} isDisabled={isBooking} primaryColor={primary} />
+              <TimeSlotGroup title="Tarde" icon={Sunset} slots={groupedSlots.tarde} selectedSlot={selectedSlot} onSelect={setSelectedSlot} isDisabled={isBooking} primaryColor={primary} />
+              <TimeSlotGroup title="Noite" icon={Moon} slots={groupedSlots.noite} selectedSlot={selectedSlot} onSelect={setSelectedSlot} isDisabled={isBooking} primaryColor={primary} />
             </div>
           )}
         </div>
 
-        {/* Seção 3: Dados do Cliente (Design Limpo) */}
+        {/* Formulário */}
         {selectedSlot && (
           <div className="mb-8 space-y-4 animate-in fade-in duration-300">
             <h3 className="text-gray-700 font-medium text-sm mb-3 border-t border-gray-100 pt-6">3. Seus Dados</h3>
-
-            <div>
-              <label htmlFor="customerName" className="block text-xs font-medium text-gray-600 mb-1"> Seu Nome* </label>
-              <div className="relative">
-                <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input id="customerName" type="text" autoComplete="name" required placeholder="Nome Completo"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
-                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
-                  value={customerName} onChange={(e) => setCustomerName(e.target.value)} disabled={isBooking} />
-              </div>
+            <div className="space-y-4">
+              <div className="relative"><Icon icon={User} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="text" placeholder="Nome Completo" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerName} onChange={e => setCustomerName(e.target.value)} disabled={isBooking} /></div>
+              <div className="relative"><Icon icon={Mail} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="email" placeholder="E-mail" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} disabled={isBooking} /></div>
+              <div className="relative"><Icon icon={Phone} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="WhatsApp (DDD + Número)" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} disabled={isBooking} /></div>
+              <div className="relative"><Icon icon={Phone} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="Confirme o WhatsApp" className={`pl-9 pr-3 py-2.5 w-full border rounded-lg focus:outline-none focus:ring-1 ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone ? 'border-red-500' : 'border-gray-300'}`} style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={confirmCustomerPhone} onChange={e => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} /></div>
+              {requiresPayment && (
+                <div className="relative"><Icon icon={User} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="CPF (somente números)" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerCpf} onChange={e => setCustomerCpf(e.target.value)} disabled={isBooking} /></div>
+              )}
             </div>
-            <div>
-              <label htmlFor="customerEmail" className="block text-xs font-medium text-gray-600 mb-1"> Seu E-mail* </label>
-              <div className="relative">
-                <Icon icon={Mail} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input id="customerEmail" type="email" autoComplete="email" required placeholder="seuemail@dominio.com"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
-                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
-                  value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} disabled={isBooking} />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="customerPhone" className="block text-xs font-medium text-gray-600 mb-1"> Seu Telefone (WhatsApp)* </label>
-              <div className="relative">
-                <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input id="customerPhone" type="tel" autoComplete="tel" required placeholder="DDD + Número"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1`}
-                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
-                  value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} disabled={isBooking} />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="confirmCustomerPhone" className="block text-xs font-medium text-gray-600 mb-1"> Confirme seu Telefone* </label>
-              <div className="relative">
-                <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input id="confirmCustomerPhone" type="tel" required placeholder="Digite novamente"
-                  className={`appearance-none block w-full pl-9 pr-3 py-2 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'}`}
-                  style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
-                  value={confirmCustomerPhone} onChange={(e) => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} />
-              </div>
-            </div>
-
-            {requiresPayment && (
-              <div>
-                <label htmlFor="customerCpf" className="block text-xs font-medium text-gray-600 mb-1"> Seu CPF (para o pagamento)* </label>
-                <div className="relative">
-                  <Icon icon={User} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input id="customerCpf" type="tel" autoComplete="off" required={requiresPayment} placeholder="000.000.000-00"
-                    className={`appearance-none block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-1 sm:text-sm`}
-                    style={{ '--tw-ring-color': primary, '--tw-border-color': primary }}
-                    value={customerCpf} onChange={(e) => setCustomerCpf(e.target.value)} disabled={isBooking} />
-                </div>
-              </div>
-            )}
-
             {validationError && (<p className="text-xs text-red-600 text-center mt-2">{validationError}</p>)}
           </div>
         )}
       </div>
 
-
-      {/* --- ETAPA 2: EXECUÇÃO DO PAGAMENTO (APENAS PIX) --- */}
+      {/* ETAPA 2: Pagamento */}
       <div style={{ display: step === 2 ? 'block' : 'none' }}>
         <h3 className="text-gray-700 font-medium text-lg mb-4 text-center">4. Finalizar Pagamento via PIX</h3>
-
-        <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-100 text-sm">
-          <div className="flex justify-between items-center border-b pb-2">
-            <span className="text-gray-600">Serviço:</span>
-            <span className="font-semibold text-gray-800">{serviceName}</span>
-          </div>
-          <div className="flex justify-between items-center pt-2">
-            <span className="text-gray-600">Valor do Sinal:</span>
-            <span className={`font-bold text-xl`} style={{ color: primary }}>R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
-          </div>
+        <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-100 text-sm flex justify-between items-center">
+          <span className="text-gray-600">Total a pagar:</span>
+          <span className="font-bold text-xl" style={{ color: primary }}>R$ {sinalAmount.toFixed(2).replace('.', ',')}</span>
         </div>
-
-        {paymentError && (
-          <div className="p-3 mb-4 text-center bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600">{paymentError}</p>
-          </div>
-        )}
-
+        {paymentError && (<div className="p-3 mb-4 text-center bg-red-50 border border-red-200 rounded-lg"><p className="text-sm text-red-600">{paymentError}</p></div>)}
         {pixData && !isBooking ? (
-          <PixPayment
-            pixData={pixData}
-            salaoId={salaoId}
-            agendamentoId={agendamentoIdPendente}
-            onCopy={handleCopyPix}
-            primaryColor={primary}
-            onPaymentSuccess={() => onAppointmentSuccess({
-              serviceName,
-              startTime: selectedSlot.toISOString(),
-              customerName: customerName.trim(),
-              paymentStatus: 'approved',
-              paymentData: pixData
-            })}
-          />
+          <PixPayment pixData={pixData} salaoId={salaoId} agendamentoId={agendamentoIdPendente} onCopy={(c) => { navigator.clipboard.writeText(c); toast.success("Copiado!"); }} primaryColor={primary} onPaymentSuccess={() => onAppointmentSuccess({ serviceName, startTime: selectedSlot.toISOString(), customerName: customerName.trim(), paymentStatus: 'approved', paymentData: pixData })} />
         ) : (
-          <div className="relative h-64 flex items-center justify-center">
-            <HourglassLoading message="Gerando PIX..." primaryColor={primary} />
-          </div>
+          <div className="relative h-64 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" style={{ color: primary }} /></div>
         )}
       </div>
 
-
-      {/* --- Botão Final de Ação (Sticky Footer) --- */}
+      {/* Botões Finais */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] z-10">
-        <div className="max-w-md mx-auto">
-          {/* Botão do Passo 1 (Inteligente) */}
-          <button
-            onClick={handleProceed}
-            style={{
-              display: step === 1 ? 'flex' : 'none',
-              backgroundColor: isFormValid ? primary : 'rgb(156, 163, 175)',
-              opacity: isFormValid ? 1 : 0.6
-            }}
-            className={`w-full py-3 rounded-lg text-white font-bold transition duration-300 ease-in-out shadow-lg flex items-center justify-center cursor-pointer`}
-            disabled={!isFormValid || isBooking}
-          >
-            {isBooking ? (
-              <Loader2 className="w-5 h-5 animate-spin stroke-current" />
-            ) : (
-              requiresPayment ? (
-                <>
-                  Ir para Pagamento PIX (R$ {sinalAmount.toFixed(2).replace('.', ',')})
-                  <Icon icon={ArrowRight} className="w-5 h-5 ml-2" />
-                </>
-              ) : (
-                'Confirmar Agendamento'
-              )
-            )}
+        <div className="max-w-md mx-auto flex gap-3">
+          <button onClick={handleProceed} style={{ display: step === 1 ? 'flex' : 'none', backgroundColor: isFormValid ? primary : 'rgb(156, 163, 175)', opacity: isFormValid ? 1 : 0.6 }} className="w-full py-3 rounded-lg text-white font-bold shadow-lg flex items-center justify-center transition-all" disabled={!isFormValid || isBooking}>
+            {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : (requiresPayment ? <>Pagar Sinal <ArrowRight className="w-5 h-5 ml-2" /></> : 'Confirmar Agendamento')}
           </button>
-
-          {/* Botão "Voltar" do Passo 2 (Pagamento) */}
-          <button
-            onClick={() => {
-              setStep(1);
-              setPaymentError(null);
-              setPixData(null);
-              setAgendamentoIdPendente(null);
-            }}
-            style={{ display: step === 2 ? 'flex' : 'none' }}
-            className={`w-full py-3 rounded-lg text-gray-700 font-bold bg-gray-200 hover:bg-gray-300 transition duration-300 ease-in-out shadow-sm flex items-center justify-center`}
-            disabled={isBooking}
-          >
-            Voltar
-          </button>
+          <button onClick={() => { setStep(1); setPixData(null); }} style={{ display: step === 2 ? 'flex' : 'none' }} className="w-full py-3 rounded-lg text-gray-700 font-bold bg-gray-200 hover:bg-gray-300 flex items-center justify-center">Voltar</button>
         </div>
       </div>
     </div>
