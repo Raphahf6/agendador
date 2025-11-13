@@ -1,325 +1,425 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Send, UserPlus, Loader2, AlertTriangle, Link as LinkIcon, QrCode, Check, Eye, X, Users, UserCheck, UserX, Info, Copy } from 'lucide-react'; 
+import {
+    Send, UserPlus, Loader2, AlertTriangle, Link as LinkIcon, QrCode,
+    Check, Eye, X, Users, UserCheck, UserX, Copy, Mail, Sparkles, Zap,Clock
+} from 'lucide-react'; // Adicionei MagicWand se quiser usar como icone de template
 import { auth } from '@/firebaseConfig';
 import { QRCodeCanvas } from 'qrcode.react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import HourglassLoading from '@/components/HourglassLoading';
-
 import { useSalon } from './PainelLayout';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
-
-// 🌟 CORES HORALIS (Light Theme) 🌟
-const PRIMARY_TEXT = 'text-[#00ACC1]';
-const PRIMARY_BG = 'bg-[#00ACC1]';
-const PRIMARY_BG_HOVER = 'hover:bg-[#0092A6]';
-const HORALIS_MAIN_COLOR = '#00ACC1'; // Cor principal para QR Code Poster
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- MODAL DE PRÉ-VISUALIZAÇÃO (Mantido) ---
-const PreviewEmailModal = ({ isOpen, onClose, subject, message, salonName }) => { /* ... */ 
-    if (!isOpen) return null;
+// 🌟 NOVOS MODELOS DE E-MAIL (COPYWRITING) 🌟
+const EMAIL_TEMPLATES = {
+    todos: {
+        subject: '✨ Novidades especiais para você no [Nome do Salão]!',
+        message: `Olá! Temos novidades incríveis esperando por você.\n\nPreparamos condições especiais e novos horários para você cuidar do seu visual com a qualidade que merece.\n\nNão perca tempo, clique no botão abaixo e garanta seu horário agora mesmo!`
+    },
+    inativos: {
+        subject: 'Saudades de você! 💔 Temos um presente...',
+        message: `Olá! Faz tempo que não te vemos por aqui e estamos com saudades.\n\nComo você é um cliente especial, queremos te convidar para voltar. Nossos profissionais estão prontos para te atender.\n\nQue tal agendar uma visita essa semana? Estamos te esperando!`
+    },
+    recentes: {
+        subject: 'Bem-vindo(a) à família! 🌟 O que achou?',
+        message: `Olá! Adoramos te receber recentemente.\n\nEsperamos que tenha gostado da experiência. Cuidar de você é a nossa prioridade.\n\nJá estamos prontos para o seu próximo atendimento. Garanta seu horário com antecedência clicando abaixo!`
+    }
+};
 
-    const emailHtmlContent = `
-        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 20px;">
-            <div style="max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-                <h1 style="color: #E91E63; font-size: 24px; border-bottom: 2px solid #eee; padding-bottom: 10px;">${subject}</h1>
-                <p>Olá, <strong>[Nome do Cliente]</strong>!</p>
-                
-                <div style="background-color: #FCE4EC; border-left: 5px solid #FF80AB; margin-top: 20px; margin-bottom: 20px; padding: 15px; border-radius: 4px;">
-                    ${message}
-                </div>
-                
-                <p>Esperamos te ver em breve!</p>
-            </div>
-            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
-                Este e-mail foi enviado automaticamente pelo sistema Horalis.
-            </div>
+// --- SUB-COMPONENTE: CARD DE SELEÇÃO DE PÚBLICO ---
+const AudienceCard = ({ id, title, description, icon: IconComp, isSelected, onClick, primaryColor }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        className={`relative flex flex-col items-start p-5 rounded-2xl border-2 transition-all duration-200 w-full text-left group hover:shadow-md
+        ${isSelected
+                ? 'bg-white shadow-md'
+                : 'bg-white border-gray-100 hover:border-gray-200'
+            }`}
+        style={{
+            borderColor: isSelected ? primaryColor : undefined,
+            backgroundColor: isSelected ? `${primaryColor}08` : undefined
+        }}
+    >
+        <div className={`p-3 rounded-xl mb-3 transition-colors ${isSelected ? 'text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}
+            style={{ backgroundColor: isSelected ? primaryColor : undefined }}>
+            <IconComp className="w-6 h-6" />
         </div>
-    `;
+        <h3 className={`font-bold text-lg ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>{title}</h3>
+        <p className="text-sm text-gray-500 mt-1 leading-snug">{description}</p>
+
+        {isSelected && (
+            <div className="absolute top-4 right-4 p-1 rounded-full" style={{ color: primaryColor }}>
+                <Icon icon={Check} className="w-5 h-5" />
+            </div>
+        )}
+    </button>
+);
+
+// --- SUB-COMPONENTE: PROGRESSO CIRCULAR ---
+const QuotaWidget = ({ used, total, resetDate, primaryColor }) => {
+    const percentage = Math.min((used / total) * 100, 100);
+    const radius = 30;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+    const isCritical = used >= total;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden">
-                <div className="flex justify-between items-center p-5 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">Pré-visualização do E-mail</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
-                        <Icon icon={X} className="w-6 h-6" />
-                    </button>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+            <div>
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">Cota Mensal</h3>
+                <div className="flex items-baseline gap-1">
+                    <span className={`text-3xl font-extrabold ${isCritical ? 'text-red-600' : 'text-gray-900'}`}>{used}</span>
+                    <span className="text-gray-400 font-medium">/ {total} e-mails</span>
                 </div>
-                <div className="p-5 bg-gray-100">
-                    <p className="text-sm text-gray-600 mb-2">De: Horalis (Em nome de {salonName})</p>
-                    <p className="text-sm text-gray-600 mb-2">Para: [Nome do Cliente] &lt;email.do.cliente@exemplo.com&gt;</p>
-                    <p className="text-sm text-gray-600 mb-4">Assunto: <span className="font-medium text-gray-900">{subject}</span></p>
-                    <iframe
-                        srcDoc={emailHtmlContent}
-                        title="Pré-visualização do E-mail"
-                        className="w-full h-96 border border-gray-300 rounded-lg"
+                {resetDate && (
+                    <p className="text-xs text-gray-400 mt-2 flex items-center">
+                        <Icon icon={Clock} className="w-3 h-3 mr-1" />
+                        Renova em {format(resetDate, 'dd/MM', { locale: ptBR })}
+                    </p>
+                )}
+            </div>
+
+            <div className="relative w-20 h-20 flex-shrink-0">
+                <svg className="transform -rotate-90 w-full h-full">
+                    <circle cx="40" cy="40" r={radius} stroke="#F3F4F6" strokeWidth="8" fill="transparent" />
+                    <circle
+                        cx="40" cy="40" r={radius} stroke={isCritical ? '#DC2626' : primaryColor} strokeWidth="8"
+                        fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round" className="transition-all duration-1000 ease-out"
                     />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-600">
+                    {Math.round(percentage)}%
                 </div>
             </div>
         </div>
     );
 };
-// --- FIM DO MODAL DE PREVIEW ---
+
+// --- SUB-COMPONENTE: PREVIEW DE CELULAR ---
+const PhonePreviewModal = ({ isOpen, onClose, subject, message, salonName }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+
+            {/* Botão Fechar (Agora Sólido e Visível) */}
+            <button
+                onClick={onClose}
+                className="absolute top-6 right-6 z-50 bg-white text-gray-900 hover:bg-gray-200 p-3 rounded-full shadow-xl transition-transform hover:scale-110"
+                title="Fechar Preview"
+            >
+                <Icon icon={X} className="w-6 h-6" />
+            </button>
+
+            <div className="relative w-full max-w-sm bg-gray-900 rounded-[3rem] shadow-2xl border-[8px] border-gray-800 overflow-hidden h-[80vh] flex flex-col">
+
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-xl z-20"></div>
+                <div className="bg-gray-100 flex-1 overflow-y-auto pt-12 pb-8 px-4 no-scrollbar">
+
+                    <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+                        <div className="flex items-center gap-3 border-b border-gray-100 pb-3 mb-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
+                                {salonName ? salonName[0] : 'S'}
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-gray-900">{salonName}</p>
+                                <p className="text-xs text-gray-500">para mim</p>
+                            </div>
+                            <span className="ml-auto text-xs text-gray-400">Agora</span>
+                        </div>
+
+                        <h2 className="text-lg font-bold text-gray-900 mb-4 leading-tight">{subject || "(Sem Assunto)"}</h2>
+
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans"
+                            dangerouslySetInnerHTML={{ __html: message ? message.replace(/\n/g, '<br/>') : "(Sua mensagem aparecerá aqui)" }} />
+
+                        <div className="mt-8 pt-4 border-t border-gray-100 text-center">
+                            <button className="px-6 py-2 bg-black text-white rounded-full text-xs font-bold">
+                                Agendar Agora
+                            </button>
+                            <p className="text-[10px] text-gray-400 mt-4">Enviado via Horalis</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
-function MarketingPage() {
+export default function MarketingPage() {
     const { salaoId, salonDetails, loading: loadingContext } = useSalon();
 
-    const [subject, setSubject] = useState('Novidade exclusiva da sua marca!');
-    const [message, setMessage] = useState('');
+    const primaryColor = salonDetails?.cor_primaria || '#0E7490';
+
+    // Estados iniciais com o modelo "Todos" carregado
+    const [segmento, setSegmento] = useState('todos');
+    const [subject, setSubject] = useState(EMAIL_TEMPLATES.todos.subject);
+    const [message, setMessage] = useState(EMAIL_TEMPLATES.todos.message);
+
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-    const [segmento, setSegmento] = useState('todos');
     const [linkCopied, setLinkCopied] = useState(false);
     const copyTimeoutRef = useRef(null);
 
-    // Valores derivados do contexto, sempre atualizados
     const salonName = salonDetails?.nome_salao || "Seu Salão";
     const publicUrl = `https://horalis.app/agendar/${salaoId}`;
-
-    // Consumo dos dados de cota diretamente do contexto/detalhes
     const cotaTotal = salonDetails?.marketing_cota_total || 100;
     const cotaUsada = salonDetails?.marketing_cota_usada || 0;
-    const cotaResetEmRaw = salonDetails?.marketing_cota_reset_em;
-    const cotaResetEm = cotaResetEmRaw ? parseISO(cotaResetEmRaw) : null;
-    const cotaPercentual = (cotaUsada / cotaTotal) * 100;
+    const cotaResetEm = salonDetails?.marketing_cota_reset_em ? parseISO(salonDetails.marketing_cota_reset_em) : null;
 
-    const loadingSalonData = loadingContext;
+    const fetchSalonData = useCallback(async () => { /* ... */ }, [salaoId]);
 
-    const fetchSalonData = useCallback(async () => { /* ... (lógica mantida) ... */ }, [salaoId]);
+    // 🌟 NOVO HANDLER: Troca de Segmento e Carrega Template 🌟
+    const handleSegmentChange = (newSegment) => {
+        setSegmento(newSegment);
 
-    const handleSubmit = async (e) => { /* ... (lógica mantida) ... */ };
+        // Carrega o template correspondente
+        const template = EMAIL_TEMPLATES[newSegment];
+        if (template) {
+            // Substitui [Nome do Salão] pelo nome real
+            const realSubject = template.subject.replace('[Nome do Salão]', salonName);
+            setSubject(realSubject);
+            setMessage(template.message);
 
-    // --- Funções do Kit Bio (Mantidas) ---
-    const copyLink = () => { /* ... (lógica mantida) ... */ };
-    const downloadStylishQRCode = async () => { /* ... (lógica mantida) ... */ };
+            // Feedback visual sutil
+            toast.success(`Modelo para "${newSegment.toUpperCase()}" aplicado!`, {
+                icon: '🪄',
+                style: { fontSize: '13px' }
+            });
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSuccessMessage('');
+        if (!message.trim() || !subject.trim()) return toast.error("Preencha o assunto e a mensagem.");
+        if (cotaUsada >= cotaTotal) return toast.error("Limite de e-mails atingido.");
+        if (!window.confirm(`Enviar para o segmento: ${segmento.toUpperCase()}?`)) return;
+
+        setLoading(true);
+        const toastId = toast.loading("Preparando envio...");
+
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const response = await axios.post(`${API_BASE_URL}/admin/marketing/enviar-massa`, {
+                salao_id: salaoId, subject: subject.trim(), message: message.trim(), segmento: segmento,
+            }, { headers: { Authorization: `Bearer ${token}` } });
+
+            setSuccessMessage(response.data.message);
+            toast.success("Campanha enviada!", { id: toastId });
+
+            // Reseta para o padrão (Todos) após envio
+            setMessage('');
+            setSubject('');
+        } catch (err) {
+            toast.error(err.response?.data?.detail || "Erro ao enviar.", { id: toastId });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const copyLink = () => {
+        navigator.clipboard.writeText(publicUrl).then(() => {
+            setLinkCopied(true);
+            toast.success("Link copiado!");
+            setTimeout(() => setLinkCopied(false), 2000);
+        });
+    };
+
+    const downloadStylishQRCode = async () => {
+        if (!salaoId) return;
+        const toastId = toast.loading("Gerando arte...");
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800; canvas.height = 1000;
+
+        ctx.fillStyle = primaryColor;
+        ctx.fillRect(0, 0, 800, 1000);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 60px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(salonName, 400, 150);
+
+        ctx.font = '30px sans-serif';
+        ctx.fillText("Agende seu horário online", 400, 220);
+
+        const qrCanvas = document.getElementById('horalis-qrcode-canvas');
+        if (qrCanvas) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(200, 300, 400, 400);
+            ctx.drawImage(qrCanvas, 220, 320, 360, 360);
+        }
+
+        const link = document.createElement('a');
+        link.download = `qrcode-${salonName}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+        toast.success("Download iniciado!", { id: toastId });
+    };
+
+    if (loadingContext || !salaoId) return <div className="h-96 flex items-center justify-center"><HourglassLoading /></div>;
 
     return (
-        <div className="space-y-6">
-            <h2 className={`text-2xl font-bold text-gray-900 flex items-center ${PRIMARY_TEXT}`}>
-                <Icon icon={UserPlus} className="w-6 h-6 mr-3" />
-                Marketing & Aquisição de Clientes
-            </h2>
+        <div className="font-sans pb-20 max-w-5xl mx-auto">
 
-            {/* --- Card Kit "Link na Bio" --- */}
-            <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Seu Link de Agendamento</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                    Este é o link que seus clientes usarão para agendar. Cole na bio do seu Instagram, no status do WhatsApp ou envie diretamente.
-                </p>
-                <div className="flex items-center w-full bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <Icon icon={LinkIcon} className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
-                    <input
-                        type="text"
-                        readOnly
-                        value={publicUrl}
-                        className="text-sm text-gray-700 bg-transparent flex-1 focus:outline-none min-w-0 truncate"
-                    />
-                    {/* Botão Copiar (Corrigido para Ícone) */}
-                    <button
-                        onClick={copyLink}
-                        className={`flex-shrink-0 flex items-center justify-center p-2 text-sm font-semibold rounded-lg transition-colors ml-2 
-                        ${linkCopied
-                            ? 'bg-green-100 text-green-700'
-                            : `${PRIMARY_BG} text-white ${PRIMARY_BG_HOVER}`
-                        }`}
-                        title={linkCopied ? "Copiado!" : "Copiar Link"}
-                    >
-                        <Icon icon={linkCopied ? Check : Copy} className="w-5 h-5" />
-                    </button>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                        <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
+                            <Icon icon={Zap} className="w-6 h-6" style={{ color: primaryColor }} />
+                        </div>
+                        Central de Marketing
+                    </h1>
+                    <p className="text-gray-500 mt-2">Atraia e fidelize clientes com ferramentas automáticas.</p>
                 </div>
-                <div className="mt-6 flex flex-col sm:flex-row items-center gap-6">
-                    {/* Canvas oculto para gerar a imagem do QR Code (Mantido) */}
-                    <div className="hidden">
-                        <QRCodeCanvas
-                            id="horalis-qrcode-canvas"
-                            value={publicUrl}
-                            size={512}
-                            bgColor={"#ffffff"}
-                            fgColor={"#000000"}
-                            level={"H"}
-                            includeMargin={false}
-                        />
-                    </div>
-                    <div className="flex-1 text-center sm:text-left">
-                        <h4 className="font-semibold text-gray-800">Pôster de QR Code (Para Impressão)</h4>
-                        <p className="text-sm text-gray-600 mt-1 mb-3">
-                            Baixe uma imagem com o QR Code já estilizado com o nome do seu estabelecimento, pronto para impressão.
-                        </p>
-                        <button
-                            onClick={downloadStylishQRCode}
-                            disabled={loadingContext}
-                            className={`inline-flex items-center px-4 py-2 text-sm font-semibold text-white ${PRIMARY_BG} rounded-lg shadow-sm ${PRIMARY_BG_HOVER} transition-colors disabled:opacity-50`}
-                        >
-                            <Icon icon={QrCode} className="w-4 h-4 mr-2" />
-                            {loadingContext ? 'Carregando dados...' : 'Baixar Pôster (PNG)'}
-                        </button>
-                    </div>
+
+                <div className="w-full md:w-auto">
+                    <QuotaWidget used={cotaUsada} total={cotaTotal} resetDate={cotaResetEm} primaryColor={primaryColor} />
                 </div>
             </div>
 
-            {/* --- COTA DE E-MAIL (Mantido) --- */}
-            {/* ... (cota de e-mail e avisos mantidos) ... */}
-            <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200 max-w-2xl mx-auto">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Cota de E-mail Marketing</h3>
-                {loadingContext ? (
-                    <div className="flex justify-center py-4"><HourglassLoading/></div>
-                ) : (
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center mb-1">
-                            <p className="text-sm font-medium text-gray-700">
-                                E-mails enviados este mês:
-                            </p>
-                            <p className={`text-lg font-bold ${cotaUsada >= cotaTotal ? 'text-red-600' : PRIMARY_TEXT}`}>
-                                {cotaUsada} / {cotaTotal}
-                            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                {/* COLUNA ESQUERDA (Divulgação) */}
+                <div className="space-y-6">
+
+                    {/* Link na Bio */}
+                    <div className="relative overflow-hidden rounded-2xl p-6 text-white shadow-lg"
+                        style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}DD 100%)` }}>
+                        <div className="relative z-10">
+                            <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                                <Icon icon={Sparkles} className="w-5 h-5" /> Seu Link de Agendamento
+                            </h3>
+                            <p className="text-white/80 text-sm mb-6">O link mágico para sua bio.</p>
+
+                            <div className="flex items-center bg-white/10 backdrop-blur-md rounded-xl p-1 border border-white/20">
+                                <div className="bg-white/20 p-2 rounded-lg mr-2">
+                                    <Icon icon={LinkIcon} className="w-4 h-4 text-white" />
+                                </div>
+                                <input value={publicUrl} readOnly className="bg-transparent text-white text-xs flex-1 outline-none w-full min-w-0" />
+                                <button onClick={copyLink} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                                    <Icon icon={linkCopied ? Check : Copy} className="w-4 h-4 text-white" />
+                                </button>
+                            </div>
                         </div>
-                        {/* Barra de Progresso */}
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div
-                                className={`h-2.5 rounded-full ${cotaUsada >= cotaTotal ? 'bg-red-600' : PRIMARY_BG}`}
-                                style={{ width: `${cotaPercentual > 100 ? 100 : cotaPercentual}%` }}
-                            ></div>
-                        </div>
-                        {cotaResetEm && (
-                            <p className="text-xs text-gray-500 text-center">
-                                Sua cota será renovada em {format(cotaResetEm, 'dd/MM/yyyy', { locale: ptBR })}.
-                            </p>
-                        )}
+                        <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                     </div>
-                )}
-            </div>
 
-            <div className="p-4 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg flex items-center gap-3 max-w-2xl mx-auto">
-                <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">
-                    **ATENÇÃO:** O envio consome sua cota de e-mails. Verifique o segmento e o conteúdo antes de confirmar.
-                </p>
-            </div>
-
-            {successMessage && (
-                <div className="p-4 bg-green-100 border border-green-200 text-green-700 rounded-lg max-w-2xl mx-auto">
-                    <p className="font-semibold">{successMessage}</p>
+                    {/* QR Code */}
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 bg-gray-50 rounded-xl text-gray-600">
+                                <Icon icon={QrCode} className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-gray-900">QR Code de Balcão</h3>
+                                <p className="text-xs text-gray-500">Imprima e coloque na recepção.</p>
+                            </div>
+                        </div>
+                        <div className="hidden"><QRCodeCanvas id="horalis-qrcode-canvas" value={publicUrl} size={512} /></div>
+                        <button onClick={downloadStylishQRCode} disabled={loadingContext} className="w-full py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                            <Icon icon={QrCode} className="w-4 h-4" /> Baixar Pôster
+                        </button>
+                    </div>
                 </div>
-            )}
 
-
-            {/* Card de E-mail em Massa (formulário) */}
-            <div className="bg-white p-6 shadow-md rounded-lg border border-gray-200 max-w-2xl mx-auto">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5">Criar E-mail Promocional</h3>
-                <form onSubmit={handleSubmit} className="space-y-5">
-
-                    {/* --- Seletor de Segmento (Mantido) --- */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Público-Alvo (Segmento)*</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <label
-                                onClick={() => setSegmento('todos')}
-                                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'todos' ? `border-[#0092A6] bg-cyan-50 ring-2 ring-[#00ACC1]` : 'border-gray-300 bg-white hover:bg-gray-50'}`}
-                            >
-                                <Icon icon={Users} className={`w-5 h-5 mr-2 ${segmento === 'todos' ? PRIMARY_TEXT : 'text-gray-500'}`} />
-                                <span className="text-sm font-medium text-gray-800">Todos os Clientes</span>
-                            </label>
-
-                            <label
-                                onClick={() => setSegmento('inativos')}
-                                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'inativos' ? `border-[#0092A6] bg-cyan-50 ring-2 ring-[#00ACC1]` : 'border-gray-300 bg-white hover:bg-gray-50'}`}
-                            >
-                                <Icon icon={UserX} className={`w-5 h-5 mr-2 ${segmento === 'inativos' ? PRIMARY_TEXT : 'text-gray-500'}`} />
-                                <span className="text-sm font-medium text-gray-800">Inativos (60d+)</span>
-                            </label>
-
-                            <label
-                                onClick={() => setSegmento('recentes')}
-                                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${segmento === 'recentes' ? `border-[#0092A6] bg-cyan-50 ring-2 ring-[#00ACC1]` : 'border-gray-300 bg-white hover:bg-gray-50'}`}
-                            >
-                                <Icon icon={UserCheck} className={`w-5 h-5 mr-2 ${segmento === 'recentes' ? PRIMARY_TEXT : 'text-gray-500'}`} />
-                                <span className="text-sm font-medium text-gray-800">Recentes (30d)</span>
-                            </label>
+                {/* COLUNA DIREITA (Campanha) */}
+                <div className="lg:col-span-2">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className={`p-2 rounded-lg bg-blue-50 text-blue-600`}>
+                                <Icon icon={Mail} className="w-5 h-5" />
+                            </div>
+                            <h2 className="text-xl font-bold text-gray-900">Nova Campanha de E-mail</h2>
                         </div>
-                    </div>
 
-                    {/* Campos Assunto e Mensagem (Mantidos) */}
-                    <div>
-                        <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">Assunto do E-mail*</label>
-                        <input
-                            id="subject"
-                            type="text"
-                            value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg p-2 h-10 focus:ring-cyan-500 focus:border-cyan-500"
-                            required
-                            minLength={5}
-                            disabled={loading}
-                        />
-                    </div>
+                        <form onSubmit={handleSubmit} className="space-y-8">
 
-                    <div>
-                        <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Corpo da Mensagem (pode usar HTML básico)</label>
-                        <textarea
-                            id="message"
-                            rows="10"
-                            placeholder="Escreva sua promoção ou novidade aqui. Ex: <h2>Super Promoção!</h2> Use o código DESCONTO15."
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-cyan-500 focus:border-cyan-500"
-                            required
-                            minLength={10}
-                            disabled={loading}
-                        />
-                    </div>
+                            {/* Seleção de Público */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">1. Selecione o Público</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <AudienceCard
+                                        id="todos" title="Todos" description="Base completa de clientes."
+                                        icon={Users} isSelected={segmento === 'todos'}
+                                        onClick={() => handleSegmentChange('todos')}
+                                        primaryColor={primaryColor}
+                                    />
+                                    <AudienceCard
+                                        id="inativos" title="Sumidos" description="Não visitam há +60 dias."
+                                        icon={UserX} isSelected={segmento === 'inativos'}
+                                        onClick={() => handleSegmentChange('inativos')}
+                                        primaryColor={primaryColor}
+                                    />
+                                    <AudienceCard
+                                        id="recentes" title="Novos" description="Cadastrados nos últimos 30 dias."
+                                        icon={UserCheck} isSelected={segmento === 'recentes'}
+                                        onClick={() => handleSegmentChange('recentes')}
+                                        primaryColor={primaryColor}
+                                    />
+                                </div>
+                            </div>
 
-                    {/* Botões Pré-visualizar e Enviar */}
-                    <div className="flex justify-between items-center pt-4">
-                        {/* Botão PRÉ-VISUALIZAR */}
-                        <button
-                            type="button"
-                            onClick={() => setIsPreviewOpen(true)}
-                            disabled={!message.trim() || !subject.trim() || loadingContext}
-                            // 🌟 AJUSTADO: Esconde texto no mobile, padding compacto
-                            className="flex items-center px-3 py-2 sm:px-4 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-                        >
-                            <Icon icon={Eye} className="w-5 h-5 flex-shrink-0" />
-                            <span className="sm:ml-2 hidden sm:inline">
-                                Pré-visualizar
-                            </span>
-                        </button>
+                            {/* Conteúdo */}
+                            <div className="space-y-4">
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">2. Conteúdo Automático</label>
 
-                        {/* Botão ENVIAR */}
-                        <button
-                            type="submit"
-                            // 🌟 AJUSTADO: Esconde texto no mobile, padding compacto
-                            className={`flex items-center px-3 py-2 sm:px-6 text-base font-semibold text-white ${PRIMARY_BG} rounded-lg shadow-md ${PRIMARY_BG_HOVER} transition-colors disabled:opacity-50`}
-                            disabled={loading || !message.trim() || !subject.trim() || cotaUsada >= cotaTotal || loadingContext}
-                        >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2 sm:mr-2" /> : <Icon icon={Send} className="w-5 h-5 flex-shrink-0 sm:mr-2" />}
-                            <span className="sm:inline hidden">
-                                {loading ? 'Disparando...' : (cotaUsada >= cotaTotal ? 'Limite Atingido' : 'Enviar para Segmento')}
-                            </span>
-                        </button>
+                                <div>
+                                    <input
+                                        value={subject} onChange={(e) => setSubject(e.target.value)}
+                                        placeholder="Assunto do E-mail"
+                                        className="w-full text-lg font-semibold placeholder-gray-300 border-b-2 border-gray-100 py-2 focus:outline-none focus:border-gray-300 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="relative">
+                                    <textarea
+                                        value={message} onChange={(e) => setMessage(e.target.value)}
+                                        placeholder="Escreva sua mensagem..."
+                                        rows={6}
+                                        className="w-full p-4 bg-gray-50 rounded-xl border-0 text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-gray-200 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Ações */}
+                            <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-gray-100">
+                                <button type="button" onClick={() => setIsPreviewOpen(true)} className="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-900 font-medium text-sm px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors w-full sm:w-auto">
+                                    <Icon icon={Eye} className="w-4 h-4" /> Ver no Celular
+                                </button>
+                                <div className="flex-1 w-full sm:w-auto" />
+                                <button type="submit" disabled={loading || cotaUsada >= cotaTotal} className="w-full sm:w-auto px-8 py-3 rounded-xl text-white font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" style={{ backgroundColor: primaryColor }}>
+                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                                    {loading ? 'Enviando...' : 'Disparar Campanha'}
+                                </button>
+                            </div>
+
+                            {successMessage && (
+                                <div className="p-4 bg-green-50 text-green-700 rounded-xl border border-green-100 text-center animate-in fade-in">{successMessage}</div>
+                            )}
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
 
-            {/* Renderiza o Modal de Preview (Mantido) */}
-            <PreviewEmailModal
-                isOpen={isPreviewOpen}
-                onClose={() => setIsPreviewOpen(false)}
-                subject={subject}
-                message={message}
-                salonName={salonName}
+            {/* Modal Preview (Botão Fechar Melhorado) */}
+            <PhonePreviewModal
+                isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)}
+                subject={subject} message={message} salonName={salonName}
             />
         </div>
     );
 }
-
-export default MarketingPage;

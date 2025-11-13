@@ -1,260 +1,262 @@
 import React, { useState } from 'react';
-import { Payment } from '@mercadopago/sdk-react';
-import { Link } from 'react-router-dom';
-import { useSignupPayment } from '@/hooks/useSignupPayment';
-// Importe todos os ícones e helpers necessários para a renderização
-import { Link2, Sparkles, Clock, Users, Zap, Check, ArrowRight, Phone, LogIn, Menu, X, Smartphone, Mail, Loader2, QrCode, Copy, CreditCard, User, Lock as LockIcon } from 'lucide-react';
-import { MONTHLY_PRICE_AMOUNT } from '@/utils/pricing';
-import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
-// --- CONFIGURAÇÕES DE COR E CONSTANTES (Ajuste conforme o seu arquivo) ---
-const BRAND_NAME = "Horalis";
-const CIANO_COLOR = 'cyan-800';
-const CIANO_BG_CLASS = `bg-${CIANO_COLOR}`;
-const CIANO_BG_HOVER_CLASS = `hover:bg-cyan-700`;
-const CIANO_TEXT_CLASS = `text-${CIANO_COLOR}`;
+import { Link, useNavigate } from 'react-router-dom';
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from '@/firebaseConfig';
+import axios from 'axios';
+import { 
+    User, Phone, Mail, CreditCard, Lock as LockIcon, 
+    ArrowRight, Loader2, X, CheckCircle, AlertTriangle 
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 
-// Única definição do renderIcon (ou use a versão da LandingPage)
-const renderIcon = (IconComponent, extraClasses = "") => (
-    <IconComponent className={`stroke-current ${extraClasses}`} />
+// O endpoint de registro deve ser ajustado conforme sua rota de backend
+const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+
+// --- CONFIGURAÇÕES DE COR E ESTILO ---
+const BRAND_NAME = "Horalis";
+const PRIMARY_COLOR_TEXT = 'text-cyan-600';
+const PRIMARY_BG_CLASS = 'bg-cyan-800';
+const PRIMARY_BG_HOVER_CLASS = 'hover:bg-cyan-700';
+const FOCUS_RING_CLASS = 'focus:ring-cyan-400';
+const FOCUS_BORDER_CLASS = 'focus:border-cyan-400';
+
+const Icon = ({ icon: IconComponent, className = "" }) => (
+    <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
 function SignupModalContent({ closeModal, isModalOpen }) {
-    // 1. CHAMA O HOOK: Consome toda a lógica de negócio
-    const {
-        step, setStep,
-        formData, updateFormField,
-        pixData,
-        error,
-        loading,
-        handleFormSubmit,
-        handleCardPaymentSubmit,
-        handlePixPayment,
-        navigate,
-    } = useSignupPayment(isModalOpen);
+    const navigate = useNavigate();
+    const [step, setStep] = useState(1); // 1: Form, 2: Success
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const [copied, setCopied] = useState(false);
+    const [formData, setFormData] = useState({
+        nomeSalao: '',
+        whatsapp: '',
+        email: '',
+        cpf: '',
+        password: '',
+        confirmPassword: ''
+    });
 
-    // Helper para copiar (UI-related)
-    const copyToClipboard = (text) => {
-        // Usa navigator.clipboard para melhor compatibilidade em browsers modernos
-        navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }).catch(err => {
-            console.error("Falha ao copiar:", err);
-            // Fallback para document.execCommand('copy') se necessário
-        });
-    };
-    
-    // Configuração do Brick (APENAS CARTÕES)
-    const paymentBrickCustomization = {
-        paymentMethods: { creditCard: "all", debitCard: "all" },
-        visual: { style: { theme: 'default' } }
-    };
-    
-    // Handler de fechamento (para o rollback seguro, se necessário)
-    // O hook useSignupPayment deve fornecer um handler que inclua o rollback seguro.
-    const onClose = () => {
-        // Chamada direta ao closeModal. A lógica de rollback por expiração
-        // agora está no backend (cria-conta-paga), tornando o fechamento seguro.
-        closeModal();
+    const updateFormField = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        if (error) setError(null); // Limpa o erro ao digitar
     };
 
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        setError(null);
 
-    // --- RENDERIZAÇÃO: JSX + Handlers do Hook ---
+        // Validação Básica Frontend
+        if (formData.password !== formData.confirmPassword) {
+            setError("As senhas não coincidem.");
+            return;
+        }
+        if (formData.password.length < 6) {
+            setError("A senha deve ter pelo menos 6 caracteres.");
+            return;
+        }
+        // Validação de CPF (básica, sem regex complexo aqui)
+        // Permite 000.000.000-00 ou 00000000000
+        if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(formData.cpf)) {
+            setError("CPF inválido. Use o formato 000.000.000-00 ou apenas números.");
+            return;
+        }
+        // Validação de WhatsApp (apenas números, 11 dígitos para DDD+Número)
+        if (!/^\d{11}$/.test(formData.whatsapp.replace(/\D/g, ''))) {
+            setError("WhatsApp inválido. Inclua o DDD (ex: 11987654321).");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            // 1. Cria usuário no Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+            const user = userCredential.user;
+
+            // 2. Atualiza perfil (Nome do Salão como Display Name inicial)
+            await updateProfile(user, { displayName: formData.nomeSalao });
+
+            // 3. Obtém Token para autenticar no backend
+            const token = await user.getIdToken();
+
+            // 4. Chama Backend para criar o registro no Firestore com Trial
+            // O backend deve calcular o `trialEndsAt` automaticamente (now + 7 dias)
+            await axios.post(`${API_BASE_URL}/auth/register-owner`, {
+                nome_salao: formData.nomeSalao,
+                whatsapp: formData.whatsapp.replace(/\D/g, ''), // Envia só números
+                email: formData.email,
+                cpf: formData.cpf.replace(/\D/g, ''), // Envia só números
+                uid: user.uid 
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            // Sucesso
+            setStep(2); // Vai para tela de sucesso
+            toast.success("Conta criada com sucesso! Boas-vindas ao Horalis!");
+
+        } catch (err) {
+            console.error("Erro no cadastro:", err);
+            let msg = "Erro ao criar conta. Tente novamente.";
+            if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
+            else if (err.code === 'auth/weak-password') msg = "A senha é muito fraca. Use uma senha mais forte.";
+            else if (err.response?.data?.detail) msg = err.response.data.detail; // Erros do backend
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Não renderiza se o modal não estiver aberto
+    if (!isModalOpen) return null;
+
     return (
-        <div
-          className={`bg-white p-8 shadow-xl border border-gray-200 rounded-xl relative overflow-y-auto max-h-[90vh]
-          ${step === 3 ? 'max-w-md md:max-w-3xl' : 'max-w-lg md:max-w-2xl'}`}
-        >
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
-            aria-label="Fechar"
-          >
-            <X className="w-6 h-6" />
-          </button>
+        // A 'div' que envolve o conteúdo do modal.
+        // max-w-lg e mx-auto para centralizar e limitar a largura.
+        // p-8 (ou p-6 em mobile) para o padding interno.
+        // overflow-y-auto e max-h-[95vh] para permitir rolagem APENAS no modal em si se o conteúdo for grande,
+        // mas tentando evitar que isso aconteça com o design atual.
+        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl relative w-full max-w-lg mx-auto transform scale-100 opacity-100 transition-all duration-300 ease-out 
+                    overflow-y-auto max-h-[95vh] flex flex-col">
+            <button
+                onClick={closeModal}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10 p-2 rounded-full hover:bg-gray-100"
+                aria-label="Fechar"
+            >
+                <X className="w-6 h-6" />
+            </button>
 
-          <div className="text-center mb-6 border-b pb-4">
-            <h2 className="text-3xl font-extrabold text-gray-900">
-              {BRAND_NAME} <span className={CIANO_TEXT_CLASS}>Pro</span>
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {step === 1 && "Crie sua conta profissional 🚀"}
-              {step === 2 && "Finalize sua assinatura de R$ 0,99"}
-              {step === 3 && "PIX gerado! Escaneie para pagar."}
-              {step === 4 && "Sucesso Total! 🎉"}
-            </p>
-          </div>
-
-          {/* Passo 1: Formulário de Dados */}
-          {step === 1 && (
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label htmlFor="nomeSalao" className="text-sm font-medium text-gray-700">Nome do Salão</label>
-                <div className="relative">
-                  {renderIcon(User, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="nomeSalao" type="text" placeholder="Seu Estúdio de Beleza" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={formData.nomeSalao} onChange={(e) => updateFormField('nomeSalao', e.target.value)} disabled={loading} />
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">Seu WhatsApp (ID de Acesso)</label>
-                <div className="relative">
-                  {renderIcon(Phone, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="whatsapp" type="tel" placeholder="DDD + Número (ex: 11987654321)" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={formData.whatsapp} onChange={(e) => updateFormField('whatsapp', e.target.value)} disabled={loading} />
-                </div>
-              </div>
-
-              <div className="space-y-1 pt-3 border-t border-gray-100">
-                <label htmlFor="email" className="text-sm font-medium text-gray-700">Seu E-mail (Notificações)</label>
-                <div className="relative">
-                  {renderIcon(Mail, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="email" type="email" placeholder="seuemail@exemplo.com" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={formData.email} onChange={(e) => updateFormField('email', e.target.value)} disabled={loading} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="cpf" className="text-sm font-medium text-gray-700">CPF (para o Pagamento)</label>
-                <div className="relative">
-                  {renderIcon(CreditCard, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="cpf" type="tel" placeholder="000.000.000-00" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={formData.cpf} onChange={(e) => updateFormField('cpf', e.target.value)} disabled={loading} maxLength={14} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="password" className="text-sm font-medium text-gray-700">Sua Senha</label>
-                <div className="relative">
-                  {renderIcon(LockIcon, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="password" type="password" placeholder="Mínimo 6 caracteres" required className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg h-11 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400`} value={formData.password} onChange={(e) => updateFormField('password', e.target.value)} disabled={loading} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirme sua Senha</label>
-                <div className="relative">
-                  {renderIcon(LockIcon, "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400")}
-                  <input id="confirmPassword" type="password" placeholder="Repita a senha" required className={`w-full pl-10 pr-4 py-2.5 border rounded-lg h-11 focus:outline-none focus:ring-2 ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500 focus:ring-red-400 focus:border-red-500' : `border-gray-300 focus:ring-cyan-400 focus:border-cyan-400`}`} value={formData.confirmPassword} onChange={(e) => updateFormField('confirmPassword', e.target.value)} disabled={loading} />
-                </div>
-              </div>
-
-              {error && (<div className="p-3 bg-red-100 border border-red-200 rounded-md text-center"><p className="text-sm text-red-700">{error}</p></div>)}
-
-              <button type="submit" className={`w-full h-11 flex items-center justify-center text-base font-semibold text-white ${CIANO_BG_CLASS} rounded-lg shadow-md ${CIANO_BG_HOVER_CLASS} transition-colors disabled:opacity-70`} disabled={loading}>
-                {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(ArrowRight, "w-5 h-5 mr-2")} Ir para o Pagamento</>}
-              </button>
-            </form>
-          )}
-
-          {/* Passo 2: Pagamento (Cartão ou PIX) */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex justify-between items-center text-sm">
-                <div>
-                  <p className="text-gray-600 truncate">Conta: <span className="font-medium text-gray-800">{formData.email}</span></p>
-                  <p className="text-gray-600 truncate">Salão: <span className="font-medium text-gray-800">{formData.nomeSalao}</span></p>
-                </div>
-                <button onClick={() => setStep(1)} className={`text-xs ${CIANO_TEXT_CLASS} hover:underline font-medium`} disabled={loading}>
-                  {renderIcon(ArrowRight, "w-4 h-4 inline rotate-180 mr-1")}Editar
-                </button>
-              </div>
-
-              {error && (<div className="p-3 bg-red-100 border border-red-200 rounded-md text-center"><p className="text-sm text-red-700">{error}</p></div>)}
-
-              {/* Opção PIX (Botão Customizado) */}
-              <button type="button" onClick={handlePixPayment} className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors disabled:opacity-70`} disabled={loading}>
-                {loading ? renderIcon(Loader2, "w-5 h-5 animate-spin") : <>{renderIcon(QrCode, "w-5 h-5 mr-2")} Pagar com PIX {DISPLAY_PRICE_SETUP}</>}
-              </button>
-
-              <div className="flex items-center gap-2 my-4">
-                <hr className="flex-grow border-t border-gray-200" />
-                <span className="text-sm text-gray-500">OU</span>
-                <hr className="flex-grow border-t border-gray-200" />
-              </div>
-
-              {/* Brick (SÓ CARTÕES) */}
-              <div className="mt-2">
-                <p className="text-sm font-medium text-gray-700 mb-2">Pagar com Cartão</p>
-                <Payment
-                  // A chave força a remontagem, garantindo que o Brick inicialize no DOM correto
-                  key={step} 
-                  initialization={{
-                    amount: MONTHLY_PRICE_AMOUNT,
-                    payer: {
-                      email: formData.email,
-                      identification: { 
-                        type: 'CPF', 
-                        number: formData.cpf.replace(/\D/g, '') 
-                      },
-                      // CORREÇÃO CRÍTICA: Adicionando entityType no camelCase para inicialização do Brick
-                      entityType: 'individual', 
-                    },
-                  }}
-                  customization={paymentBrickCustomization}
-                  onSubmit={handleCardPaymentSubmit}
-                  onError={(err) => {
-                    console.error("Erro no Brick:", err);
-                    // O erro de inicialização é um aviso; o erro de submissão é tratado pelo onSubmit
-                  }}
-                />
-              </div>
+            {/* --- CABEÇALHO --- */}
+            <div className="text-center border-b border-gray-100 pb-4 mb-6">
+                <h2 className="text-2xl font-extrabold text-gray-900">
+                    Cadastre-se no <span className={PRIMARY_COLOR_TEXT}>{BRAND_NAME}</span>
+                </h2>
+                <p className="text-gray-600 mt-1 text-sm">
+                    Sua jornada para um salão mais eficiente começa aqui.
+                </p>
             </div>
-          )}
 
-          {/* Passo 3: Exibição do PIX e Polling */}
-          {step === 3 && pixData && (
-            <div className="flex flex-col items-center p-4">
-              <p className="text-lg font-semibold text-gray-800 mb-4">Seu PIX foi gerado com sucesso!</p>
+            {/* --- PASSO 1: FORMULÁRIO --- */}
+            {step === 1 && (
+                <form onSubmit={handleRegister} className="flex flex-col flex-grow space-y-4">
+                    
+                    {/* Nome do Salão */}
+                    <div className="relative">
+                        <label htmlFor="nomeSalao" className="sr-only">Nome do seu Negócio</label>
+                        <Icon icon={User} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input 
+                            id="nomeSalao" type="text" placeholder="Nome do seu Negócio" required 
+                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
+                            value={formData.nomeSalao} onChange={(e) => updateFormField('nomeSalao', e.target.value)} disabled={loading} 
+                        />
+                    </div>
 
-              {/* QR Code */}
-              <img
-                src={`data:image/png;base64,${pixData.qr_code_base64}`}
-                alt="PIX QR Code"
-                className="w-48 h-48 border-4 border-cyan-300 shadow-lg rounded-xl mb-4"
-              />
+                    {/* WhatsApp */}
+                    <div className="relative">
+                        <label htmlFor="whatsapp" className="sr-only">WhatsApp</label>
+                        <Icon icon={Phone} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input 
+                            id="whatsapp" type="tel" placeholder="WhatsApp (DDD + Número)" required 
+                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
+                            value={formData.whatsapp} onChange={(e) => updateFormField('whatsapp', e.target.value)} disabled={loading} 
+                        />
+                    </div>
 
-              <p className="text-sm text-gray-600 mb-2">Código Copia e Cola:</p>
-              <div className="w-full relative">
-                <textarea readOnly value={pixData.qr_code} className="w-full p-2 pr-12 border border-gray-300 rounded-lg text-xs font-mono bg-gray-50 resize-none h-20" />
-                <button type="button" onClick={() => copyToClipboard(pixData.qr_code)} className={`absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-lg ${CIANO_BG_CLASS} text-white hover:opacity-90 transition-opacity`}>
-                  {renderIcon(copied ? Check : Copy, "w-4 h-4")}
-                </button>
-              </div>
+                    {/* Email */}
+                    <div className="relative">
+                        <label htmlFor="email" className="sr-only">Seu Melhor E-mail</label>
+                        <Icon icon={Mail} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input 
+                            id="email" type="email" placeholder="Seu Melhor E-mail" required 
+                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
+                            value={formData.email} onChange={(e) => updateFormField('email', e.target.value)} disabled={loading} 
+                        />
+                    </div>
 
-              <div className={`flex items-center justify-center gap-2 mt-6 ${CIANO_TEXT_CLASS} bg-cyan-50 p-3 rounded-lg w-full`}>
-                {renderIcon(Loader2, "w-5 h-5 animate-spin")}
-                <span className="font-medium text-sm">Aguardando confirmação do PIX...</span>
-              </div>
+                    {/* CPF */}
+                    <div className="relative">
+                        <label htmlFor="cpf" className="sr-only">CPF</label>
+                        <Icon icon={CreditCard} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input 
+                            id="cpf" type="tel" placeholder="CPF" required 
+                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
+                            value={formData.cpf} onChange={(e) => updateFormField('cpf', e.target.value)} disabled={loading} maxLength={14} 
+                        />
+                    </div>
 
-              <p className="text-xs text-gray-500 mt-2">Você será redirecionado automaticamente ao ser aprovado.</p>
-            </div>
-          )}
+                    {/* Senha e Confirmar Senha */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="relative">
+                            <label htmlFor="password" className="sr-only">Senha</label>
+                            <Icon icon={LockIcon} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input 
+                                id="password" type="password" placeholder="Senha (Mín. 6 caracteres)" required 
+                                className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
+                                value={formData.password} onChange={(e) => updateFormField('password', e.target.value)} disabled={loading} 
+                            />
+                        </div>
+                        <div className="relative">
+                            <label htmlFor="confirmPassword" className="sr-only">Confirmar Senha</label>
+                            <Icon icon={LockIcon} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input 
+                                id="confirmPassword" type="password" placeholder="Confirmar Senha" required 
+                                className={`w-full pl-12 pr-4 py-3 border rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500 focus:ring-red-400 focus:border-red-500' : `border-gray-300 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS}`} transition-all duration-200`} 
+                                value={formData.confirmPassword} onChange={(e) => updateFormField('confirmPassword', e.target.value)} disabled={loading} 
+                            />
+                        </div>
+                    </div>
 
-          {/* Passo 4: Tela de Sucesso */}
-          {step === 4 && (
-            <div className="text-center p-6 space-y-4">
-              {renderIcon(Check, "w-16 h-16 mx-auto text-green-500 bg-green-100 p-2 rounded-full")}
-              <h3 className="text-2xl font-bold text-gray-900">Pagamento Confirmado!</h3>
-              <p className="text-lg text-gray-600">Sua conta {BRAND_NAME} Pro está **ATIVA** e pronta para gerenciar seus agendamentos!</p>
-              <button
-                onClick={() => { onClose(); navigate('/login'); }}
-                className={`w-full h-12 flex items-center justify-center text-base font-semibold text-white bg-green-600 rounded-lg shadow-md hover:bg-green-700 transition-colors mt-6`}
-              >
-                {renderIcon(LogIn, "w-5 h-5 mr-2")} Fazer Login Agora
-              </button>
-              <Link to="/ajuda" className={`${CIANO_TEXT_CLASS} text-sm hover:underline block pt-2`}>Precisa de ajuda?</Link>
-            </div>
-          )}
+                    {error && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm animate-in fade-in">
+                            <Icon icon={AlertTriangle} className="w-4 h-4 flex-shrink-0" /> {error}
+                        </div>
+                    )}
 
-          {/* Rodapé do Modal */}
-          {step !== 4 && (
-            <div className="text-center text-sm text-gray-600 pt-4 border-t border-gray-100 mt-4">
-              Já tem uma conta?{' '}
-              <Link to="/login" className={`font-semibold ${CIANO_TEXT_CLASS} hover:underline`}>
-                Acesse seu Painel {renderIcon(LogIn, "w-4 h-4 inline")}
-              </Link>
-            </div>
-          )}
+                    <button 
+                        type="submit" 
+                        className={`w-full h-14 mt-4 flex items-center justify-center text-lg font-bold text-white ${PRIMARY_BG_CLASS} rounded-xl shadow-lg ${PRIMARY_BG_HOVER_CLASS} transition-all transform hover:scale-[1.01] disabled:opacity-70 disabled:hover:scale-100 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS}`} 
+                        disabled={loading}
+                    >
+                        {loading ? <Icon icon={Loader2} className="w-6 h-6 animate-spin" /> : "Começar Teste Grátis"}
+                    </button>
+                    
+                    <p className="text-center text-xs text-gray-500 mt-4">
+                        Ao criar conta, você concorda com nossos Termos de Uso e Política de Privacidade.
+                    </p>
+                </form>
+            )}
+
+            {/* --- PASSO 2: SUCESSO --- */}
+            {step === 2 && (
+                <div className="text-center py-8 animate-in fade-in zoom-in duration-300 flex-grow flex flex-col justify-center">
+                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Icon icon={CheckCircle} className="w-10 h-10 text-green-600" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Conta Criada!</h3>
+                    <p className="text-gray-600 mb-8 max-w-sm mx-auto">
+                        Seu período de teste de 7 dias começou. Aproveite o Horalis Pro e eleve seu negócio!
+                    </p>
+                    <button
+                        onClick={() => { closeModal(); navigate('/login'); }} 
+                        className={`w-full h-12 flex items-center justify-center text-base font-bold text-white bg-green-600 rounded-xl shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400`}
+                    >
+                        Acessar meu Painel <Icon icon={ArrowRight} className="w-5 h-5 ml-2" />
+                    </button>
+                </div>
+            )}
+
+            {/* Rodapé Login */}
+            {step === 1 && (
+                <div className="text-center text-sm text-gray-600 pt-6 border-t border-gray-100 mt-6">
+                    Já tem uma conta?{' '}
+                    <Link to="/login" className={`font-bold ${PRIMARY_COLOR_TEXT} hover:underline`}>
+                        Fazer Login
+                    </Link>
+                </div>
+            )}
         </div>
     );
 }

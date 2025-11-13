@@ -1,21 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { Loader2, Save, CalendarDays, AlertTriangle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Save, CalendarDays, AlertTriangle, Clock, ChevronDown, Copy } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
-import toast from 'react-hot-toast'; // Usar toast em vez de alert
+import toast from 'react-hot-toast';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
-// <<< DEFINIÇÕES DE COR >>>
-const CIANO_COLOR_TEXT = 'text-cyan-600';
-const CIANO_COLOR_BG = 'bg-cyan-600';
-const CIANO_COLOR_BG_HOVER = 'hover:bg-cyan-700';
-const CIANO_RING_FOCUS = 'focus:ring-cyan-400';
-const CIANO_BORDER_FOCUS = 'focus:border-cyan-400';
-
-// Helper Ícone Simples
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
@@ -27,282 +19,294 @@ const DIAS_DA_SEMANA = [
     { name: "Domingo", dbKey: "sunday" }
 ];
 
-// --- ESTRUTURA INICIAL POR DIA ---
 const initialSchedule = DIAS_DA_SEMANA.reduce((acc, item) => {
     acc[item.dbKey] = {
-        isOpen: item.dbKey !== 'sunday', // Abre todos exceto Domingo por padrão
-        openTime: '09:00',
-        closeTime: '18:00',
-        hasLunch: true, // NOVO: Campo para ativar/desativar o almoço
-        lunchStart: '12:00',
-        lunchEnd: '13:00',
+        isOpen: item.dbKey !== 'sunday', 
+        openTime: '09:00', closeTime: '18:00',
+        hasLunch: true, 
+        lunchStart: '12:00', lunchEnd: '13:00',
     };
     return acc;
 }, {});
 
-// --- Componente Auxiliar: Input de Tempo Simples ---
-const TimeInput = ({ id, label, value, onChange, disabled, className = "" }) => (
-    <div className="flex flex-col">
-        <label htmlFor={id} className="text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <div className="relative">
-            <input
-                id={id}
-                type="time"
-                value={value}
-                onChange={onChange}
-                disabled={disabled}
-                required
-                className={`w-full pl-8 pr-3 py-2 border rounded-lg transition-colors text-sm h-10 
-                            ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}
-                            ${disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white border-gray-300'}`}
+// ===================================================
+// --- 🌟 NOVOS SUB-COMPONENTES DE DESIGN PREMIUM 🌟 ---
+// ===================================================
+
+// --- Componente 1: Switch Moderno ---
+const SwitchToggle = ({ checked, onChange, disabled, primaryColor }) => {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={onChange}
+            disabled={disabled}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2`}
+            style={{ 
+                backgroundColor: checked ? primaryColor : '#E5E7EB',
+                '--tw-ring-color': primaryColor
+            }}
+        >
+            <span className="sr-only">Ativar/Desativar</span>
+            <span
+                aria-hidden="true"
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    checked ? 'translate-x-5' : 'translate-x-0'
+                }`}
             />
-            <Clock className={`w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 ${disabled ? 'text-gray-400' : CIANO_COLOR_TEXT}`} />
-        </div>
+        </button>
+    );
+};
+
+// --- Componente 2: Input de Hora Limpo ---
+const TimeInput = ({ label, value, onChange, disabled }) => (
+    <div className="flex-1">
+        <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+        <input
+            type="time"
+            value={value || ''}
+            onChange={onChange}
+            disabled={disabled}
+            required
+            className="w-full p-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:border-cyan-500 focus:ring-cyan-500"
+        />
     </div>
 );
 
+// --- Componente 3: Linha de Dia (Substitui o DayCard) ---
+const DayRow = ({ dayKey, dayName, daySchedule, updateSchedule, disabled, primaryColor }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const { isOpen, openTime, closeTime, hasLunch, lunchStart, lunchEnd } = daySchedule;
 
-// --- Componente Auxiliar: Card de Dia (Com Horário de Almoço) ---
-const DayCard = React.memo(({ dayKey, dayName, daySchedule, updateSchedule, disabled }) => {
-    // Usamos um estado interno para controlar a expansão, mas o estado principal (isOpen)
-    // vem do daySchedule para ser persistente.
-    const [isExpanded, setIsExpanded] = useState(daySchedule.isOpen);
+    const toggleOpen = () => {
+        updateSchedule(dayKey, { isOpen: !isOpen });
+    };
+    
+    const handleChange = (field, value) => {
+        updateSchedule(dayKey, { [field]: value });
+    };
 
-    const toggleOpen = useCallback(() => {
-        updateSchedule(dayKey, { isOpen: !daySchedule.isOpen });
-        setIsExpanded(!daySchedule.isOpen);
-    }, [dayKey, daySchedule.isOpen, updateSchedule]);
-
-    const handleChange = useCallback((field, value) => {
-        // Se desativarmos o almoço, limpamos os valores no estado principal para não salvar lixo
-        if (field === 'hasLunch' && value === false) {
-            updateSchedule(dayKey, { hasLunch: false, lunchStart: null, lunchEnd: null });
-        } else {
-            updateSchedule(dayKey, { [field]: value });
-        }
-    }, [dayKey, updateSchedule]);
+    const toggleLunch = () => {
+        const newHasLunch = !hasLunch;
+        updateSchedule(dayKey, { 
+            hasLunch: newHasLunch,
+            // Se ativar, define valores padrão
+            lunchStart: newHasLunch && !lunchStart ? '12:00' : (newHasLunch ? lunchStart : null),
+            lunchEnd: newHasLunch && !lunchEnd ? '13:00' : (newHasLunch ? lunchEnd : null),
+        });
+    };
 
     return (
-        <div className={`p-4 rounded-xl shadow-sm transition-all border 
-                        ${daySchedule.isOpen ? 'bg-white border-cyan-100' : 'bg-gray-50 border-gray-200'}`}
-        >
-            {/* Cabeçalho do Dia (Toggle de Abertura) */}
-            <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsExpanded(daySchedule.isOpen ? !isExpanded : isExpanded)}>
-                <div className="flex items-center gap-3">
-                    <label htmlFor={`toggle-${dayKey}`} className="relative inline-flex items-center cursor-pointer">
-                        <input
-                            type="checkbox"
-                            id={`toggle-${dayKey}`}
-                            className="sr-only peer"
-                            checked={daySchedule.isOpen}
-                            onChange={toggleOpen}
-                            disabled={disabled}
-                        />
-                        {/* Switch Customizado com Tailwind */}
-                        <div className={`w-11 h-6 bg-gray-300 rounded-full peer peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 ${CIANO_RING_FOCUS} peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600`}></div>
-                    </label>
-                    <span className={`font-semibold text-lg ${daySchedule.isOpen ? 'text-gray-800' : 'text-gray-500'}`}>
-                        {dayName} {daySchedule.isOpen ? ' (Aberto)' : ' (Fechado)'}
+        <div className={`p-4 rounded-xl shadow-sm transition-all duration-300 border ${isOpen ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100'}`}>
+            {/* Cabeçalho do Dia (Sempre visível) */}
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <SwitchToggle 
+                        checked={isOpen} 
+                        onChange={toggleOpen} 
+                        disabled={disabled}
+                        primaryColor={primaryColor}
+                    />
+                    <span className={`font-bold text-lg ${isOpen ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {dayName}
                     </span>
                 </div>
-                {daySchedule.isOpen && (isExpanded ? <ChevronUp className="w-5 h-5 text-gray-600" /> : <ChevronDown className="w-5 h-5 text-gray-600" />)}
+                
+                <div className="flex items-center gap-4">
+                    <span className={`text-sm font-medium ${isOpen ? 'text-gray-700' : 'text-gray-400'}`}>
+                        {isOpen ? `${openTime} - ${closeTime}` : 'Fechado'}
+                    </span>
+                    {isOpen && (
+                        <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="p-1 text-gray-400 hover:text-gray-700">
+                            <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* Configurações (Apenas se o dia estiver aberto e expandido) */}
-            {daySchedule.isOpen && isExpanded && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-
-                    {/* Horário de Funcionamento Principal */}
+            {/* Detalhes (Expandido) */}
+            {isOpen && isExpanded && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-5 animate-in fade-in duration-300">
+                    
+                    {/* Horário de Funcionamento */}
                     <div className="grid grid-cols-2 gap-4">
                         <TimeInput
-                            id={`${dayKey}-open`} label="Abre às"
-                            value={daySchedule.openTime}
+                            label="Abre às"
+                            value={openTime}
                             onChange={(e) => handleChange('openTime', e.target.value)}
                             disabled={disabled}
                         />
                         <TimeInput
-                            id={`${dayKey}-close`} label="Fecha às"
-                            value={daySchedule.closeTime}
+                            label="Fecha às"
+                            value={closeTime}
                             onChange={(e) => handleChange('closeTime', e.target.value)}
                             disabled={disabled}
                         />
                     </div>
 
-                    {/* Horário de Almoço (Nova Estrutura) */}
-                    <div className="border border-dashed border-gray-300 p-3 rounded-lg bg-cyan-50/50">
-                        <div className="flex items-center justify-between mb-3">
-                            <label htmlFor={`${dayKey}-lunch-toggle`} className="text-sm font-bold text-cyan-700">
+                    {/* Horário de Almoço */}
+                    <div className="p-4 rounded-lg bg-gray-50 border border-gray-200/80">
+                        <div className="flex justify-between items-center mb-3">
+                            <label className="text-sm font-bold text-gray-700">
                                 Intervalo de Almoço
                             </label>
-                            <input
-                                type="checkbox"
-                                id={`${dayKey}-lunch-toggle`}
-                                checked={daySchedule.hasLunch}
-                                onChange={(e) => handleChange('hasLunch', e.target.checked)}
-                                className="w-5 h-5 rounded text-cyan-600 focus:ring-cyan-500"
+                            <SwitchToggle 
+                                checked={hasLunch} 
+                                onChange={toggleLunch} 
                                 disabled={disabled}
+                                primaryColor={primaryColor}
                             />
                         </div>
-
-                        {daySchedule.hasLunch && (
-                            <div className="grid grid-cols-2 gap-4">
+                        {hasLunch && (
+                            <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
                                 <TimeInput
-                                    id={`${dayKey}-lunch-start`}
                                     label="Início Almoço"
-                                    value={daySchedule.lunchStart || '12:00'}
+                                    value={lunchStart}
                                     onChange={(e) => handleChange('lunchStart', e.target.value)}
                                     disabled={disabled}
                                 />
                                 <TimeInput
-                                    id={`${dayKey}-lunch-end`}
                                     label="Fim Almoço"
-                                    value={daySchedule.lunchEnd || '13:00'}
+                                    value={lunchEnd}
                                     onChange={(e) => handleChange('lunchEnd', e.target.value)}
                                     disabled={disabled}
                                 />
                             </div>
-                        )}
-                        {!daySchedule.hasLunch && (
-                            <p className="text-xs text-gray-500 text-center py-2">Não há intervalo de almoço neste dia.</p>
                         )}
                     </div>
                 </div>
             )}
         </div>
     );
-});
+};
 
 
 // --- COMPONENTE PRINCIPAL ---
 export default function HorariosPage() {
-    const { salaoId } = useSalon();
+    const { salaoId, salonDetails } = useSalon();
+    const primaryColor = salonDetails?.cor_primaria || '#0E7490';
+    
     const [schedule, setSchedule] = useState(initialSchedule);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
 
-    // 1. Lógica de Busca (GET)
+    // Lógica de Busca (GET)
     const fetchHorarios = useCallback(async () => {
-        // ... (Seu código de fetch permanece inalterado) ...
-        if (!salaoId) { setLoading(false); return; }
-
-        const currentUser = auth.currentUser;
-        if (!currentUser) { setError("Sessão expirada."); setLoading(false); return; }
-
-        const token = await currentUser.getIdToken();
+        if (!salaoId || !auth.currentUser) { setLoading(false); return; }
+        
         setLoading(true); setError(null);
         try {
+            const token = await auth.currentUser.getIdToken();
             const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const data = response.data;
 
+            // Combina o estado inicial com os dados do banco
+            const mergedSchedule = { ...initialSchedule };
             if (data.horario_trabalho_detalhado) {
-                setSchedule(prev => ({ ...prev, ...data.horario_trabalho_detalhado }));
-            } else if (data.dias_trabalho) {
-                const newSchedule = DIAS_DA_SEMANA.reduce((acc, item) => {
-                    const isWorking = data.dias_trabalho.includes(item.dbKey);
-                    acc[item.dbKey] = {
-                        ...initialSchedule[item.dbKey],
-                        isOpen: isWorking,
-                        openTime: data.horario_inicio || initialSchedule[item.dbKey].openTime,
-                        closeTime: data.horario_fim || initialSchedule[item.dbKey].closeTime,
-                    };
-                    return acc;
-                }, {});
-                setSchedule(newSchedule);
+                for (const dayKey in mergedSchedule) {
+                    if (data.horario_trabalho_detalhado[dayKey]) {
+                        mergedSchedule[dayKey] = { ...mergedSchedule[dayKey], ...data.horario_trabalho_detalhado[dayKey] };
+                    }
+                }
             }
+            setSchedule(mergedSchedule);
         } catch (err) {
             setError("Não foi possível carregar os horários. Usando padrão.");
         } finally { setLoading(false); }
     }, [salaoId]);
 
     useEffect(() => {
-        if (salaoId) {
-            fetchHorarios();
-        }
+        if (salaoId) fetchHorarios();
     }, [fetchHorarios, salaoId]);
 
 
-    // 2. Handler para atualizar o estado localmente (usado pelo DayCard)
+    // Handler para atualizar o estado localmente (usado pelo DayRow)
     const updateSchedule = useCallback((dayKey, newValues) => {
         setSchedule(prevSchedule => {
             const updatedDay = { ...prevSchedule[dayKey], ...newValues };
-
-            // >>> CORREÇÃO CRÍTICA: Inicializa os valores ao ativar o almoço <<<
-            // Verifica se está ativando o almoço E se os campos estão vazios no estado
+            
+            // Garante valores padrão ao ativar o almoço
             if (newValues.hasLunch === true) {
                 updatedDay.lunchStart = updatedDay.lunchStart || '12:00';
                 updatedDay.lunchEnd = updatedDay.lunchEnd || '13:00';
             }
-
-            // Limpa o estado se desativar o almoço (boa prática)
             if (newValues.hasLunch === false) {
                 updatedDay.lunchStart = null;
                 updatedDay.lunchEnd = null;
             }
-
-            return {
-                ...prevSchedule,
-                [dayKey]: updatedDay,
-            };
+            
+            return { ...prevSchedule, [dayKey]: updatedDay };
         });
     }, []);
 
-    // 3. Lógica de Salvamento (PUT)
+    // 🌟 BOTÃO MÁGICO: Replicar Horários
+    const handleReplicateHours = () => {
+        if (!schedule['monday']) return;
+        
+        const mondaySchedule = schedule['monday'];
+        
+        if (!window.confirm(`Replicar os horários de Segunda-feira (${mondaySchedule.openTime}-${mondaySchedule.closeTime}) para Terça, Quarta, Quinta e Sexta?`)) {
+            return;
+        }
+
+        setSchedule(prev => {
+            const newSchedule = { ...prev };
+            ['tuesday', 'wednesday', 'thursday', 'friday'].forEach(dayKey => {
+                newSchedule[dayKey] = { ...mondaySchedule }; // Copia os valores
+            });
+            return newSchedule;
+        });
+
+        toast.success("Horários replicados! Clique em 'Salvar' para confirmar.");
+    };
+
+    // Lógica de Salvamento (PUT)
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true); setError(null);
 
-        if (!salaoId) { setError("Erro: ID do salão não carregado."); setIsSaving(false); return; }
+        if (!salaoId) { setError("Erro: ID do salão."); setIsSaving(false); return; }
 
-        const workingDays = Object.values(schedule).filter(day => day.isOpen);
-        if (workingDays.length === 0) { setError("Selecione pelo menos um dia de trabalho."); setIsSaving(false); return; }
-
-        // --- VALIDAÇÃO DE HORÁRIOS CRÍTICA ---
-        for (const day of workingDays) {
-            const dayName = DIAS_DA_SEMANA.find(d => d.dbKey === Object.keys(schedule).find(key => schedule[key] === day)).name;
-
-            if (day.openTime >= day.closeTime) {
-                setError(`O horário de fechamento em ${dayName} deve ser posterior ao de abertura.`);
-                setIsSaving(false);
-                return;
-            }
-
-            if (day.hasLunch) {
-                // MUDANÇA CRÍTICA: A validação do frontend é executada aqui
-
-                if (!day.lunchStart || !day.lunchEnd) {
-                    // Esta checagem é redundante se updateSchedule funcionar, mas a mantemos como segurança final.
-                    setError(`Obrigatório: Os horários de início e fim do almoço em ${dayName} devem ser preenchidos.`);
+        // --- VALIDAÇÃO DE HORÁRIOS ---
+        for (const dayKey of DIAS_DA_SEMANA.map(d => d.dbKey)) {
+            const day = schedule[dayKey];
+            if (day.isOpen) {
+                if (day.openTime >= day.closeTime) {
+                    setError(`O horário de fechamento em ${dayNames[dayKey]} deve ser posterior ao de abertura.`);
                     setIsSaving(false);
                     return;
                 }
-
-                // Validação de ordem (aonde o erro estava)
-                if (day.lunchStart >= day.lunchEnd) {
-                    setError(`O fim do almoço em ${dayName} deve ser posterior ao início.`);
-                    setIsSaving(false);
-                    return;
-                }
-
-                // Validação de intervalo de almoço dentro do horário de funcionamento
-                if (day.lunchStart <= day.openTime || day.lunchEnd >= day.closeTime || day.lunchStart >= day.closeTime || day.lunchEnd <= day.openTime) {
-                    setError(`O intervalo de almoço em ${dayName} deve estar completamente dentro do horário de funcionamento (${day.openTime} às ${day.closeTime}).`);
-                    setIsSaving(false);
-                    return;
+                if (day.hasLunch) {
+                    if (!day.lunchStart || !day.lunchEnd) {
+                        setError(`Horários de almoço inválidos em ${dayNames[dayKey]}.`);
+                        setIsSaving(false);
+                        return;
+                    }
+                    if (day.lunchStart >= day.lunchEnd) {
+                        setError(`O fim do almoço em ${dayNames[dayKey]} deve ser posterior ao início.`);
+                        setIsSaving(false);
+                        return;
+                    }
+                    if (day.lunchStart <= day.openTime || day.lunchEnd >= day.closeTime) {
+                        setError(`O almoço em ${dayNames[dayKey]} deve estar dentro do horário de funcionamento.`);
+                        setIsSaving(false);
+                        return;
+                    }
                 }
             }
         }
         // --- FIM DA VALIDAÇÃO ---
 
-
         try {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("Sessão expirada.");
-
             const token = await currentUser.getIdToken();
-
+            
+            // Pegamos os dados atuais para não sobrescrever outros campos
             const salonResponse = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
             const salonData = salonResponse.data;
 
@@ -310,6 +314,7 @@ export default function HorariosPage() {
                 ...salonData,
                 id: salaoId,
                 horario_trabalho_detalhado: schedule,
+                // Limpa dados antigos (legado)
                 dias_trabalho: undefined,
                 horario_inicio: undefined,
                 horario_fim: undefined,
@@ -328,65 +333,87 @@ export default function HorariosPage() {
     // --- Renderização Loading/Error ---
     if (loading || !salaoId) {
         return (
-            <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-                {!salaoId ? <HourglassLoading message="Carregando dados do painel..." /> : <HourglassLoading message='Carregando horarios...' />}
-            </div>
-        );
-    }
-    if (error && !isSaving) {
-        return (
-            <div className="p-4 bg-red-100 text-red-700 rounded-lg shadow border border-red-200 font-sans flex items-center gap-2">
-                <Icon icon={AlertTriangle} className="w-5 h-5 flex-shrink-0" />
-                <p>{error}</p>
+            <div className="h-96 flex items-center justify-center">
+                <HourglassLoading message='Carregando horários...' primaryColor={primaryColor} />
             </div>
         );
     }
 
-    // --- Renderização Principal ---
     return (
-        <div className="max-w-3xl mx-auto font-sans">
-            <h2 className={`text-2xl font-bold text-gray-900 mb-6 flex items-center ${CIANO_COLOR_TEXT}`}>
-                <Icon icon={CalendarDays} className="w-6 h-6 mr-3" />
-                Configurar Horário de Funcionamento
-            </h2>
+        <div className="max-w-3xl mx-auto font-sans pb-32">
+            <div className="flex items-center gap-3 mb-8">
+                <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
+                    <Icon icon={CalendarDays} className="w-6 h-6" style={{ color: primaryColor }} />
+                </div>
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        Horário de Funcionamento
+                    </h1>
+                    <p className="text-sm text-gray-500">Defina os horários que aparecerão no seu site.</p>
+                </div>
+            </div>
 
-            <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-                <form onSubmit={handleSubmit}>
-
-                    {error && !isSaving && <p className="text-sm text-red-600 mb-4 text-center p-2 bg-red-50 rounded-lg">{error}</p>}
-
-                    {/* Cards de Dias da Semana (Novo Fluxo) */}
-                    <div className="space-y-4">
-                        <p className="font-semibold text-gray-700 mb-2 border-b pb-2">Configuração Detalhada por Dia:</p>
+            <form onSubmit={handleSubmit}>
+                <div className="space-y-6">
+                    
+                    {/* 🌟 BOTÃO MÁGICO (REPLICAR) 🌟 */}
+                    <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <Icon icon={Copy} className="w-5 h-5 text-gray-400" />
+                            <div>
+                                <h4 className="font-semibold text-gray-800">Economize Tempo</h4>
+                                <p className="text-sm text-gray-500">Copiar horário de Segunda para Terça a Sexta.</p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleReplicateHours}
+                            disabled={isSaving}
+                            className="w-full sm:w-auto flex-shrink-0 px-4 py-2 text-sm font-medium text-white rounded-lg shadow-sm transition-colors"
+                            style={{ backgroundColor: primaryColor }}
+                        >
+                            Replicar Horários
+                        </button>
+                    </div>
+                    
+                    {error && !isSaving && (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-100 text-sm flex items-center gap-2">
+                            <Icon icon={AlertTriangle} className="w-5 h-5" /> {error}
+                        </div>
+                    )}
+                    
+                    {/* 🌟 NOVAS LINHAS DE DIA 🌟 */}
+                    <div className="space-y-3">
                         {DIAS_DA_SEMANA.map((item) => (
-                            <DayCard
+                            <DayRow
                                 key={item.dbKey}
                                 dayKey={item.dbKey}
                                 dayName={item.name}
                                 daySchedule={schedule[item.dbKey] || initialSchedule[item.dbKey]}
                                 updateSchedule={updateSchedule}
                                 disabled={isSaving}
+                                primaryColor={primaryColor}
                             />
                         ))}
                     </div>
 
-                    {/* Botão Salvar */}
-                    <div className="flex justify-end pt-6 border-t border-gray-100 mt-6">
+                </div>
+
+                {/* Botão Salvar (Fixo no rodapé) */}
+                <div className="fixed bottom-0 left-0 lg:left-64 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-10">
+                    <div className="max-w-3xl mx-auto flex justify-end">
                         <button
                             type="submit"
-                            className={`flex items-center px-6 py-2.5 ${CIANO_COLOR_BG} text-white rounded-lg shadow-sm ${CIANO_COLOR_BG_HOVER} transition-colors disabled:opacity-50`}
+                            className="flex items-center px-6 py-3 text-white rounded-lg shadow-lg transition-all font-bold"
+                            style={{ backgroundColor: primaryColor }}
                             disabled={isSaving}
                         >
-                            {isSaving ? (
-                                <Loader2 className="w-5 h-5 animate-spin stroke-current mr-2" />
-                            ) : (
-                                <Icon icon={Save} className="w-5 h-5 mr-2" />
-                            )}
+                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
                             {isSaving ? 'Salvando...' : 'Salvar Horários'}
                         </button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     );
 }

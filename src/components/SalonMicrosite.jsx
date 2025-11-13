@@ -159,7 +159,7 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                     <div className={`flex items-center gap-2 backdrop-blur-md border px-4 py-2 rounded-full ${isOpenNow ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'}`}>
                         <div className={`w-2 h-2 rounded-full animate-pulse ${isOpenNow ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span className={`text-sm font-medium ${isOpenNow ? 'text-green-100' : 'text-red-100'}`}>
-                            {isOpenNow ? 'Aberto Agora' : 'Fechado'}
+                            {isOpenNow ? 'Aberto' : 'Fechado'}
                         </span>
                     </div>
                 </div>
