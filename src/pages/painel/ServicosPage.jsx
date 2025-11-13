@@ -254,7 +254,7 @@ function ServicosPage() {
   if (loading || isDeleting || !salaoId) { // Adicionamos !salaoId
     return (
       <div className="p-6 text-center bg-white rounded-lg shadow-md border border-gray-200 min-h-[300px] flex flex-col items-center justify-center font-sans">
-        <p className="text-gray-600">{!salaoId ? <HourglassLoading message='Carregando dados do painel...'/> : (isDeleting ? <HourglassLoading message='Removendo serviço...'/> : <HourglassLoading message='Carregando serviços...'/>)}</p>
+        {!salaoId ? <HourglassLoading message='Carregando dados do painel...'/> : (isDeleting ? <HourglassLoading message='Removendo serviço...'/> : <HourglassLoading message='Carregando serviços...'/>)}
       </div>
     );
   }
