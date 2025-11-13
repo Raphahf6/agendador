@@ -31,27 +31,42 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
             let servicesData = [];
             let fetchError = null;
 
-            try {
+           try {
+                // Tenta buscar os dados do salão
                 const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`);
+                
                 if (response.data && typeof response.data === 'object') {
                     responseData = response.data;
                     servicesData = Array.isArray(response.data.servicos) ? response.data.servicos : [];
                 } else {
                     throw new Error("Formato de resposta inesperado.");
                 }
+
             } catch (err) {
                 console.error("ServiceList Error:", err);
-                fetchError = err.response?.data?.detail || err.message || "Erro ao carregar dados.";
+
+                // 🌟 TRATAMENTO DE ERRO DE ASSINATURA (403) 🌟
+                if (err.response && err.response.status === 403) {
+                    // Passamos essa mensagem específica. O SalonMicrosite vai ler isso,
+                    // detectar o "403" ou "indisponível" e mostrar a tela de bloqueio.
+                    fetchError = "403: Estabelecimento indisponível."; 
+                } else {
+                    // Erros normais (sem internet, erro de servidor, etc)
+                    fetchError = err.response?.data?.detail || err.message || "Erro ao carregar dados.";
+                }
+
                 responseData = null;
                 servicesData = [];
             } finally {
                 if (isMounted) {
                     setServices(servicesData);
                     setError(fetchError);
+                    // Passa os dados (ou o erro) para o Pai (SalonMicrosite)
                     onDataLoaded(responseData, fetchError);
                     setLoading(false);
                 }
             }
+            
         };
         fetchSalonData();
         return () => { isMounted = false; };

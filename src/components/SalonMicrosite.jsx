@@ -226,6 +226,23 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
     </div>
 );
 
+const SalonSuspended = () => (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-100">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Clock className="w-10 h-10 text-gray-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-3">Agendamento Indisponível</h1>
+            <p className="text-gray-600 mb-6">
+                O sistema de agendamento deste estabelecimento está temporariamente pausado.
+            </p>
+            <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-800">
+                Por favor, entre em contato diretamente com o estabelecimento por telefone ou redes sociais para agendar.
+            </div>
+            <p className="mt-8 text-xs text-gray-400">Powered by Horalis</p>
+        </div>
+    </div>
+);
 // ----------------------------------------------------
 // --- COMPONENTE PRINCIPAL ---
 // ----------------------------------------------------
@@ -234,6 +251,7 @@ export function SalonMicrosite() {
     const [selectedService, setSelectedService] = useState(null);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
     const [deviceId, setDeviceId] = useState(null);
+    const [isSuspended, setIsSuspended] = useState(false); // 🌟 NOVO ESTADO
 
     const [salonDetails, setSalonDetails] = useState({
         nome_salao: '', tagline: '', url_logo: '', cor_primaria: '#0E7490', cor_secundaria: '#FFFFFF',
@@ -267,6 +285,17 @@ export function SalonMicrosite() {
     const handleDataLoaded = useCallback((details, err) => {
         setLoading(false);
         if (err) { setError(err); return; }
+        if (error) {
+            // Se o erro for 403 (Forbidden), ativamos a tela de suspenso
+            if (error.includes("403") || error.toLowerCase().includes("indisponível")) {
+                setIsSuspended(true);
+                return;
+            }
+            
+            setErrorSalon(error);
+            // ...
+            return;
+        }
         if (details) {
             setSalonDetails(prev => ({ ...prev, ...details }));
             applyTheme(details);
@@ -298,6 +327,10 @@ export function SalonMicrosite() {
                 </div>
             ) : <div className="py-20 flex justify-center"><HourglassLoading message="Carregando Pagamento..." primaryColor={salonDetails.cor_primaria} /></div>;
         }
+
+        if (isSuspended) {
+        return <SalonSuspended />;
+    }
 
         return (
             <div className="max-w-5xl mx-auto grid lg:grid-cols-12 gap-10">
