@@ -5,7 +5,7 @@ import {
   ArrowRight, Menu, X, BarChart2, Smartphone, Mail, ShieldCheck,
   DollarSign, PieChart, Settings, HelpCircle, ChevronDown, ChevronUp,
   Bell, Megaphone, CreditCard, Globe, TrendingUp, Eye,
-  RefreshCcw
+  RefreshCcw,Instagram,Facebook
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
 import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
@@ -357,19 +357,73 @@ export function LandingPage() {
       </section>
 
       {/* --- FOOTER --- */}
-      <footer className="bg-slate-50 py-12">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-             <LogoHoralis size="h-6" darkText={true} />
-          </div>
-          <div className="flex gap-8 text-sm text-slate-500 font-medium">
-            <a href="#" className="hover:text-cyan-700 transition-colors">Termos de Uso</a>
-            <a href="#" className="hover:text-cyan-700 transition-colors">Política de Privacidade</a>
-            <a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Fale Conosco</a>
-          </div>
-          <p className="text-sm text-slate-400">© {new Date().getFullYear()} Horalis Inc.</p>
-        </div>
-      </footer>
+      {/* --- FOOTER PROFISSIONAL --- */}
+            <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
+                <div className="max-w-7xl mx-auto px-6">
+                    
+                    {/* Parte Superior: Grid de Links e Marca */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+                        
+                        {/* Coluna 1: Marca e Missão (Ocupa 2 colunas no mobile se quiser, ou 1 padrão) */}
+                        <div className="col-span-2 md:col-span-1">
+                            <div className="mb-4">
+                                <LogoHoralis size="h-8" darkText={true} />
+                            </div>
+                            <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
+                                Transformando a gestão de salões e barbearias com tecnologia simples, bonita e eficiente.
+                            </p>
+                        </div>
+
+                        {/* Coluna 2: Produto */}
+                        <div>
+                            <h4 className="font-bold text-slate-900 mb-4">Produto</h4>
+                            <ul className="space-y-2 text-sm text-slate-600">
+                                <li><a href="#funcionalidades" className="hover:text-cyan-700 transition-colors">Funcionalidades</a></li>
+                                <li><a href="#planos" className="hover:text-cyan-700 transition-colors">Planos e Preços</a></li>
+                                <li><a href={REAL_MICROSITE_LINK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Ver Demonstração</a></li>
+                                <li><span className="text-cyan-600 text-xs font-bold bg-cyan-50 px-2 py-0.5 rounded-full">Novo</span> Integração Google</li>
+                            </ul>
+                        </div>
+
+                        {/* Coluna 3: Suporte */}
+                        <div>
+                            <h4 className="font-bold text-slate-900 mb-4">Suporte</h4>
+                            <ul className="space-y-2 text-sm text-slate-600">
+                                <li><a href={WHATSAPP_LNK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Fale Conosco</a></li>
+                                <li><a href="#faq" className="hover:text-cyan-700 transition-colors">Central de Ajuda</a></li>
+                                <li><a href="#" className="hover:text-cyan-700 transition-colors">Status do Sistema</a></li>
+                            </ul>
+                        </div>
+
+                        {/* Coluna 4: Legal */}
+                        <div>
+                            <h4 className="font-bold text-slate-900 mb-4">Legal</h4>
+                            <ul className="space-y-2 text-sm text-slate-600">
+                                <li><a href="#" className="hover:text-cyan-700 transition-colors">Termos de Uso</a></li>
+                                <li><a href="#" className="hover:text-cyan-700 transition-colors">Política de Privacidade</a></li>
+                                <li><a href="#" className="hover:text-cyan-700 transition-colors">Cookies</a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Parte Inferior: Copyright e Redes Sociais */}
+                    <div className="pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <p className="text-sm text-slate-400">
+                            © {new Date().getFullYear()} Horalis Inc. Todos os direitos reservados.
+                        </p>
+                        
+                        <div className="flex items-center gap-6">
+                            {/* Ícones sociais (usando Lucide ou apenas placeholders visuais se preferir) */}
+                            <a href="#" className="text-slate-400 hover:text-cyan-700 transition-colors" aria-label="Instagram">
+                                <Icon icon={Instagram} className="w-5 h-5" />
+                            </a>
+                            <a href="#" className="text-slate-400 hover:text-cyan-700 transition-colors" aria-label="Facebook">
+                                <Icon icon={Facebook} className="w-5 h-5" />
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
 
       {/* --- MODAL DE CADASTRO --- */}
       {isModalOpen && (
