@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { 
     ArrowLeft, Clock, MapPin, Wifi, Car, Coffee, Users, 
     Phone, Instagram, Facebook, Share2, CalendarCheck, MessageCircle,
-    DollarSign, Star // 🌟 ADICIONADO 'Star' E 'DollarSign'
+    DollarSign, Star, User as UserIcon 
 } from 'lucide-react';
 
 // Swiper
@@ -27,7 +27,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- HELPERS DE FORMATAÇÃO (Mantidos) ---
+// --- HELPERS DE FORMATAÇÃO ---
 const formatPhoneVisual = (phone) => {
     if (!phone) return "";
     let numbers = phone.replace(/\D/g, '');
@@ -84,7 +84,6 @@ const amenitiesMap = {
     estacionamento: { icon: Car, label: 'Estacionamento' },
     cafe: { icon: Coffee, label: 'Café' },
 };
-// --- Fim Helpers ---
 
 // --- SUB-COMPONENTE: SPLASH SCREEN PREMIUM ---
 const PremiumSplash = ({ isFadingOut, primaryColor }) => (
@@ -97,7 +96,73 @@ const PremiumSplash = ({ isFadingOut, primaryColor }) => (
     </div>
 );
 
-// --- SUB-COMPONENTE: HERO SECTION (COM RATING) ---
+// --- SUB-COMPONENTE: TELA DE SALÃO INDISPONÍVEL ---
+const SalonSuspended = () => (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-gray-100">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Clock className="w-10 h-10 text-gray-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-3">Agendamento Indisponível</h1>
+            <p className="text-gray-600 mb-6">
+                O sistema de agendamento deste estabelecimento está temporariamente pausado.
+            </p>
+            <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-800">
+                Por favor, entre em contato diretamente com o estabelecimento por telefone ou redes sociais para agendar.
+            </div>
+            <p className="mt-8 text-xs text-gray-400">Powered by Horalis</p>
+        </div>
+    </div>
+);
+
+// --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL ---
+const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
+    return (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
+            <h3 className="text-xl font-bold text-gray-900 mb-6 text-center">Com quem você quer agendar?</h3>
+            
+            <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
+                {/* Opção "Qualquer Profissional" */}
+                <div 
+                    onClick={() => onSelect(null)} 
+                    className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group"
+                >
+                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-colors">
+                        <Users className="w-7 h-7" />
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-bold text-gray-900 text-lg">Primeiro Disponível</h4>
+                        <p className="text-sm text-gray-500">Qualquer profissional qualificado.</p>
+                    </div>
+                    <div className="w-6 h-6 rounded-full border-2 border-gray-200 group-hover:border-cyan-500 group-hover:bg-cyan-500 transition-colors"></div>
+                </div>
+
+                {/* Lista de Profissionais */}
+                {professionals.map((pro) => (
+                    <div 
+                        key={pro.id}
+                        onClick={() => onSelect(pro)}
+                        className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                        {pro.foto_url ? (
+                            <img src={pro.foto_url} alt={pro.nome} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm" />
+                        ) : (
+                            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                <UserIcon className="w-7 h-7" />
+                            </div>
+                        )}
+                        <div>
+                            <h4 className="font-bold text-gray-900 text-lg">{pro.nome}</h4>
+                            <p className="text-sm text-gray-500">{pro.cargo || 'Profissional'}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTE: HERO SECTION ---
 const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
     const photos = details.fotos_carousel?.length > 0 ? details.fotos_carousel : [{ url: "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop", alt: "Atmosphere" }];
 
@@ -146,21 +211,16 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                             {details.tagline || "Experiência única em beleza e bem-estar."}
                         </p>
                         
-                        {/* 🌟 NOVO: BLOCO DE RATING 5.0 🌟 */}
                         <div className="flex items-center gap-2 mt-4" title="Avaliação 5.0">
                             <div className="flex items-center gap-0.5">
-                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                                <Icon icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                    <Icon key={i} icon={Star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                                ))}
                             </div>
                             <span className="text-white font-bold text-lg">5.0</span>
-                            {/* <span className="text-white/70 text-sm">(100+ Avaliações)</span> */}
                         </div>
                     </div>
                     
-                    {/* Status Aberto/Fechado */}
                     <div className={`flex items-center gap-2 backdrop-blur-md border px-4 py-2 rounded-full ${isOpenNow ? 'bg-green-500/20 border-green-500/30' : 'bg-red-500/20 border-red-500/30'}`}>
                         <div className={`w-2 h-2 rounded-full animate-pulse ${isOpenNow ? 'bg-green-400' : 'bg-red-400'}`} />
                         <span className={`text-sm font-medium ${isOpenNow ? 'text-green-100' : 'text-red-100'}`}>
@@ -173,7 +233,7 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
     );
 };
 
-// --- SUB-COMPONENTE: INFO BAR (GLASSMORPHISM) ---
+// --- SUB-COMPONENTE: INFO BAR ---
 const InfoFloatingBar = ({ details, primaryColor }) => (
     <div className="relative -mt-8 mx-4 lg:mx-auto max-w-5xl z-20">
         <div className="bg-white shadow-xl rounded-2xl p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center gap-6 border border-gray-100">
@@ -231,16 +291,18 @@ const InfoFloatingBar = ({ details, primaryColor }) => (
     </div>
 );
 
-// --- SUB-COMPONENTE: DETALHES RICOS (REMOVIDO) ---
-// (Informações agora estão na barra lateral da home)
-
 // ----------------------------------------------------
 // --- COMPONENTE PRINCIPAL ---
 // ----------------------------------------------------
 export function SalonMicrosite() {
     const { salaoId } = useParams();
+    
+    // Estados de Fluxo
     const [selectedService, setSelectedService] = useState(null);
+    const [selectedProfessional, setSelectedProfessional] = useState(null);
+    const [isChoosingProfessional, setIsChoosingProfessional] = useState(false);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
+    
     const [deviceId, setDeviceId] = useState(null);
     const [isSuspended, setIsSuspended] = useState(false);
 
@@ -248,7 +310,8 @@ export function SalonMicrosite() {
         nome_salao: '', tagline: '', url_logo: '', cor_primaria: '#0E7490', cor_secundaria: '#FFFFFF',
         mp_public_key: null, sinal_valor: 0,
         endereco_completo: '', horario_trabalho_detalhado: {}, comodidades: {}, 
-        fotos_carousel: [], formas_pagamento: '', telefone: '', redes_sociais: {}, 
+        fotos_carousel: [], formas_pagamento: '', telefone: '', redes_sociais: {},
+        profissionais: [] 
     });
 
     const [loading, setLoading] = useState(true);
@@ -260,6 +323,10 @@ export function SalonMicrosite() {
     const orderedHours = useMemo(() => formatHoursForDisplay(salonDetails.horario_trabalho_detalhado), [salonDetails.horario_trabalho_detalhado]);
     const isOpenNow = checkIsOpen(salonDetails.horario_trabalho_detalhado);
 
+    // 🌟 CORREÇÃO: Variável de fluxo movida para o escopo principal
+    const isSchedulingFlowActive = !!selectedService || !!appointmentConfirmed;
+
+    // Efeitos e Handlers
     useEffect(() => {
         if (!loading && showSplash && !error) {
             setTimeout(() => {
@@ -293,37 +360,106 @@ export function SalonMicrosite() {
         }
     }, [applyTheme]);
 
-    const handleServiceSelect = (s) => { setSelectedService(s); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const handleBack = () => { setSelectedService(null); };
-    const handleSuccess = (d) => { setAppointmentConfirmed(d); setSelectedService(null); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const handleHome = () => { setAppointmentConfirmed(null); setSelectedService(null); };
+    // Handlers de Fluxo
+    const handleServiceSelect = (service) => { 
+        setSelectedService(service); 
+        if (salonDetails.profissionais && salonDetails.profissionais.length > 0) {
+            setIsChoosingProfessional(true);
+        } else {
+            setSelectedProfessional(null);
+            setIsChoosingProfessional(false);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' }); 
+    };
+
+    const handleProfessionalSelect = (professional) => {
+        setSelectedProfessional(professional);
+        setIsChoosingProfessional(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleBack = () => { 
+        if (appointmentConfirmed) {
+            setAppointmentConfirmed(null);
+            setSelectedService(null);
+            setSelectedProfessional(null);
+            setIsChoosingProfessional(false);
+        } else if (isChoosingProfessional) {
+            setIsChoosingProfessional(false);
+            setSelectedService(null);
+        } else if (selectedService) {
+            if (salonDetails.profissionais && salonDetails.profissionais.length > 0) {
+                setIsChoosingProfessional(true); 
+                setSelectedProfessional(null);
+            } else {
+                setSelectedService(null);
+            }
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleSuccess = (d) => { setAppointmentConfirmed(d); setSelectedService(null); setIsChoosingProfessional(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const handleHome = () => { setAppointmentConfirmed(null); setSelectedService(null); setIsChoosingProfessional(false); setSelectedProfessional(null); };
 
     const renderMainContent = () => {
         if (error) return <div className="text-center py-20 text-red-500">{error}</div>;
+        
         if (appointmentConfirmed) return <ConfirmationPage appointmentDetails={appointmentConfirmed} onGoBack={handleHome} salonName={salonDetails.nome_salao} primaryColor={salonDetails.cor_primaria} />;
         
-        if (selectedService) {
+        if (selectedService && isChoosingProfessional) {
+            return (
+                <div className="max-w-3xl mx-auto">
+                    <ProfessionalSelection 
+                        professionals={salonDetails.profissionais} 
+                        onSelect={handleProfessionalSelect} 
+                        primaryColor={salonDetails.cor_primaria}
+                    />
+                </div>
+            );
+        }
+
+        if (selectedService && !isChoosingProfessional) {
             return sdkReady ? (
                 <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-6 lg:p-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">Finalizar Agendamento</h2>
+                    
+                    <div className="mb-6 flex items-center gap-3 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                        <span className="font-bold text-gray-900">{selectedService.nome_servico}</span>
+                        {selectedProfessional ? (
+                            <>
+                                <span className="text-gray-300">|</span>
+                                <span className="flex items-center gap-1"><UserIcon className="w-3 h-3"/> {selectedProfessional.nome}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-gray-300">|</span>
+                                <span className="italic">Profissional: Qualquer um</span>
+                            </>
+                        )}
+                    </div>
+
                     <AppointmentScheduler 
-                        salaoId={salaoId} selectedService={selectedService} onAppointmentSuccess={handleSuccess} 
-                        sinalValor={salonDetails.sinal_valor} publicKeyExists={!!salonDetails.mp_public_key} 
-                        deviceId={deviceId} primaryColor={salonDetails.cor_primaria} onBackClick={handleBack} 
+                        salaoId={salaoId} 
+                        selectedService={selectedService} 
+                        onAppointmentSuccess={handleSuccess} 
+                        sinalValor={salonDetails.sinal_valor} 
+                        publicKeyExists={!!salonDetails.mp_public_key} 
+                        deviceId={deviceId} 
+                        primaryColor={salonDetails.cor_primaria} 
+                        onBackClick={handleBack}
+                        selectedProfessional={selectedProfessional} 
                     />
                 </div>
             ) : <div className="py-20 flex justify-center"><HourglassLoading message="Carregando Pagamento..." primaryColor={salonDetails.cor_primaria} /></div>;
         }
 
+        // Home (Lista de Serviços)
         return (
             <div className="max-w-5xl mx-auto grid lg:grid-cols-12 gap-10">
-                
-                {/* COLUNA PRINCIPAL: SERVIÇOS */}
                 <div className="lg:col-span-8 space-y-8">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Nossos Serviços</h2>
-                        <p className="text-gray-500 mb-6">Selecione um serviço para ver horários disponíveis.</p>
-                        
+                        <p className="text-gray-500 mb-6">Selecione um serviço para começar.</p>
                         <ServiceList 
                             salaoId={salaoId} 
                             onDataLoaded={handleDataLoaded} 
@@ -332,12 +468,7 @@ export function SalonMicrosite() {
                         />
                     </div>
                 </div>
-
-                {/* COLUNA LATERAL: HORÁRIOS, COMODIDADES E PAGAMENTO */}
                 <div className="lg:col-span-4 space-y-8">
-                    
-                    
-
                     <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 sticky top-8">
                         <h3 className="font-bold text-gray-900 mb-4 flex items-center">
                             <Icon icon={Clock} className="w-5 h-5 mr-2" style={{ color: salonDetails.cor_primaria }} />
@@ -370,7 +501,7 @@ export function SalonMicrosite() {
 
                         <div className="mt-8 pt-6 border-t border-gray-200/60">
                             <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider flex items-center">
-                            
+                                <Icon icon={DollarSign} className="w-4 h-4 mr-1" style={{ color: salonDetails.cor_primaria }} />
                                 Pagamento
                             </h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
@@ -382,8 +513,6 @@ export function SalonMicrosite() {
             </div>
         );
     };
-
-    const isSchedulingFlowActive = !!selectedService || !!appointmentConfirmed;
 
     // --- RENDERIZAÇÃO FINAL ---
     if (isSuspended) {
@@ -399,11 +528,11 @@ export function SalonMicrosite() {
                 <HeroSection 
                     details={salonDetails} 
                     onBack={handleBack} 
-                    isFlowActive={isSchedulingFlowActive}
+                    isFlowActive={isSchedulingFlowActive} // 🌟 CORRIGIDO AQUI
                     isOpenNow={isOpenNow} 
                 />
 
-                {!isSchedulingFlowActive && (
+                {!isSchedulingFlowActive && ( // 🌟 CORRIGIDO AQUI
                     <InfoFloatingBar details={salonDetails} primaryColor={salonDetails.cor_primaria} />
                 )}
 

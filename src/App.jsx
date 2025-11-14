@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 // Axios é necessário para a requisição, mas não é usado diretamente neste arquivo pai
 import HandleAuthActions from './components/HandleAuthActions';
 import ResetarSenhaPage from './components/ResetarSenhaPage';
+import MeusAgendamentosPage from './pages/painel/MeusAgendamentosPage';
 
 // Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
@@ -42,6 +43,7 @@ import { initMercadoPago } from '@mercadopago/sdk-react';
 import { SalonMicrosite } from './components/SalonMicrosite';
 import FinanceiroPage from './pages/painel/FinanceiroPage';
 import EstoquePage from './pages/painel/EstoquePage';
+import EquipePage from './pages/painel/EquipePage';
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
 // --- Componente de Loading (Ampulheta - Reutilizável) ---
@@ -137,6 +139,8 @@ function App() {
                     <Route path="marketing" element={<MarketingPage />} />
                     <Route path="financeiro" element={<FinanceiroPage/>} />
                     <Route path="estoque" element={<EstoquePage/>} />
+                    <Route path="equipe" element={<EquipePage/>} />
+                    <Route path="agendamentos" element={<MeusAgendamentosPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />

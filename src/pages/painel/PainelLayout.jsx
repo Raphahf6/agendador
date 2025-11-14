@@ -7,7 +7,10 @@ import {
     Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
     BarChart2, CreditCard, Users, Send, Loader2,
     CirclePercent,
-    Boxes
+    Boxes,
+    Users2,
+    UsersIcon,
+    CalendarDays
 } from 'lucide-react';
 import axios from 'axios';
 import { signOut, onAuthStateChanged } from "firebase/auth";
@@ -92,9 +95,11 @@ function SalonProvider({ children }) {
 
 // --- NAVEGAÇÃO ---
 const navigation = [
-    { name: 'Visão Geral', href: 'visaoGeral', icon: BarChart2 },
+    { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2 },
     { name: 'Calendário', href: 'calendario', icon: Calendar },
     { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
+    { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon },
+    { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays },
     { name: 'Meus Clientes', href: 'clientes', icon: Users },
     { name: 'Financeiro', href: 'financeiro', icon: CirclePercent },
     { name: 'Estoque', href: 'estoque', icon: Boxes },
