@@ -20,8 +20,8 @@ const DEFAULT_DAY_SCHEDULE = { isOpen: true, openTime: '09:00', closeTime: '18:0
 // --- Modal de Profissional (Com Seleção de Serviços) ---
 const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServices, primaryColor }) => {
     const [tab, setTab] = useState('dados'); // 'dados' | 'servicos' | 'horarios'
-    const [formData, setFormData] = useState({ 
-        nome: '', cargo: '', foto_url: '', 
+    const [formData, setFormData] = useState({
+        nome: '', cargo: '', foto_url: '',
         horario_trabalho: {},
         servicos: [] // Lista de IDs de serviços
     });
@@ -30,10 +30,10 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                setFormData({ 
-                    ...initialData, 
+                setFormData({
+                    ...initialData,
                     horario_trabalho: initialData.horario_trabalho || {},
-                    servicos: initialData.servicos || [] 
+                    servicos: initialData.servicos || []
                 });
             } else {
                 setFormData({ nome: '', cargo: '', foto_url: '', horario_trabalho: {}, servicos: [] });
@@ -84,7 +84,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-                
+
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <h3 className="text-lg font-bold text-gray-900">{initialData ? 'Editar Profissional' : 'Novo Profissional'}</h3>
                     <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
@@ -93,7 +93,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                 {/* Tabs de Navegação */}
                 <div className="flex border-b border-gray-100 overflow-x-auto no-scrollbar">
                     {['dados', 'servicos', 'horarios'].map((t) => (
-                        <button 
+                        <button
                             key={t}
                             onClick={() => setTab(t)}
                             className={`flex-1 py-3 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${tab === t ? 'text-cyan-700 border-b-2 border-cyan-700' : 'text-gray-500 hover:text-gray-700'}`}
@@ -104,23 +104,55 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                 </div>
 
                 <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                    
+
                     {/* TAB: DADOS */}
                     {tab === 'dados' && (
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome*</label>
-                                <input required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: João Silva" />
+                                <input required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: João Silva" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cargo</label>
-                                <input value={formData.cargo} onChange={e => setFormData({...formData, cargo: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: Barbeiro Master" />
+                                <input value={formData.cargo} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: Barbeiro Master" />
                             </div>
                             <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição / Bio</label>
+                                <textarea
+                                    value={formData.descricao}
+                                    onChange={e => setFormData({ ...formData, descricao: e.target.value })}
+                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none resize-none"
+                                    placeholder="Conte um pouco sobre a experiência e formação..."
+                                    rows="3"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">E-mail (Notificações)</label>
+                                <input
+                                    type="email"
+                                    value={formData.email || ''}
+                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none"
+                                    placeholder="joao@email.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone</label>
+                                <input
+                                    type="tel"
+                                    value={formData.telefone || ''}
+                                    onChange={e => setFormData({ ...formData, telefone: e.target.value })}
+                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none"
+                                    placeholder="(XX) 99999-9999"
+                                />
+                            </div>
+
+                            <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Foto URL</label>
-                                <input value={formData.foto_url} onChange={e => setFormData({...formData, foto_url: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="https://..." />
+                                <input value={formData.foto_url} onChange={e => setFormData({ ...formData, foto_url: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="https://..." />
                             </div>
                         </div>
+
                     )}
 
                     {/* TAB: SERVIÇOS (NOVA) */}
@@ -132,12 +164,12 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                                     {formData.servicos.length === availableServices.length ? 'Desmarcar Todos' : 'Marcar Todos'}
                                 </button>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 gap-2">
                                 {availableServices.map((service) => {
                                     const isSelected = formData.servicos.includes(service.id);
                                     return (
-                                        <div 
+                                        <div
                                             key={service.id}
                                             onClick={() => toggleService(service.id)}
                                             className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:border-gray-300'}`}
@@ -175,13 +207,13 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2">
                                                 <input type="checkbox" checked={isActive} onChange={(e) => {
-                                                        if (e.target.checked) updateDay(day.key, 'isOpen', true);
-                                                        else {
-                                                            const newSchedule = { ...formData.horario_trabalho };
-                                                            delete newSchedule[day.key];
-                                                            setFormData({ ...formData, horario_trabalho: newSchedule });
-                                                        }
-                                                    }} className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
+                                                    if (e.target.checked) updateDay(day.key, 'isOpen', true);
+                                                    else {
+                                                        const newSchedule = { ...formData.horario_trabalho };
+                                                        delete newSchedule[day.key];
+                                                        setFormData({ ...formData, horario_trabalho: newSchedule });
+                                                    }
+                                                }} className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                                                 />
                                                 <span className={`font-bold text-sm ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{day.name}</span>
                                             </div>
@@ -236,8 +268,8 @@ const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
             </div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => onEdit(pro)} className="p-2 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg"><Save className="w-4 h-4"/></button>
-            <button onClick={() => onDelete(pro.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+            <button onClick={() => onEdit(pro)} className="p-2 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg"><Save className="w-4 h-4" /></button>
+            <button onClick={() => onDelete(pro.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
         </div>
     </div>
 );
@@ -256,7 +288,7 @@ export default function EquipePage() {
         if (!salaoId || !auth.currentUser) return;
         try {
             const token = await auth.currentUser.getIdToken();
-            
+
             // Paraleliza as chamadas
             const [teamRes, salonRes] = await Promise.all([
                 axios.get(`${API_BASE_URL}/admin/equipe`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -265,7 +297,7 @@ export default function EquipePage() {
 
             setProfessionals(teamRes.data);
             setServices(salonRes.data.servicos || []);
-        } catch (err) { console.error(err); toast.error("Erro ao carregar dados."); } 
+        } catch (err) { console.error(err); toast.error("Erro ao carregar dados."); }
         finally { setLoading(false); }
     }, [salaoId]);
 
@@ -311,7 +343,7 @@ export default function EquipePage() {
                     </h1>
                     <p className="text-gray-500 mt-1 ml-12 text-sm">Cadastre seus profissionais e vincule serviços.</p>
                 </div>
-                <button 
+                <button
                     onClick={() => { setEditingPro(null); setIsModalOpen(true); }}
                     className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-bold shadow-lg transition-all hover:-translate-y-0.5"
                     style={{ backgroundColor: primaryColor }}
@@ -328,20 +360,20 @@ export default function EquipePage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {professionals.map(pro => (
-                        <ProfessionalCard 
-                            key={pro.id} 
-                            pro={pro} 
+                        <ProfessionalCard
+                            key={pro.id}
+                            pro={pro}
                             onEdit={() => { setEditingPro(pro); setIsModalOpen(true); }}
-                            onDelete={handleDelete} 
-                            primaryColor={primaryColor} 
+                            onDelete={handleDelete}
+                            primaryColor={primaryColor}
                         />
                     ))}
                 </div>
             )}
 
-            <ProfessionalModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
+            <ProfessionalModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
                 onSave={handleSave}
                 initialData={editingPro}
                 availableServices={services} // 🌟 Passa os serviços para o modal

@@ -124,29 +124,38 @@ const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
             
             <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
                 
-                {/* A opção "Qualquer Profissional" foi REMOVIDA para garantir que o cliente
-                    escolha apenas alguém apto para o serviço selecionado. */}
-
-                {/* Lista de Profissionais Filtrada */}
+                {/* Lista de Profissionais */}
                 {professionals.map((pro) => (
                     <div 
                         key={pro.id}
                         onClick={() => onSelect(pro)}
-                        className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group"
+                        className="flex gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group items-start"
                     >
                         {pro.foto_url ? (
-                            <img src={pro.foto_url} alt={pro.nome} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm" />
+                            <img src={pro.foto_url} alt={pro.nome} className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-50 shadow-sm flex-shrink-0" />
                         ) : (
-                            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                                <UserIcon className="w-7 h-7" />
+                            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0">
+                                <UserIcon className="w-8 h-8" />
                             </div>
                         )}
-                        <div className="flex-1">
-                            <h4 className="font-bold text-gray-900 text-lg">{pro.nome}</h4>
-                            <p className="text-sm text-gray-500">{pro.cargo || 'Profissional'}</p>
-                        </div>
-                        <div className="w-8 h-8 rounded-full border-2 border-gray-200 group-hover:border-cyan-500 group-hover:bg-cyan-500 transition-colors flex items-center justify-center text-white">
-                            {/* Ícone de check implícito ou vazio */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h4 className="font-bold text-gray-900 text-lg leading-tight">{pro.nome}</h4>
+                                    <p className="text-xs font-bold text-cyan-700 uppercase tracking-wider mt-0.5 mb-1">{pro.cargo || 'Profissional'}</p>
+                                </div>
+                                {/* Ícone de seta ou seleção sutil */}
+                                <div className="text-gray-300 group-hover:text-cyan-500 transition-colors">
+                                    <Icon icon={ArrowLeft} className="w-5 h-5 rotate-180" />
+                                </div>
+                            </div>
+                            
+                            {/* 🌟 DESCRIÇÃO ELEGANTE 🌟 */}
+                            {pro.descricao && (
+                                <p className="text-sm text-gray-500 mt-2 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all">
+                                    {pro.descricao}
+                                </p>
+                            )}
                         </div>
                     </div>
                 ))}
