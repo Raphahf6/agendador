@@ -4,13 +4,16 @@ import {
   Calendar, Link as LinkIcon, Clock, Users, Zap, Check,
   ArrowRight, Menu, X, BarChart2, Smartphone, Mail, ShieldCheck,
   DollarSign, PieChart, Settings, HelpCircle, ChevronDown, ChevronUp,
-  Bell, Megaphone, CreditCard, Globe, TrendingUp, Eye
+  Bell, Megaphone, CreditCard, Globe, TrendingUp, Eye,
+  RefreshCcw
 } from 'lucide-react';
+import { LogoHoralis } from '@/components/Logo';
 import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
 import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
+import { updateCardToken } from '@mercadopago/sdk-react';
 
 // --- CONFIGURAÇÕES ---
 const WHATSAPP_LNK = "https://wa.me/5511936200327";
@@ -90,11 +93,11 @@ export function LandingPage() {
     <div className="min-h-screen bg-white font-sans text-slate-900">
 
       {/* --- NAVBAR --- */}
-      <nav className="fixed top-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 transition-all duration-300">
+      <nav className="fixed top-0 w-full z-50 bg-white/40 backdrop-blur-md border-b border-slate-200 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-cyan-700 rounded-lg flex items-center justify-center text-white font-bold text-lg">H</div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">Horalis</span>
+           <LogoHoralis size="h-8" darkText={true} />
+            
           </div>
 
           <div className="hidden md:flex items-center gap-8">
@@ -357,8 +360,7 @@ export function LandingPage() {
       <footer className="bg-slate-50 py-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-cyan-700 rounded flex items-center justify-center text-white font-bold">H</div>
-            <span className="font-bold text-slate-900 text-lg">Horalis</span>
+             <LogoHoralis size="h-6" darkText={true} />
           </div>
           <div className="flex gap-8 text-sm text-slate-500 font-medium">
             <a href="#" className="hover:text-cyan-700 transition-colors">Termos de Uso</a>

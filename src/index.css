@@ -72,3 +72,39 @@
 /* Se o import acima causar problemas, a alternativa é colocar DEPOIS de @tailwind utilities */
 /* @import 'react-day-picker/dist/style.css'; */
 
+/* --- SCROLLBAR PREMIUM (Webkit - Chrome, Edge, Safari) --- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* Largura fina e elegante */
+  height: 6px; /* Altura para scroll horizontal */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* Fundo transparente */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1; /* Slate-300 (Cinza suave) */
+  border-radius: 9999px; /* Totalmente arredondado */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8; /* Slate-400 (Cinza um pouco mais escuro no hover) */
+}
+
+/* Variação Dark para a Sidebar Escura */
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #374151; /* Gray-700 */
+}
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #4B5563; /* Gray-600 */
+}
+
+/* --- SCROLLBAR (Firefox) --- */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #374151 transparent;
+}

@@ -173,7 +173,7 @@ function PainelLayoutComponent() {
                 </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto py-6 custom-scrollbar">
+            <nav className="flex-1 overflow-y-auto py-6 custom-scrollbar dark-scrollbar">
                 {navigation.map((item) => {
                     const targetPath = `/painel/${salaoId}/${item.href}`;
                     // Usamos 'end' para correspondência exata se necessário, ou startsWith para subrotas
