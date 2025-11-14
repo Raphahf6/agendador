@@ -136,7 +136,7 @@ const ProductModal = ({ isOpen, onClose, onSave, initialData, primaryColor }) =>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1 text-red-500">Mínimo (Alerta)</label>
+                            <label className="block text-xs font-bold uppercase mb-1 text-red-500">Mínimo (Alerta)</label>
                             <input type="number" required value={formData.quantidade_minima} onChange={e => setFormData({...formData, quantidade_minima: e.target.value})} className="w-full p-3 bg-red-50 text-red-900 rounded-xl border-none outline-none" />
                         </div>
                         <div>
