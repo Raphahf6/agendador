@@ -115,7 +115,7 @@ const SalonSuspended = () => (
     </div>
 );
 
-// --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL (CORRIGIDO) ---
+// --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL (BIO ESTILO CITAÇÃO) ---
 const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
@@ -124,46 +124,46 @@ const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
             
             <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
                 
-                {/* Lista de Profissionais */}
+                {/* Lista de Profissionais Filtrada */}
                 {professionals.map((pro) => (
                     <div 
                         key={pro.id}
                         onClick={() => onSelect(pro)}
-                        className="flex gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group items-start"
+                        className="flex flex-col p-5 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group"
                     >
-                        {pro.foto_url ? (
-                            <img src={pro.foto_url} alt={pro.nome} className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-50 shadow-sm flex-shrink-0" />
-                        ) : (
-                            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0">
-                                <UserIcon className="w-8 h-8" />
+                        {/* Topo do Card: Avatar e Nome */}
+                        <div className="flex items-center gap-4">
+                            {pro.foto_url ? (
+                                <img src={pro.foto_url} alt={pro.nome} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                            ) : (
+                                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0">
+                                    <UserIcon className="w-7 h-7" />
+                                </div>
+                            )}
+                            
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-gray-900 text-lg truncate">{pro.nome}</h4>
+                                <p className="text-sm text-gray-500 truncate">{pro.cargo || 'Profissional'}</p>
+                            </div>
+
+                            {/* Bolinha de Seleção */}
+                            <div className="w-6 h-6 rounded-full border-2 border-gray-200 group-hover:border-cyan-500 group-hover:bg-cyan-500 transition-colors flex-shrink-0"></div>
+                        </div>
+
+                        {/* 🌟 BIO / DESCRIÇÃO (ESTILO CITAÇÃO) 🌟 */}
+                        {pro.descricao && (
+                            <div className="mt-3 pt-3 border-t border-gray-50">
+                                <p className="text-sm text-gray-500 font-light italic leading-relaxed">
+                                    &ldquo;{pro.descricao}&rdquo;
+                                </p>
                             </div>
                         )}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h4 className="font-bold text-gray-900 text-lg leading-tight">{pro.nome}</h4>
-                                    <p className="text-xs font-bold text-cyan-700 uppercase tracking-wider mt-0.5 mb-1">{pro.cargo || 'Profissional'}</p>
-                                </div>
-                                {/* Ícone de seta ou seleção sutil */}
-                                <div className="text-gray-300 group-hover:text-cyan-500 transition-colors">
-                                    <Icon icon={ArrowLeft} className="w-5 h-5 rotate-180" />
-                                </div>
-                            </div>
-                            
-                            {/* 🌟 DESCRIÇÃO ELEGANTE 🌟 */}
-                            {pro.descricao && (
-                                <p className="text-sm text-gray-500 mt-2 leading-relaxed line-clamp-2 group-hover:line-clamp-none transition-all">
-                                    {pro.descricao}
-                                </p>
-                            )}
-                        </div>
                     </div>
                 ))}
             </div>
         </div>
     );
 };
-
 // --- SUB-COMPONENTE: HERO SECTION ---
 const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
     const photos = details.fotos_carousel?.length > 0 ? details.fotos_carousel : [{ url: "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop", alt: "Atmosphere" }];
