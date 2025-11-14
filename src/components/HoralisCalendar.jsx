@@ -89,13 +89,19 @@ function HoralisCalendar({ selectedDate, onDateSelect, primaryColor }) {
 
           // Define o estilo customizado
           const customStyle = {
-            // Fundo e texto quando selecionado
-            backgroundColor: isSelected ? primary : undefined,
-            color: isSelected ? 'white' : (isCurrentDay && !isSelected ? primary : 'inherit'),
-            // Fundo claro para o dia de hoje
-            backgroundColor: isCurrentDay && !isSelected ? primary + '15' : isSelected ? primary : undefined,
+            // Cor do Texto: Branco se selecionado, Cor Primária se for hoje, senão padrão
+            color: isSelected ? 'white' : (isCurrentDay ? primary : 'inherit'),
+
+            // Cor de Fundo (Lógica Unificada)
+            backgroundColor: isSelected
+              ? primary               // Prioridade 1: Selecionado (Cor Sólida)
+              : isCurrentDay
+                ? `${primary}15`    // Prioridade 2: Hoje (Fundo clarinho - 15 é a opacidade hex)
+                : undefined,        // Padrão: Sem fundo
+
             fontWeight: isCurrentDay ? '600' : '500',
-            // Foco
+
+            // Variável CSS para o anel de foco do Tailwind
             '--tw-ring-color': primary,
           };
 
