@@ -1,34 +1,19 @@
-// frontend/src/pages/painel/PainelLayout.jsx
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import {
     Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
-    BarChart2, CreditCard, Users, Send, Loader2,
-    CirclePercent,
-    Boxes,
-    Users2,
-    UsersIcon,
-    CalendarDays
+    BarChart2, CreditCard, Users, Send, Loader2, CirclePercent, Boxes, 
+    UsersIcon, CalendarDays, HelpCircle, ExternalLink
 } from 'lucide-react';
 import axios from 'axios';
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from '@/firebaseConfig';
 import toast from 'react-hot-toast';
-import { isAfter, parseISO } from 'date-fns'; // Importante para a validação de data
+import { isAfter, parseISO } from 'date-fns';
+import Joyride, { STATUS, EVENTS, ACTIONS } from 'react-joyride';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
-
-// --- PALETA DE CORES ---
-const PALETTE = {
-    BG_BASE_LIGHT: '#FFFFFF',
-    BG_SIDEBAR_DARK: '#111827',
-    TEXT_LIGHT: '#F8FAFC',
-    TEXT_SUBTLE: '#9CA3AF',
-    BORDER_DARK: '#374151',
-    BORDER_LIGHT: '#D1D5DB',
-};
 
 // --- CONTEXTO ---
 const SalonContext = createContext({
@@ -40,7 +25,7 @@ const SalonContext = createContext({
 
 export const useSalon = () => useContext(SalonContext);
 
-// --- PROVEDOR (SALON PROVIDER) ---
+// --- PROVEDOR ---
 function SalonProvider({ children }) {
     const { salaoId } = useParams();
     const [salonDetails, setSalonDetails] = useState(null);
@@ -65,7 +50,6 @@ function SalonProvider({ children }) {
 
             try {
                 const token = await user.getIdToken();
-                // Agora o backend permite essa chamada mesmo com trial expirado
                 const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -95,82 +79,147 @@ function SalonProvider({ children }) {
 
 // --- NAVEGAÇÃO ---
 const navigation = [
-    { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2 },
-    { name: 'Calendário', href: 'calendario', icon: Calendar },
-    { name: 'Meus Serviços', href: 'servicos', icon: Scissors },
-    { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon },
-    { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays },
-    { name: 'Meus Clientes', href: 'clientes', icon: Users },
-    { name: 'Financeiro', href: 'financeiro', icon: CirclePercent },
-    { name: 'Estoque', href: 'estoque', icon: Boxes },
-    { name: 'Marketing', href: 'marketing', icon: Send },
-    { name: 'Horários', href: 'horarios', icon: TimerIcon },
-    { name: 'Personalização', href: 'personalizacao', icon: Palette },
-    { name: 'Assinatura', href: 'assinatura', icon: CreditCard },
-    { name: 'Configurações', href: 'configuracoes', icon: Settings },
+    { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2, tourClass: 'tour-dashboard' },
+    { name: 'Calendário', href: 'calendario', icon: Calendar, tourClass: 'tour-calendario' },
+    { name: 'Meus Serviços', href: 'servicos', icon: Scissors, tourClass: 'tour-servicos' },
+    { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon, tourClass: 'tour-equipe' },
+    { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays, tourClass: 'tour-agendamentos' },
+    { name: 'Meus Clientes', href: 'clientes', icon: Users, tourClass: 'tour-clientes' },
+    { name: 'Financeiro', href: 'financeiro', icon: CirclePercent, tourClass: 'tour-financeiro' },
+    { name: 'Estoque', href: 'estoque', icon: Boxes, tourClass: 'tour-estoque' },
+    { name: 'Marketing', href: 'marketing', icon: Send, tourClass: 'tour-marketing' },
+    { name: 'Horários', href: 'horarios', icon: TimerIcon, tourClass: 'tour-horarios' },
+    { name: 'Personalização', href: 'personalizacao', icon: Palette, tourClass: 'tour-personalizacao' },
+    { name: 'Assinatura', href: 'assinatura', icon: CreditCard, tourClass: 'tour-assinatura' },
+    { name: 'Configurações', href: 'configuracoes', icon: Settings, tourClass: 'tour-configuracoes' },
 ];
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- COMPONENTE DE LAYOUT VISUAL (COM PROTEÇÃO) ---
+// --- COMPONENTE DE LAYOUT VISUAL ---
 function PainelLayoutComponent() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
     const location = useLocation();
     const { salaoId, salonDetails, primaryColorHex } = useSalon();
     const navigate = useNavigate();
+    
+    const [runTour, setRunTour] = useState(false);
+
+    // Detecta Mobile
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // 🌟 FIX CRÍTICO MOBILE: Abertura Forçada + Delay do Tour 🌟
+    useEffect(() => {
+        if (salonDetails) {
+            const hasSeenTour = localStorage.getItem(`horalis_tour_seen_${salaoId}`);
+            
+            // Se ainda não viu o tour...
+            if (!hasSeenTour) {
+                if (isMobile) {
+                    // 1. Abre o menu PRIMEIRO
+                    setMobileMenuOpen(true);
+                    // 2. Espera a animação do menu (300ms + folga) para iniciar o tour
+                    setTimeout(() => {
+                        setRunTour(true);
+                    }, 600); 
+                } else {
+                    // Desktop: Inicia normal com leve delay
+                    setTimeout(() => setRunTour(true), 1000);
+                }
+            }
+        }
+    }, [salonDetails, salaoId, isMobile]);
+
+    const steps = [
+        {
+            target: 'body',
+            content: (
+                <div className="text-center">
+                    <h3 className="font-bold text-lg text-cyan-700 mb-2">Bem-vindo ao Horalis! 🎉</h3>
+                    <p>Vamos fazer um tour rápido para você dominar seu novo painel.</p>
+                </div>
+            ),
+            placement: 'center',
+            disableBeacon: true,
+        },
+        { target: '.tour-dashboard', content: 'Aqui você tem uma visão geral do seu dia: faturamento e próximos clientes.' },
+        { target: '.tour-calendario', content: 'Sua agenda principal. Gerencie todos os horários da equipe aqui.' },
+        { target: '.tour-servicos', content: 'Cadastre seus serviços e preços.' },
+        { target: '.tour-equipe', content: 'Adicione seus profissionais e configure os horários de cada um.' },
+        { target: '.tour-clientes', content: 'Histórico completo e CRM dos seus clientes.' },
+        { target: '.tour-financeiro', content: 'Registre despesas e veja seu lucro líquido real.' },
+        { target: '.tour-marketing', content: 'Envie e-mails automáticos e campanhas.' },
+        { target: '.tour-personalizacao', content: 'Personalize o visual do seu site de agendamento.' },
+        { target: '.tour-configuracoes', content: 'Importante: Conecte o Mercado Pago (PIX) e Google Agenda aqui.' },
+        { target: '.tour-meu-site', content: 'Clique aqui para ver seu Site de Agendamento e copiar o link para seus clientes.' },
+        { target: '.tour-ajuda', content: 'Dúvidas? Clique aqui para ver este tour novamente.' }
+    ];
+
+    const handleJoyrideCallback = (data) => {
+        const { status, type } = data;
+        
+        if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
+            setRunTour(false);
+            localStorage.setItem(`horalis_tour_seen_${salaoId}`, 'true');
+            if (isMobile) setMobileMenuOpen(false); // Fecha menu no mobile ao terminar
+            toast.success("Tour concluído!", { icon: '🚀' });
+        }
+    };
 
     const handleLogout = async () => {
         await signOut(auth);
         navigate('/login');
     };
 
-    // 🌟 GUARDA DE ROTA (BLOQUEIO DE ASSINATURA) 🌟
+    const startTourManually = () => {
+        if (isMobile) {
+            setMobileMenuOpen(true);
+            setTimeout(() => setRunTour(true), 600);
+        } else {
+            setRunTour(true);
+        }
+    };
+
+    // Guarda de Rotas
     useEffect(() => {
         if (!salonDetails) return;
+        if (!salonDetails.setupCompleted && !location.pathname.includes('/setup')) {
+            navigate(`/painel/${salaoId}/setup`, { replace: true });
+            return;
+        }
+        if (location.pathname.includes('/setup')) return;
 
         const { subscriptionStatus, trialEndsAt } = salonDetails;
         const now = new Date();
         let isSubscriptionValid = false;
-
-        // Regras de Validação
-        if (subscriptionStatus === 'active') {
-            isSubscriptionValid = true;
-        } else if (subscriptionStatus === 'trialing') {
-            if (trialEndsAt) {
-                const trialDate = typeof trialEndsAt === 'string' ? parseISO(trialEndsAt) : trialEndsAt;
-                // Se a data do fim do teste for DEPOIS de agora, está válido
-                if (isAfter(trialDate, now)) {
-                    isSubscriptionValid = true;
-                }
-            }
+        if (subscriptionStatus === 'active') isSubscriptionValid = true;
+        else if (subscriptionStatus === 'trialing' && trialEndsAt) {
+            const trialDate = typeof trialEndsAt === 'string' ? parseISO(trialEndsAt) : trialEndsAt;
+            if (isAfter(trialDate, now)) isSubscriptionValid = true;
         }
 
-        // Lógica de Redirecionamento
-        if (!isSubscriptionValid) {
-            // Se não estiver válido E não estiver na página de assinatura
-            if (!location.pathname.includes('/assinatura')) {
-                // Evita loop de toast se já estiver redirecionando
-                if (location.pathname !== `/painel/${salaoId}/assinatura`) {
-                    toast.error("Seu período de teste acabou. Assine para continuar usando o sistema.", {
-                        id: 'trial-expired-toast', // ID único evita duplicação
-                        duration: 5000
-                    });
-                }
-                navigate(`/painel/${salaoId}/assinatura`, { replace: true });
-            }
+        if (!isSubscriptionValid && !location.pathname.includes('/assinatura')) {
+            if (location.pathname !== `/painel/${salaoId}/assinatura`) toast.error("Seu período de teste acabou.", { id: 'trial-expired-toast', duration: 5000 });
+            navigate(`/painel/${salaoId}/assinatura`, { replace: true });
         }
     }, [salonDetails, location.pathname, navigate, salaoId]);
 
 
-    // Conteúdo da Sidebar
-    const SidebarContent = () => (
+    // Conteúdo da Sidebar (Reutilizável)
+    // Recebe 'isForMobile' para aplicar classes APENAS se for o menu visível
+    const SidebarContent = ({ isForMobile }) => (
         <div className="flex flex-col h-full bg-[#111827] text-white border-r border-gray-800">
             <div className="flex items-center h-20 px-6 border-b border-gray-800">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">
-                        Hora<span className="text-cyan-400"> lis</span>
+                        Hora<span className="text-cyan-400">lis</span>
                     </h1>
                     <p className="text-xs text-gray-500 truncate max-w-[180px] mt-0.5">
                         {salonDetails?.nome_salao}
@@ -181,19 +230,20 @@ function PainelLayoutComponent() {
             <nav className="flex-1 overflow-y-auto py-6 custom-scrollbar dark-scrollbar">
                 {navigation.map((item) => {
                     const targetPath = `/painel/${salaoId}/${item.href}`;
-                    // Usamos 'end' para correspondência exata se necessário, ou startsWith para subrotas
                     const isActive = location.pathname.includes(item.href);
+                    
+                    // 🌟 TRUQUE: Só aplica a classe do tour se for o menu Desktop OU se for o Mobile e estiver aberto
+                    // Isso evita que o Joyride tente focar no menu desktop escondido quando se está no mobile
+                    const tourClass = (!isMobile || (isMobile && isForMobile)) ? item.tourClass : '';
 
                     return (
                         <NavLink
                             key={item.name}
                             to={targetPath}
-                            onClick={() => setMobileMenuOpen(false)}
+                            onClick={() => { if (!runTour) setMobileMenuOpen(false); }}
                             className={cn(
-                                "group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 mx-3 mb-1",
-                                isActive
-                                    ? "bg-cyan-500/10 text-cyan-400"
-                                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                                `group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 mx-3 mb-1 ${tourClass}`,
+                                isActive ? "bg-cyan-500/10 text-cyan-400" : "text-gray-400 hover:bg-gray-800 hover:text-white"
                             )}
                         >
                             <Icon icon={item.icon} className={cn("w-5 h-5 mr-3 transition-colors", isActive ? "text-cyan-400" : "text-gray-500 group-hover:text-white")} />
@@ -204,13 +254,25 @@ function PainelLayoutComponent() {
                 })}
             </nav>
 
-            <div className="p-4 border-t border-gray-800 bg-[#0f1623]">
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-400 rounded-xl hover:bg-red-500/10 transition-colors"
+            <div className="p-4 border-t border-gray-800 bg-[#0f1623] space-y-3">
+                <a 
+                    href={`https://horalis.app/agendar/${salaoId}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className={`tour-meu-site flex items-center justify-center w-full px-4 py-2.5 text-xs font-bold text-cyan-400 border border-cyan-900/50 bg-cyan-900/10 rounded-xl hover:bg-cyan-900/30 transition-all group ${(!isMobile || (isMobile && isForMobile)) ? 'tour-meu-site' : ''}`}
                 >
-                    <LogOut className="w-5 h-5 mr-3" />
-                    Sair
+                    <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> Meu Site
+                </a>
+
+                <button 
+                    onClick={startTourManually}
+                    className={`tour-ajuda flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors ${(!isMobile || (isMobile && isForMobile)) ? 'tour-ajuda' : ''}`}
+                >
+                    <HelpCircle className="w-4 h-4 mr-2" /> Ajuda / Tour
+                </button>
+
+                <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-xs font-medium text-red-400/80 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors">
+                    <LogOut className="w-4 h-4 mr-2" /> Sair
                 </button>
             </div>
         </div>
@@ -218,28 +280,46 @@ function PainelLayoutComponent() {
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
+            <Joyride
+                steps={steps}
+                run={runTour}
+                continuous={true}
+                showSkipButton={true}
+                showProgress={true}
+                callback={handleJoyrideCallback}
+                disableOverlayClose={true}
+                scrollOffset={100} // Ajuda no scroll mobile
+                spotlightClicks={true} // Permite clicar no item
+                styles={{
+                    options: {
+                        primaryColor: primaryColorHex,
+                        zIndex: 10000,
+                        textColor: '#333',
+                        backgroundColor: '#fff',
+                    },
+                    buttonNext: { backgroundColor: primaryColorHex, color: '#fff', fontWeight: 'bold', borderRadius: '8px' },
+                    tooltip: { borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', padding: '20px' }
+                }}
+                locale={{ back: 'Voltar', close: 'Fechar', last: 'Concluir', next: 'Próximo', skip: 'Pular' }}
+            />
 
             {/* Sidebar Desktop */}
             <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col z-50">
-                <SidebarContent />
+                {/* Passamos false pois não é mobile */}
+                <SidebarContent isForMobile={false} /> 
             </div>
 
-            {/* Sidebar Mobile (Drawer) */}
+            {/* Sidebar Mobile */}
             {mobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] lg:hidden transition-opacity"
-                    onClick={() => setMobileMenuOpen(false)}
-                />
+                <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] lg:hidden transition-opacity" onClick={() => !runTour && setMobileMenuOpen(false)} />
             )}
             <div className={cn(
                 "fixed inset-y-0 left-0 z-[70] w-72 bg-[#111827] transform transition-transform duration-300 ease-in-out lg:hidden shadow-2xl",
                 mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <SidebarContent />
-                <button
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white bg-white/10 rounded-full"
-                >
+                {/* Passamos true pois É mobile (e é o menu visível) */}
+                <SidebarContent isForMobile={true} />
+                <button onClick={() => setMobileMenuOpen(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white bg-white/10 rounded-full">
                     <X className="w-5 h-5" />
                 </button>
             </div>

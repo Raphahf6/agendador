@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast';
 import HandleAuthActions from './components/HandleAuthActions';
 import ResetarSenhaPage from './components/ResetarSenhaPage';
 import MeusAgendamentosPage from './pages/painel/MeusAgendamentosPage';
+import SetupPage from './pages/painel/SetupPage';
 
 // Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
@@ -59,7 +60,7 @@ function ProtectedPanelRoute({ children, user, location }) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-50">
                 {/* NOVO: Usando HourglassLoading */}
-                <HourglassLoading message="Verificando autenticação..."/>
+                <HourglassLoading message="Verificando autenticação..." />
             </div>
         );
     }
@@ -115,9 +116,13 @@ function App() {
                 <Route path="/resetar-senha" element={<ResetarSenhaPage />} />
 
                 {/* Rota de Agendamento (Pública) */}
-                <Route path="/agendar/:salaoId" element={<SalonMicrosite/>} />
+                <Route path="/agendar/:salaoId" element={<SalonMicrosite />} />
 
-                {/* --- ROTA DO PAINEL PROTEGIDA (Pai) --- */}
+                {/* 🌟 CORREÇÃO AQUI: ROTA DE SETUP ISOLADA (FORA DO PAINEL) 🌟 */}
+                {/* Ela deve ficar aqui para não carregar a Sidebar/Layout e ter o path absoluto correto */}
+                <Route path="/painel/:salaoId/setup" element={<SetupPage />} />
+
+                {/* --- ROTA DO PAINEL PROTEGIDA (Com Layout/Sidebar) --- */}
                 <Route
                     path="/painel/:salaoId"
                     element={
@@ -127,6 +132,9 @@ function App() {
                     }
                 >
                     <Route index element={<Navigate to="visaoGeral" replace />} />
+
+                    {/* Remova a rota de setup daqui de dentro! */}
+
                     <Route path="visaoGeral" element={<VisaoGeralPage />} />
                     <Route path="calendario" element={<CalendarioPage />} />
                     <Route path="clientes" element={<ClientesPage />} />
@@ -137,9 +145,9 @@ function App() {
                     <Route path="configuracoes" element={<ConfiguracoesPage />} />
                     <Route path="assinatura" element={<AssinaturaPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="financeiro" element={<FinanceiroPage/>} />
-                    <Route path="estoque" element={<EstoquePage/>} />
-                    <Route path="equipe" element={<EquipePage/>} />
+                    <Route path="financeiro" element={<FinanceiroPage />} />
+                    <Route path="estoque" element={<EstoquePage />} />
+                    <Route path="equipe" element={<EquipePage />} />
                     <Route path="agendamentos" element={<MeusAgendamentosPage />} />
                 </Route>
 
