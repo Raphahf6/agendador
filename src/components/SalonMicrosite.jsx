@@ -115,29 +115,19 @@ const SalonSuspended = () => (
     </div>
 );
 
-// --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL ---
+// --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL (CORRIGIDO) ---
 const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-6 text-center">Com quem você quer agendar?</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Escolha um Profissional</h3>
+            <p className="text-sm text-gray-500 text-center mb-6">Selecione quem realizará o seu atendimento.</p>
             
             <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
-                {/* Opção "Qualquer Profissional" */}
-                <div 
-                    onClick={() => onSelect(null)} 
-                    className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-cyan-200 hover:shadow-md transition-all cursor-pointer group"
-                >
-                    <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-cyan-50 group-hover:text-cyan-600 transition-colors">
-                        <Users className="w-7 h-7" />
-                    </div>
-                    <div className="flex-1">
-                        <h4 className="font-bold text-gray-900 text-lg">Primeiro Disponível</h4>
-                        <p className="text-sm text-gray-500">Qualquer profissional qualificado.</p>
-                    </div>
-                    <div className="w-6 h-6 rounded-full border-2 border-gray-200 group-hover:border-cyan-500 group-hover:bg-cyan-500 transition-colors"></div>
-                </div>
+                
+                {/* A opção "Qualquer Profissional" foi REMOVIDA para garantir que o cliente
+                    escolha apenas alguém apto para o serviço selecionado. */}
 
-                {/* Lista de Profissionais */}
+                {/* Lista de Profissionais Filtrada */}
                 {professionals.map((pro) => (
                     <div 
                         key={pro.id}
@@ -151,9 +141,12 @@ const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
                                 <UserIcon className="w-7 h-7" />
                             </div>
                         )}
-                        <div>
+                        <div className="flex-1">
                             <h4 className="font-bold text-gray-900 text-lg">{pro.nome}</h4>
                             <p className="text-sm text-gray-500">{pro.cargo || 'Profissional'}</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-full border-2 border-gray-200 group-hover:border-cyan-500 group-hover:bg-cyan-500 transition-colors flex items-center justify-center text-white">
+                            {/* Ícone de check implícito ou vazio */}
                         </div>
                     </div>
                 ))}
@@ -301,6 +294,7 @@ export function SalonMicrosite() {
     const [selectedService, setSelectedService] = useState(null);
     const [selectedProfessional, setSelectedProfessional] = useState(null);
     const [isChoosingProfessional, setIsChoosingProfessional] = useState(false);
+    const [filteredProfessionals, setFilteredProfessionals] = useState([]);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
     
     const [deviceId, setDeviceId] = useState(null);
@@ -323,10 +317,8 @@ export function SalonMicrosite() {
     const orderedHours = useMemo(() => formatHoursForDisplay(salonDetails.horario_trabalho_detalhado), [salonDetails.horario_trabalho_detalhado]);
     const isOpenNow = checkIsOpen(salonDetails.horario_trabalho_detalhado);
 
-    // 🌟 CORREÇÃO: Variável de fluxo movida para o escopo principal
     const isSchedulingFlowActive = !!selectedService || !!appointmentConfirmed;
 
-    // Efeitos e Handlers
     useEffect(() => {
         if (!loading && showSplash && !error) {
             setTimeout(() => {
@@ -360,11 +352,25 @@ export function SalonMicrosite() {
         }
     }, [applyTheme]);
 
-    // Handlers de Fluxo
+    // --- HANDLER 1: Clicou no Serviço ---
     const handleServiceSelect = (service) => { 
         setSelectedService(service); 
+        
         if (salonDetails.profissionais && salonDetails.profissionais.length > 0) {
-            setIsChoosingProfessional(true);
+            // Filtra profissionais que fazem este serviço
+            const eligiblePros = salonDetails.profissionais.filter(pro => {
+                if (!pro.servicos || pro.servicos.length === 0) return true; // Se não tem lista, faz tudo
+                return pro.servicos.includes(service.id);
+            });
+
+            if (eligiblePros.length > 0) {
+                setFilteredProfessionals(eligiblePros);
+                setIsChoosingProfessional(true);
+            } else {
+                // Se ninguém faz, assume agenda geral (sem profissional específico)
+                setSelectedProfessional(null);
+                setIsChoosingProfessional(false);
+            }
         } else {
             setSelectedProfessional(null);
             setIsChoosingProfessional(false);
@@ -372,12 +378,14 @@ export function SalonMicrosite() {
         window.scrollTo({ top: 0, behavior: 'smooth' }); 
     };
 
+    // --- HANDLER 2: Escolheu o Profissional ---
     const handleProfessionalSelect = (professional) => {
         setSelectedProfessional(professional);
         setIsChoosingProfessional(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // --- HANDLER 3: Voltar ---
     const handleBack = () => { 
         if (appointmentConfirmed) {
             setAppointmentConfirmed(null);
@@ -388,7 +396,7 @@ export function SalonMicrosite() {
             setIsChoosingProfessional(false);
             setSelectedService(null);
         } else if (selectedService) {
-            if (salonDetails.profissionais && salonDetails.profissionais.length > 0) {
+            if (salonDetails.profissionais && salonDetails.profissionais.length > 0 && filteredProfessionals.length > 0) {
                 setIsChoosingProfessional(true); 
                 setSelectedProfessional(null);
             } else {
@@ -410,7 +418,7 @@ export function SalonMicrosite() {
             return (
                 <div className="max-w-3xl mx-auto">
                     <ProfessionalSelection 
-                        professionals={salonDetails.profissionais} 
+                        professionals={filteredProfessionals} 
                         onSelect={handleProfessionalSelect} 
                         primaryColor={salonDetails.cor_primaria}
                     />
@@ -460,6 +468,7 @@ export function SalonMicrosite() {
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">Nossos Serviços</h2>
                         <p className="text-gray-500 mb-6">Selecione um serviço para começar.</p>
+                        
                         <ServiceList 
                             salaoId={salaoId} 
                             onDataLoaded={handleDataLoaded} 
@@ -514,7 +523,6 @@ export function SalonMicrosite() {
         );
     };
 
-    // --- RENDERIZAÇÃO FINAL ---
     if (isSuspended) {
         return <SalonSuspended />;
     }
@@ -528,11 +536,11 @@ export function SalonMicrosite() {
                 <HeroSection 
                     details={salonDetails} 
                     onBack={handleBack} 
-                    isFlowActive={isSchedulingFlowActive} // 🌟 CORRIGIDO AQUI
+                    isFlowActive={isSchedulingFlowActive}
                     isOpenNow={isOpenNow} 
                 />
 
-                {!isSchedulingFlowActive && ( // 🌟 CORRIGIDO AQUI
+                {!isSchedulingFlowActive && (
                     <InfoFloatingBar details={salonDetails} primaryColor={salonDetails.cor_primaria} />
                 )}
 
