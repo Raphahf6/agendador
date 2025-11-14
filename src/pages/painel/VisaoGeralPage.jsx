@@ -1,353 +1,328 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '@/firebaseConfig';
-import {
-    collection, query, where, getDocs, onSnapshot, orderBy, limit, Timestamp
-} from "firebase/firestore";
-import { format } from 'date-fns';
+import { collection, query, where, onSnapshot, orderBy, limit, Timestamp } from "firebase/firestore";
+import { format, isSameDay, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-    Loader2, Calendar, Users, BarChart2, Bell, TrendingUp, Filter, Check, UserPlus, DollarSign, Clock
+    Calendar, Users, TrendingUp, DollarSign, 
+    Clock, ArrowRight, Zap, MessageCircle, Wallet, Eye, BarChart2
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { 
+    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid 
+} from 'recharts';
 import axios from 'axios';
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
+// --- COMPONENTES UI ---
+
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// Hook para clicar fora
-function useOnClickOutside(ref, handler) {
-    useEffect(() => {
-        const listener = (event) => {
-            if (!ref.current || ref.current.contains(event.target)) return;
-            handler(event);
-        };
-        document.addEventListener("mousedown", listener);
-        document.addEventListener("touchstart", listener);
-        return () => {
-            document.removeEventListener("mousedown", listener);
-            document.removeEventListener("touchstart", listener);
-        };
-    }, [ref, handler]);
-}
-
-// --- Componente de Filtro Moderno ---
-const ChartFilter = ({ currentPeriod, onPeriodChange, filterOptions, primaryColor }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const ref = useRef(null);
-    useOnClickOutside(ref, () => setIsOpen(false));
-    const label = filterOptions.find(opt => opt.value === currentPeriod)?.label || 'Período';
-
-    return (
-        <div className="relative" ref={ref}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center text-xs font-semibold bg-white border border-gray-200 rounded-full px-3 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
-            >
-                <Icon icon={Filter} className="w-3 h-3 mr-1.5" />
-                {label}
-            </button>
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-gray-100 z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                    {filterOptions.map((opt) => (
-                        <button
-                            key={opt.value}
-                            onClick={() => { onPeriodChange(opt.value); setIsOpen(false); }}
-                            className={`w-full text-left px-4 py-2.5 text-xs font-medium flex items-center transition-colors ${currentPeriod === opt.value ? 'bg-gray-50 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            {currentPeriod === opt.value && <Icon icon={Check} className="w-3 h-3 mr-2 text-green-500" />}
-                            {opt.label}
-                        </button>
-                    ))}
-                </div>
+// 1. Card KPI (Estilo Glass/Clean)
+const KpiCard = ({ title, value, icon: IconComp, colorClass, bgClass, trend }) => (
+    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full relative overflow-hidden group">
+        <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500 ${colorClass}`}>
+            <IconComp className="w-16 h-16" />
+        </div>
+        
+        <div className="flex justify-between items-start mb-4 relative z-10">
+            <div className={`p-3 rounded-2xl ${bgClass} ${colorClass}`}>
+                <IconComp className="w-6 h-6" />
+            </div>
+            {trend && (
+                <span className="bg-green-50 text-green-700 text-xs font-bold px-2 py-1 rounded-full flex items-center">
+                    <TrendingUp className="w-3 h-3 mr-1" /> {trend}
+                </span>
             )}
         </div>
-    );
-};
-
-// --- Componente KPI Card Premium ---
-const KpiCard = ({ title, value, icon: IconComp, isLoading, colorClass, bgClass, filterPeriod, onFilterChange, filterOptions, primaryColor }) => {
-    return (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group transition-all duration-300 hover:shadow-md">
-            {/* Header do Card */}
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-xl ${bgClass}`}>
-                    <Icon icon={IconComp} className={`w-6 h-6 ${colorClass}`} />
-                </div>
-                {filterOptions && (
-                    <ChartFilter
-                        currentPeriod={filterPeriod}
-                        onPeriodChange={onFilterChange}
-                        filterOptions={filterOptions}
-                        primaryColor={primaryColor}
-                    />
-                )}
-            </div>
-
-            {/* Valor e Título */}
-            <div>
-                <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-                {isLoading ? (
-                    <div className="h-8 w-24 bg-gray-100 rounded animate-pulse" />
-                ) : (
-                    <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                        {value ?? '-'}
-                    </h3>
-                )}
-            </div>
+        
+        <div className="relative z-10">
+            <h3 className="text-3xl font-extrabold text-gray-900 tracking-tight">{value}</h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-1">{title}</p>
         </div>
-    );
-};
+    </div>
+);
 
-// --- Componente Item de Agendamento (Timeline) ---
-const TimelineItem = ({ agendamento, primaryColor }) => {
+// 2. Item da Lista "Próximos"
+const NextClientItem = ({ agendamento, primaryColor }) => {
     const time = agendamento.startTime ? format(agendamento.startTime.toDate(), "HH:mm") : '--:--';
-    const date = agendamento.startTime ? format(agendamento.startTime.toDate(), "dd/MM") : '--/--';
+    const whatsappLink = `https://wa.me/${agendamento.customerPhone?.replace(/\D/g, '')}`;
 
     return (
-        <div className="flex group p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-            {/* Coluna Hora */}
-            <div className="flex flex-col items-center mr-4 pt-1">
-                <span className="text-sm font-bold text-gray-900">{time}</span>
-                <span className="text-[10px] font-medium text-gray-400 uppercase">{date}</span>
+        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
+            <div className="flex-shrink-0 w-14 h-14 bg-white rounded-xl flex flex-col items-center justify-center border border-gray-200 shadow-sm">
+                <span className="text-lg font-bold text-gray-900">{time}</span>
             </div>
-
-            {/* Linha Vertical (Visual) */}
-            <div className="w-1 bg-gray-100 rounded-full mr-4 group-hover:bg-gray-200 transition-colors" style={{ backgroundColor: `${primaryColor}20` }}></div>
-
-            {/* Detalhes */}
-            <div className="flex-1">
-                <h4 className="text-sm font-bold text-gray-900 mb-0.5">{agendamento.customerName || 'Cliente'}</h4>
-                <p className="text-xs text-gray-500 font-medium flex items-center">
-                    {agendamento.serviceName || 'Serviço'}
+            
+            <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-gray-900 truncate">{agendamento.customerName}</h4>
+                <p className="text-sm text-gray-500 truncate flex items-center gap-1">
+                    {agendamento.serviceName} 
+                    {agendamento.professionalName && <span className="text-xs bg-gray-200 px-1.5 py-0.5 rounded text-gray-600 ml-1">{agendamento.professionalName}</span>}
                 </p>
             </div>
 
-            {/* Status (Exemplo simples) */}
-            <div className="self-center">
-                <div className="w-2 h-2 rounded-full bg-green-500" title="Confirmado"></div>
-            </div>
+            <a 
+                href={whatsappLink} 
+                target="_blank" 
+                rel="noreferrer"
+                className="p-2.5 rounded-xl bg-green-100 text-green-600 hover:bg-green-500 hover:text-white transition-colors"
+                title="Chamar no WhatsApp"
+            >
+                <MessageCircle className="w-5 h-5" />
+            </a>
         </div>
     );
 };
 
-
 export default function VisaoGeralPage() {
-    const { salaoId, salonDetails } = useSalon(); // Pega cores do contexto
+    const { salaoId, salonDetails } = useSalon();
+    const primaryColor = salonDetails?.cor_primaria || '#0E7490';
     const navigate = useNavigate();
 
-    // Cores
-    const primaryColor = salonDetails?.cor_primaria || '#0E7490';
-
-    // Estados de Filtro
-    const [agendamentosFoco, setAgendamentosFoco] = useState('hoje');
-    const [novosClientesPeriodo, setNovosClientesPeriodo] = useState('hoje');
-    const [receitaPeriodo, setReceitaPeriodo] = useState('hoje');
-    const [agendamentosPeriodo, setAgendamentosPeriodo] = useState(7);
-
-    // Estados de Dados
-    const [kpiData, setKpiData] = useState({});
+    // Estados
+    const [loading, setLoading] = useState(true);
+    const [todayStats, setTodayStats] = useState({ count: 0, revenue: 0 });
+    const [nextAppointments, setNextAppointments] = useState([]);
     const [chartData, setChartData] = useState([]);
-    const [proximosAgendamentos, setProximosAgendamentos] = useState([]);
+    const [monthRevenue, setMonthRevenue] = useState(0);
 
-    // Loadings
-    const [loadingKpi, setLoadingKpi] = useState(true);
-    const [loadingProximos, setLoadingProximos] = useState(true);
-    const [error, setError] = useState(null);
-
-    // Opções de Filtro
-    const periodOptions = [
-        { value: 'hoje', label: 'Hoje' },
-        { value: 'semana', label: '7 Dias' },
-        { value: 'mes', label: 'Mês' }
-    ];
-    const chartOptions = [
-        { value: 7, label: '7 Dias' },
-        { value: 15, label: '15 Dias' },
-        { value: 30, label: '30 Dias' },
-    ];
-
-    // Fetch KPI Data
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!salaoId || !auth.currentUser) return;
-            setLoadingKpi(true);
-            try {
-                const token = await auth.currentUser.getIdToken();
-                const response = await axios.get(`${API_BASE_URL}/admin/dashboard-data/${salaoId}`, {
-                    params: {
-                        agendamentos_foco_periodo: agendamentosFoco,
-                        novos_clientes_periodo: novosClientesPeriodo,
-                        agendamentos_grafico_dias: agendamentosPeriodo,
-                        receita_periodo: receitaPeriodo,
-                    },
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setKpiData(response.data);
-                setChartData(response.data.chart_data);
-            } catch (err) {
-                console.error(err);
-                setError("Erro ao carregar dados.");
-            } finally {
-                setLoadingKpi(false);
-            }
-        };
-        fetchData();
-    }, [salaoId, agendamentosFoco, novosClientesPeriodo, receitaPeriodo, agendamentosPeriodo]);
-
-    // Fetch Próximos Agendamentos (Firestore Realtime)
+    // 1. LISTENER REALTIME (Hoje e Próximos)
     useEffect(() => {
         if (!salaoId) return;
-        const q = query(
+        
+        const today = new Date();
+        const start = startOfDay(today);
+        const end = endOfDay(today);
+
+        // Query para Agendamentos de HOJE (Para KPIs)
+        const qToday = query(
             collection(db, 'cabeleireiros', salaoId, 'agendamentos'),
-            where("startTime", ">=", Timestamp.now()),
-            where("status", "!=", "cancelado"),
+            where("startTime", ">=", start),
+            where("startTime", "<=", end)
+        );
+
+        // Query para Próximos (Daqui pra frente)
+        const qNext = query(
+            collection(db, 'cabeleireiros', salaoId, 'agendamentos'),
+            where("startTime", ">=", new Date()), // De agora em diante
+            where("status", "in", ["confirmado", "pending_payment"]), // Apenas válidos
             orderBy("startTime", "asc"),
             limit(5)
         );
-        const unsubscribe = onSnapshot(q, (snap) => {
-            setProximosAgendamentos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setLoadingProximos(false);
+
+        const unsubscribeToday = onSnapshot(qToday, (snapshot) => {
+            let count = 0;
+            let revenue = 0;
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.status !== 'cancelado') {
+                    count++;
+                    revenue += parseFloat(data.servicePrice || 0);
+                }
+            });
+            setTodayStats({ count, revenue });
         });
-        return () => unsubscribe();
+
+        const unsubscribeNext = onSnapshot(qNext, (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setNextAppointments(list);
+            setLoading(false);
+        });
+
+        return () => { unsubscribeToday(); unsubscribeNext(); };
     }, [salaoId]);
 
-    if (!salaoId) return <div className="p-8 text-center"><HourglassLoading /></div>;
+    // 2. FETCH DADOS HISTÓRICOS (Gráfico e Faturamento Mensal)
+    useEffect(() => {
+        const fetchFinancials = async () => {
+            if (!salaoId || !auth.currentUser) return;
+            try {
+                const token = await auth.currentUser.getIdToken();
+                // Usa o endpoint financeiro que já criamos para pegar o mês atual
+                const response = await axios.get(`${API_BASE_URL}/admin/financeiro/resumo`, {
+                    params: { period: 'month' },
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                setMonthRevenue(response.data.total_revenue);
+                // Prepara dados para o gráfico (simplificado para Entradas)
+                const chart = response.data.chart_data.map(d => ({
+                    name: d.day,
+                    faturamento: d.entradas
+                }));
+                setChartData(chart);
+
+            } catch (err) {
+                console.error("Erro ao carregar financeiro:", err);
+            }
+        };
+        fetchFinancials();
+    }, [salaoId]);
+
+    // Saudação baseada na hora
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return "Bom dia";
+        if (hour < 18) return "Boa tarde";
+        return "Boa noite";
+    };
+
+    if (loading) return <div className="h-96 flex items-center justify-center"><HourglassLoading /></div>;
 
     return (
-        <div className="font-sans pb-20">
-            {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-100">
-                        <Icon icon={BarChart2} className="w-6 h-6" style={{ color: primaryColor }} />
-                    </div>
-                    Visão Geral
-                </h1>
-                <p className="text-gray-500 mt-1 ml-12 text-sm">Acompanhe o desempenho do seu negócio em tempo real.</p>
+        <div className="font-sans pb-20 max-w-7xl mx-auto">
+            
+            {/* HEADER */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                        {getGreeting()}, <span style={{ color: primaryColor }}>{salonDetails?.nome_salao}</span>
+                    </h1>
+                    <p className="text-gray-500 mt-1 text-sm">
+                        Aqui está o raio-x do seu negócio hoje.
+                    </p>
+                </div>
+                
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => navigate(`/painel/${salaoId}/financeiro`)}
+                        className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                    >
+                        <Wallet className="w-4 h-4" /> Lançar Despesa
+                    </button>
+                    <button 
+                        onClick={() => navigate(`/painel/${salaoId}/calendario`)} // Ou modal de novo agendamento
+                        className="flex items-center gap-2 px-6 py-2.5 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
+                        style={{ backgroundColor: primaryColor }}
+                    >
+                        <Zap className="w-4 h-4 fill-current" /> Novo Agendamento
+                    </button>
+                </div>
             </div>
 
-            {error && <div className="p-4 mb-6 bg-red-50 text-red-600 rounded-lg border border-red-100 text-sm">{error}</div>}
-
-            {/* Grid de KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-
-                <KpiCard
-                    title="Agendamentos"
-                    value={kpiData.agendamentos_foco_valor}
-                    icon={Calendar}
-                    colorClass="text-blue-600"
-                    bgClass="bg-blue-50"
-                    filterPeriod={agendamentosFoco}
-                    onFilterChange={setAgendamentosFoco}
-                    filterOptions={[{ value: 'hoje', label: 'Hoje' }, { value: 'prox7dias', label: '7 Dias' }]}
-                    isLoading={loadingKpi}
-                    primaryColor={primaryColor}
-                />
-
-                <KpiCard
-                    title="Receita Estimada"
-                    value={kpiData.receita_estimada ? `R$ ${kpiData.receita_estimada}` : null}
+            {/* GRID DE KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <KpiCard 
+                    title="Faturamento Hoje" 
+                    value={`R$ ${todayStats.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                     icon={DollarSign}
-                    colorClass="text-green-600"
-                    bgClass="bg-green-50"
-                    filterPeriod={receitaPeriodo}
-                    onFilterChange={setReceitaPeriodo}
-                    filterOptions={periodOptions}
-                    isLoading={loadingKpi}
-                    primaryColor={primaryColor}
+                    bgClass="bg-emerald-100"
+                    colorClass="text-emerald-600"
                 />
-
-                <KpiCard
-                    title="Novos Clientes"
-                    value={kpiData.novos_clientes_valor}
-                    icon={UserPlus}
+                <KpiCard 
+                    title="Agendamentos Hoje" 
+                    value={todayStats.count}
+                    icon={Calendar}
+                    bgClass="bg-blue-100"
+                    colorClass="text-blue-600"
+                />
+                <KpiCard 
+                    title="Faturamento do Mês" 
+                    value={`R$ ${monthRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                    icon={TrendingUp}
+                    bgClass="bg-purple-100"
                     colorClass="text-purple-600"
-                    bgClass="bg-purple-50"
-                    filterPeriod={novosClientesPeriodo}
-                    onFilterChange={setNovosClientesPeriodo}
-                    filterOptions={periodOptions}
-                    isLoading={loadingKpi}
-                    primaryColor={primaryColor}
-                />
-
-                <KpiCard
-                    title="Total no Mês"
-                    value={kpiData.novos24h} // Ajuste conforme seu backend retorna o total do mês
-                    icon={Users}
-                    colorClass="text-orange-600"
-                    bgClass="bg-orange-50"
-                    isLoading={loadingKpi}
-                    primaryColor={primaryColor}
+                    trend="Acumulado"
                 />
             </div>
 
-            {/* Conteúdo Principal: Gráfico + Timeline */}
+            {/* MAIN CONTENT (Chart + Lista) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                {/* Coluna 1: Gráfico (2/3) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                
+                {/* GRÁFICO DE RECEITA (2/3) */}
+                <div className="lg:col-span-2 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-gray-900">Fluxo de Agendamentos</h3>
-                        <ChartFilter
-                            currentPeriod={agendamentosPeriodo}
-                            onPeriodChange={setAgendamentosPeriodo}
-                            filterOptions={chartOptions}
-                            primaryColor={primaryColor}
-                        />
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Fluxo de Receita</h3>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider">Últimos 30 dias</p>
+                        </div>
+                        <button onClick={() => navigate(`/painel/${salaoId}/financeiro`)} className="p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+                            <Eye className="w-5 h-5" />
+                        </button>
                     </div>
-
-                    <div className="h-80 w-full">
-                        {loadingKpi ? (
-                            <div className="h-full flex items-center justify-center"><HourglassLoading /></div>
-                        ) : chartData.length > 0 ? (
+                    
+                    <div className="h-72 w-full">
+                        {chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                                    <Tooltip
-                                        cursor={{ fill: '#F3F4F6' }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor={primaryColor} stopOpacity={0.2}/>
+                                            <stop offset="95%" stopColor={primaryColor} stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} dy={10} interval="preserveStartEnd" />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9CA3AF' }} />
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '12px', color: 'white', fontSize: '12px' }}
+                                        cursor={{ stroke: primaryColor, strokeWidth: 2 }}
+                                        formatter={(value) => [`R$ ${value}`, 'Faturamento']}
                                     />
-                                    <Bar dataKey="Agendamentos" fill={primaryColor} radius={[6, 6, 0, 0]} barSize={40} />
-                                </BarChart>
+                                    <Area 
+                                        type="monotone" 
+                                        dataKey="faturamento" 
+                                        stroke={primaryColor} 
+                                        strokeWidth={3} 
+                                        fill="url(#colorRevenue)" 
+                                        animationDuration={1500}
+                                    />
+                                </AreaChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sem dados para o período.</div>
+                            <div className="h-full flex flex-col items-center justify-center text-gray-300">
+                                <BarChart2 className="w-10 h-10 mb-2 opacity-20" />
+                                <p className="text-sm">Sem dados suficientes.</p>
+                            </div>
                         )}
                     </div>
                 </div>
 
-                {/* Coluna 2: Próximos Agendamentos (1/3) */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                {/* PRÓXIMOS CLIENTES (1/3) */}
+                <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-gray-900">Próximos</h3>
-                        <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">Em breve</span>
+                        <h3 className="text-lg font-bold text-gray-900">Próximos Clientes</h3>
+                        <button 
+                            onClick={() => navigate(`/painel/${salaoId}/agendamentos`)}
+                            className="text-xs font-bold text-cyan-600 hover:underline"
+                        >
+                            Ver Todos
+                        </button>
                     </div>
 
-                    {loadingProximos ? (
-                        <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
-                    ) : proximosAgendamentos.length > 0 ? (
-                        <div className="space-y-2">
-                            {proximosAgendamentos.map(agd => (
-                                <TimelineItem key={agd.id} agendamento={agd} primaryColor={primaryColor} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-10 text-center text-gray-400 text-sm">
-                            Nenhum agendamento futuro.
+                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 max-h-[350px]">
+                        {nextAppointments.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full py-8 text-gray-400">
+                                <Clock className="w-10 h-10 mb-2 opacity-20" />
+                                <p className="text-sm text-center">Agenda livre por enquanto.</p>
+                            </div>
+                        ) : (
+                            nextAppointments.map((agd) => (
+                                <NextClientItem 
+                                    key={agd.id} 
+                                    agendamento={agd} 
+                                    primaryColor={primaryColor} 
+                                />
+                            ))
+                        )}
+                    </div>
+                    
+                    {nextAppointments.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <button 
+                                onClick={() => navigate(`/painel/${salaoId}/calendario`)}
+                                className="w-full py-3 rounded-xl bg-gray-50 text-gray-700 font-bold text-xs hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+                            >
+                                Ir para o Calendário <ArrowRight className="w-3 h-3" />
+                            </button>
                         </div>
                     )}
-
-                    <button className="w-full mt-6 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors border border-dashed border-gray-200 hover:border-gray-300">
-                        Ver Agenda Completa
-                    </button>
                 </div>
 
             </div>
