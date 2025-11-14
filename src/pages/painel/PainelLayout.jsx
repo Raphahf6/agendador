@@ -11,7 +11,7 @@ import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from '@/firebaseConfig';
 import toast from 'react-hot-toast';
 import { isAfter, parseISO } from 'date-fns';
-import Joyride, { STATUS, EVENTS, ACTIONS } from 'react-joyride';
+import Joyride, { STATUS, ACTIONS, EVENTS } from 'react-joyride';
 
 const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
 
@@ -101,42 +101,16 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
 // --- COMPONENTE DE LAYOUT VISUAL ---
 function PainelLayoutComponent() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+    // Estado simples para mobile check, sem listener pesado
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    
     const location = useLocation();
     const { salaoId, salonDetails, primaryColorHex } = useSalon();
     const navigate = useNavigate();
     
     const [runTour, setRunTour] = useState(false);
 
-    // Detecta Mobile
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 1024);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    // 🌟 FIX CRÍTICO MOBILE: Abertura Forçada + Delay do Tour 🌟
-    useEffect(() => {
-        if (salonDetails) {
-            const hasSeenTour = localStorage.getItem(`horalis_tour_seen_${salaoId}`);
-            
-            // Se ainda não viu o tour...
-            if (!hasSeenTour) {
-                if (isMobile) {
-                    // 1. Abre o menu PRIMEIRO
-                    setMobileMenuOpen(true);
-                    // 2. Espera a animação do menu (300ms + folga) para iniciar o tour
-                    setTimeout(() => {
-                        setRunTour(true);
-                    }, 600); 
-                } else {
-                    // Desktop: Inicia normal com leve delay
-                    setTimeout(() => setRunTour(true), 1000);
-                }
-            }
-        }
-    }, [salonDetails, salaoId, isMobile]);
-
+    // Passos do Tour
     const steps = [
         {
             target: 'body',
@@ -149,27 +123,60 @@ function PainelLayoutComponent() {
             placement: 'center',
             disableBeacon: true,
         },
-        { target: '.tour-dashboard', content: 'Aqui você tem uma visão geral do seu dia: faturamento e próximos clientes.' },
-        { target: '.tour-calendario', content: 'Sua agenda principal. Gerencie todos os horários da equipe aqui.' },
+        { target: '.tour-dashboard', content: 'Visão geral do seu dia: faturamento e clientes.' },
+        { target: '.tour-calendario', content: 'Sua agenda principal. Gerencie todos os horários aqui.' },
         { target: '.tour-servicos', content: 'Cadastre seus serviços e preços.' },
-        { target: '.tour-equipe', content: 'Adicione seus profissionais e configure os horários de cada um.' },
-        { target: '.tour-clientes', content: 'Histórico completo e CRM dos seus clientes.' },
-        { target: '.tour-financeiro', content: 'Registre despesas e veja seu lucro líquido real.' },
+        { target: '.tour-equipe', content: 'Adicione profissionais e seus horários.' },
+        { target: '.tour-clientes', content: 'Histórico e CRM dos seus clientes.' },
+        { target: '.tour-financeiro', content: 'Registre despesas e veja o lucro líquido.' },
         { target: '.tour-marketing', content: 'Envie e-mails automáticos e campanhas.' },
         { target: '.tour-personalizacao', content: 'Personalize o visual do seu site de agendamento.' },
-        { target: '.tour-configuracoes', content: 'Importante: Conecte o Mercado Pago (PIX) e Google Agenda aqui.' },
-        { target: '.tour-meu-site', content: 'Clique aqui para ver seu Site de Agendamento e copiar o link para seus clientes.' },
+        { target: '.tour-configuracoes', content: 'Conecte Mercado Pago (PIX) e Google Agenda.' },
+        { target: '.tour-meu-site', content: 'Clique aqui para ver seu Site de Agendamento real.' },
         { target: '.tour-ajuda', content: 'Dúvidas? Clique aqui para ver este tour novamente.' }
     ];
 
+    // 🌟 LÓGICA DE INÍCIO DO TOUR (Corrigida) 🌟
+    useEffect(() => {
+        if (salonDetails && salaoId) {
+            const tourKey = `horalis_tour_seen_${salaoId}`;
+            const hasSeenTour = localStorage.getItem(tourKey);
+            
+            if (!hasSeenTour) {
+                // Delay para garantir que a UI carregou
+                const timer = setTimeout(() => {
+                    setRunTour(true);
+                    // Se for mobile, abre o menu para o tour poder mostrar os itens
+                    if (window.innerWidth < 1024) {
+                        setMobileMenuOpen(true);
+                    }
+                }, 1000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [salonDetails, salaoId]);
+
+    // Callback do Joyride
     const handleJoyrideCallback = (data) => {
-        const { status, type } = data;
+        const { status } = data;
         
         if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
             setRunTour(false);
+            // Salva que já viu para não mostrar de novo
             localStorage.setItem(`horalis_tour_seen_${salaoId}`, 'true');
-            if (isMobile) setMobileMenuOpen(false); // Fecha menu no mobile ao terminar
+            
+            // Fecha o menu mobile ao terminar
+            if (window.innerWidth < 1024) {
+                setMobileMenuOpen(false);
+            }
             toast.success("Tour concluído!", { icon: '🚀' });
+        }
+    };
+
+    const startTourManually = () => {
+        setRunTour(true);
+        if (window.innerWidth < 1024) {
+            setMobileMenuOpen(true);
         }
     };
 
@@ -178,18 +185,10 @@ function PainelLayoutComponent() {
         navigate('/login');
     };
 
-    const startTourManually = () => {
-        if (isMobile) {
-            setMobileMenuOpen(true);
-            setTimeout(() => setRunTour(true), 600);
-        } else {
-            setRunTour(true);
-        }
-    };
-
     // Guarda de Rotas
     useEffect(() => {
         if (!salonDetails) return;
+
         if (!salonDetails.setupCompleted && !location.pathname.includes('/setup')) {
             navigate(`/painel/${salaoId}/setup`, { replace: true });
             return;
@@ -199,6 +198,7 @@ function PainelLayoutComponent() {
         const { subscriptionStatus, trialEndsAt } = salonDetails;
         const now = new Date();
         let isSubscriptionValid = false;
+
         if (subscriptionStatus === 'active') isSubscriptionValid = true;
         else if (subscriptionStatus === 'trialing' && trialEndsAt) {
             const trialDate = typeof trialEndsAt === 'string' ? parseISO(trialEndsAt) : trialEndsAt;
@@ -212,9 +212,8 @@ function PainelLayoutComponent() {
     }, [salonDetails, location.pathname, navigate, salaoId]);
 
 
-    // Conteúdo da Sidebar (Reutilizável)
-    // Recebe 'isForMobile' para aplicar classes APENAS se for o menu visível
-    const SidebarContent = ({ isForMobile }) => (
+    // Conteúdo da Sidebar
+    const SidebarContent = () => (
         <div className="flex flex-col h-full bg-[#111827] text-white border-r border-gray-800">
             <div className="flex items-center h-20 px-6 border-b border-gray-800">
                 <div>
@@ -231,19 +230,18 @@ function PainelLayoutComponent() {
                 {navigation.map((item) => {
                     const targetPath = `/painel/${salaoId}/${item.href}`;
                     const isActive = location.pathname.includes(item.href);
-                    
-                    // 🌟 TRUQUE: Só aplica a classe do tour se for o menu Desktop OU se for o Mobile e estiver aberto
-                    // Isso evita que o Joyride tente focar no menu desktop escondido quando se está no mobile
-                    const tourClass = (!isMobile || (isMobile && isForMobile)) ? item.tourClass : '';
 
                     return (
                         <NavLink
                             key={item.name}
                             to={targetPath}
+                            // 🌟 FIX: Só fecha o menu se o Tour NÃO estiver rodando
                             onClick={() => { if (!runTour) setMobileMenuOpen(false); }}
                             className={cn(
-                                `group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 mx-3 mb-1 ${tourClass}`,
-                                isActive ? "bg-cyan-500/10 text-cyan-400" : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                                `group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 mx-3 mb-1 ${item.tourClass}`,
+                                isActive 
+                                    ? "bg-cyan-500/10 text-cyan-400" 
+                                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
                             )}
                         >
                             <Icon icon={item.icon} className={cn("w-5 h-5 mr-3 transition-colors", isActive ? "text-cyan-400" : "text-gray-500 group-hover:text-white")} />
@@ -259,19 +257,23 @@ function PainelLayoutComponent() {
                     href={`https://horalis.app/agendar/${salaoId}`} 
                     target="_blank" 
                     rel="noreferrer"
-                    className={`tour-meu-site flex items-center justify-center w-full px-4 py-2.5 text-xs font-bold text-cyan-400 border border-cyan-900/50 bg-cyan-900/10 rounded-xl hover:bg-cyan-900/30 transition-all group ${(!isMobile || (isMobile && isForMobile)) ? 'tour-meu-site' : ''}`}
+                    className="tour-meu-site flex items-center justify-center w-full px-4 py-2.5 text-xs font-bold text-cyan-400 border border-cyan-900/50 bg-cyan-900/10 rounded-xl hover:bg-cyan-900/30 transition-all group"
                 >
-                    <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> Meu Site
+                    <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> 
+                    Meu Site
                 </a>
 
                 <button 
                     onClick={startTourManually}
-                    className={`tour-ajuda flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors ${(!isMobile || (isMobile && isForMobile)) ? 'tour-ajuda' : ''}`}
+                    className="tour-ajuda flex items-center justify-center w-full px-4 py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
                 >
                     <HelpCircle className="w-4 h-4 mr-2" /> Ajuda / Tour
                 </button>
 
-                <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-xs font-medium text-red-400/80 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors">
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center w-full px-4 py-2 text-xs font-medium text-red-400/80 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors"
+                >
                     <LogOut className="w-4 h-4 mr-2" /> Sair
                 </button>
             </div>
@@ -280,6 +282,7 @@ function PainelLayoutComponent() {
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
+            
             <Joyride
                 steps={steps}
                 run={runTour}
@@ -287,9 +290,9 @@ function PainelLayoutComponent() {
                 showSkipButton={true}
                 showProgress={true}
                 callback={handleJoyrideCallback}
-                disableOverlayClose={true}
-                scrollOffset={100} // Ajuda no scroll mobile
-                spotlightClicks={true} // Permite clicar no item
+                disableOverlayClose={true} // Impede fechar clicando fora (importante no mobile)
+                scrollOffset={100}
+                spotlightClicks={false} // Bloqueia cliques nos itens durante o tour
                 styles={{
                     options: {
                         primaryColor: primaryColorHex,
@@ -297,31 +300,48 @@ function PainelLayoutComponent() {
                         textColor: '#333',
                         backgroundColor: '#fff',
                     },
-                    buttonNext: { backgroundColor: primaryColorHex, color: '#fff', fontWeight: 'bold', borderRadius: '8px' },
-                    tooltip: { borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', padding: '20px' }
+                    buttonNext: {
+                        backgroundColor: primaryColorHex,
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        borderRadius: '8px',
+                    },
+                    tooltip: {
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                        padding: '20px',
+                    }
                 }}
                 locale={{ back: 'Voltar', close: 'Fechar', last: 'Concluir', next: 'Próximo', skip: 'Pular' }}
             />
 
             {/* Sidebar Desktop */}
             <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col z-50">
-                {/* Passamos false pois não é mobile */}
-                <SidebarContent isForMobile={false} /> 
+                <SidebarContent />
             </div>
 
             {/* Sidebar Mobile */}
             {mobileMenuOpen && (
-                <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] lg:hidden transition-opacity" onClick={() => !runTour && setMobileMenuOpen(false)} />
+                <div 
+                    className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] lg:hidden transition-opacity"
+                    // 🌟 FIX: Só fecha se o tour NÃO estiver rodando
+                    onClick={() => { if (!runTour) setMobileMenuOpen(false); }}
+                />
             )}
             <div className={cn(
                 "fixed inset-y-0 left-0 z-[70] w-72 bg-[#111827] transform transition-transform duration-300 ease-in-out lg:hidden shadow-2xl",
                 mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                {/* Passamos true pois É mobile (e é o menu visível) */}
-                <SidebarContent isForMobile={true} />
-                <button onClick={() => setMobileMenuOpen(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white bg-white/10 rounded-full">
-                    <X className="w-5 h-5" />
-                </button>
+                <SidebarContent />
+                {/* Botão Fechar Mobile: Só aparece se o tour NÃO estiver rodando */}
+                {!runTour && (
+                    <button 
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white bg-white/10 rounded-full"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                )}
             </div>
 
             {/* Conteúdo */}
