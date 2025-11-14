@@ -147,8 +147,8 @@ export function LandingPage() {
             </h1>
 
             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-              O Horalis nasceu para facilicar a forma com que sua empresa faz o agendamento dos seus clientes. Agendamentos 24/7 de forma facilitada tudo com uma agenda de facil uso integrada com o Google.
-              Configure em poucos minutos, integração com mercado pago podendo configurar valor de sinal para confirmação do agendamento, reduza os No-Shows configurando pagamento de sinal.
+              O Horalis nasceu para facilicar a forma com que sua empresa faz o agendamento dos seus clientes 24/7 de forma facilitada e integrado com o Google.
+              Em poucos minutos, configure valor de sinal para confirmação do agendamento, reduza os No-Shows.
 
             </p>
 
@@ -314,8 +314,7 @@ export function LandingPage() {
       {/* --- PREÇOS --- */}
       <section id="planos" className="py-24 bg-slate-900 text-white">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold mb-4">Preço justo e transparente</h2>
-          <p className="text-slate-400 mb-12">Sem pegadinhas.</p>
+          
 
           <div className="max-w-md mx-auto bg-white text-slate-900 rounded-2xl p-8 shadow-2xl border-4 border-cyan-600 relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-cyan-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl uppercase tracking-wide">Recomendado</div>
@@ -326,8 +325,8 @@ export function LandingPage() {
             </div>
             <ul className="space-y-4 mb-8 text-left">
               {[
-                "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento Online (PIX)",
-                "Lembretes Automáticos", "Relatórios Gerenciais", "Suporte Prioritário"
+                "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento de Sinal Online",
+                "Lembretes Automáticos", "Relatórios Gerenciais", "Suporte Prioritário","E-mail Marketing","Gestão de Clientes", "Em breve cadastramento de múltiplos funcionários"
               ].map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-slate-700 font-medium text-sm">
                   <Check className="w-5 h-5 text-cyan-600 flex-shrink-0" /> {item}
