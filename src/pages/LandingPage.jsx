@@ -373,7 +373,7 @@ export function LandingPage() {
                                 <LogoHoralis size="h-8" darkText={true} />
                             </div>
                             <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                                Transformando a gestão de salões e barbearias com agendamentos inteligentes.
+                                Transformando a gestão de clinicas salões e barbearias com agendamentos inteligentes.
                             </p>
                         </div>
 
