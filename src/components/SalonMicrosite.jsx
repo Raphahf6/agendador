@@ -90,9 +90,9 @@ const PremiumSplash = ({ isFadingOut, primaryColor }) => (
     <div className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-white transition-opacity duration-700 ${isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <div className="relative">
             <div className="absolute inset-0 bg-white/50 blur-xl rounded-full animate-pulse" style={{ backgroundColor: `${primaryColor}20` }}></div>
-            <HourglassLoading message="" primaryColor={primaryColor} />
+            <HourglassLoading message="Preparando seu agendamento" primaryColor={primaryColor} />
         </div>
-        <p className="mt-4 text-gray-400 text-sm tracking-[0.2em] uppercase font-medium animate-pulse">Carregando Experiência</p>
+        <p className="mt-4 text-gray-400 text-sm tracking-[0.2em] uppercase font-medium animate-pulse"></p>
     </div>
 );
 
@@ -538,7 +538,7 @@ export function SalonMicrosite() {
     
     return (
         <>
-            {showSplash && <PremiumSplash isFadingOut={isFadingOut} primaryColor={salonDetails.cor_primaria} />}
+            {showSplash && <PremiumSplash isFadingOut={isFadingOut} />}
 
             <div className={`min-h-screen bg-[#FAFAFA] font-sans selection:bg-black/10 transition-opacity duration-700 ${showSplash ? 'opacity-0' : 'opacity-100'}`}>
                 
