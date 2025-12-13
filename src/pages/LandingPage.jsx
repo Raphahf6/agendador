@@ -5,7 +5,7 @@ import {
   ArrowRight, Menu, X, BarChart2, Smartphone, Mail, ShieldCheck,
   DollarSign, PieChart, Settings, HelpCircle, ChevronDown, ChevronUp,
   Bell, Megaphone, CreditCard, Globe, TrendingUp, Eye,
-  RefreshCcw,Instagram,Facebook
+  RefreshCcw,Instagram,Facebook, 
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
 import { DISPLAY_PRICE_SETUP } from '@/utils/pricing';
@@ -255,6 +255,10 @@ export function LandingPage() {
               description="Visualize sua semana, bloqueie horários e reorganize compromissos facilmente."
             />
             <FeatureCard
+              icon={Users} title="Cadastre sua equipe"
+              description="Cadastre sua equipe profissional, atribua serviços e gerencie agendas individualmente."
+            />
+            <FeatureCard
               icon={Smartphone} title="Reponsividade"
               description="Gerencie tudo pelo celular, tablet ou computador, de onde estiver."
             />
@@ -325,8 +329,8 @@ export function LandingPage() {
             </div>
             <ul className="space-y-4 mb-8 text-left">
               {[
-                "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento de Sinal Online",
-                "Lembretes Automáticos", "Relatórios Gerenciais", "Suporte Prioritário","E-mail Marketing","Gestão de Clientes", "Em breve cadastramento de múltiplos funcionários"
+                "Agendamentos Ilimitados", "Microsite Personalizado", "Pagamento de Sinal Online", "Cadastramento de Equipe e atribuição de Serviços",
+                "Lembretes Automáticos", "Relatórios Gerenciais", "Suporte Prioritário","E-mail Marketing","Gestão de Clientes"
               ].map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-slate-700 font-medium text-sm">
                   <Check className="w-5 h-5 text-cyan-600 flex-shrink-0" /> {item}
