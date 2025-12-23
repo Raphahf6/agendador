@@ -160,7 +160,7 @@ export function LandingPage() {
             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
               Chega de perder horas no WhatsApp agendando horários. Tenha sua agenda online 24/7, elimine faltas com a cobrança de sinal via PIX e envie lembretes automáticos para seus clientes.
               <br className="hidden lg:block" />
-              E o melhor: <strong className="text-slate-900">você não configura nada</strong>. Nós entregamos o sistema pronto com seus serviços e horários cadastrados.
+              E o diferencial: <strong className="text-slate-900">nós cuidamos de toda a implantação inicial para você</strong>. Entregamos o sistema pronto para uso, com seus serviços, horários e equipe já cadastrados.
             </p>
 
            
