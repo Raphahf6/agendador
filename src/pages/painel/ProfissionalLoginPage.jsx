@@ -184,7 +184,7 @@ function ProfissionalLoginPage() {
                             </button>
 
                             {/* Link de Cadastro */}
-                            <div className="text-center pt-4 border-t border-gray-100">
+                            {/*<div className="text-center pt-4 border-t border-gray-100">
                                 <p className="text-sm text-gray-600">
                                     Ainda não tem uma conta? 
                                     <Link to="/cadastro" className={`font-semibold ${CIANO_COLOR_TEXT} hover:underline ml-1`}>
@@ -192,6 +192,7 @@ function ProfissionalLoginPage() {
                                     </Link>
                                 </p>
                             </div>
+                            */}
 
                         </form>
                     </div>
