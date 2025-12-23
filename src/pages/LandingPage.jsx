@@ -288,7 +288,7 @@ export function LandingPage() {
             />
             <FeatureCard
               icon={Users} title="Gestão de Equipe"
-              description="Cada profissional tem seu acesso e sua agenda. Você controla o horários de todos."
+              description="Cadastre sua equipe horarios e delegue os serviços."
             />
             <FeatureCard
               icon={Zap} title="Sinal via PIX (Anti-Furo)"
@@ -350,7 +350,7 @@ export function LandingPage() {
                   <span className="font-bold text-cyan-900">BÔNUS EXCLUSIVO</span>
                 </div>
                 <p className="text-cyan-800 text-sm font-medium">
-                  Ganhe <span className="font-bold underline">30 DIAS GRÁTIS</span> de mensalidade.
+                  Ganhe <span className="font-bold underline">30 DIAS GRÁTIS</span>.
                 </p>
                 <p className="text-xs text-cyan-600 mt-1">
                   Após 30 dias, apenas {DISPLAY_PRICE_SETUP || "R$ 59,90"}/mês.
@@ -418,7 +418,7 @@ export function LandingPage() {
                 <LogoHoralis size="h-8" darkText={true} />
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                Transformando a gestão de clínicas, salões e barbearias com tecnologia e atendimento humanizado.
+                Transformando a forma como seu estabelecimento agenda com tecnologia e atendimento humanizado.
               </p>
             </div>
 
