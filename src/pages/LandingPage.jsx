@@ -115,7 +115,7 @@ export function LandingPage() {
 
             <div className="flex items-center gap-3 ml-4">
               <Link to="/login" className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors ${BUTTON_OUTLINE}`}>
-                Área do Cliente
+                Painel do Cliente
               </Link>
               <button onClick={openWhatsApp} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-4 h-4" />
@@ -131,7 +131,7 @@ export function LandingPage() {
 
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-200 absolute w-full p-6 flex flex-col gap-4 shadow-xl">
-            <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Login</Link>
+            <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Painel do Cliente</Link>
             <button onClick={() => { openWhatsApp(); setIsMenuOpen(false); }} className={`w-full py-3 rounded-lg font-bold flex justify-center gap-2 ${BUTTON_PRIMARY}`}>
               <MessageCircle className="w-5 h-5" /> Falar no WhatsApp
             </button>
