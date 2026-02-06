@@ -9,7 +9,7 @@ import 'aos/dist/aos.css';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 // --- Fim dos Imports ---
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- Inicialização do Mercado Pago ---
 initMercadoPago("APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311", {

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { parseApiError } from '@/utils/apiHelpers';
 import {MONTHLY_PRICE_AMOUNT} from '@/utils/pricing';
 // --- CONFIGURAÇÕES GLOBAIS ---
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- NOVO HELPER: Captura o Device ID ---
 // Se o script de segurança do MP estiver carregado, ele cria este input oculto.

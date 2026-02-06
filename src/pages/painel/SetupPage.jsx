@@ -10,7 +10,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import toast from 'react-hot-toast';
 import BookingPagePreview from '@/components/BookingPagePreview';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- ESTILOS ---
 const PRIMARY_BG = "bg-cyan-700";

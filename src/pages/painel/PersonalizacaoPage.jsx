@@ -11,7 +11,7 @@ import ImageWithFallback from '@/ui/ImageWithFallback';
 import BookingPagePreview from '@/components/BookingPagePreview'; 
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- ESTILOS PREMIUM (RESTAURADOS) ---
 const CIANO_COLOR_TEXT = 'text-cyan-800';

@@ -21,7 +21,7 @@ import AppointmentScheduler from '@/components/AppointmentScheduler';
 
 // Helpers e Configs
 const initMercadoPago = (key, options) => { console.log(`MP SDK: ${key}`); };
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />

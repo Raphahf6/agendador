@@ -16,7 +16,7 @@ import {
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 const HORALIS_EVENT_COLORS = ['#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'];
 
 const Icon = ({ icon: IconComponent, className = "" }) => (

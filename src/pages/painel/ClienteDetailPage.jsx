@@ -12,7 +12,7 @@ import HourglassLoading from '@/components/HourglassLoading';
 import { auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- Estilos & Cores ---
 const PRIMARY_COLOR_TEXT = 'text-cyan-700';

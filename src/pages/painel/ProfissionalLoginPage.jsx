@@ -7,7 +7,7 @@ import axios from 'axios';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- Definições de Cor (Ciano Horalis) ---
 const CIANO_COLOR_TEXT = 'text-cyan-600';

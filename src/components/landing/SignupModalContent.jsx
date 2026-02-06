@@ -10,7 +10,7 @@ import {
 import toast from 'react-hot-toast';
 
 // O endpoint de registro deve ser ajustado conforme sua rota de backend
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- CONFIGURAÇÕES DE COR E ESTILO ---
 const BRAND_NAME = "Horalis";

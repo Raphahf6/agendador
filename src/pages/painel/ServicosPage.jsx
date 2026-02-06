@@ -6,7 +6,7 @@ import HourglassLoading from '@/components/HourglassLoading';
 import { useSalon } from './PainelLayout';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 // --- Componentes de UI Reutilizáveis (Estilo Premium) ---
 const Icon = ({ icon: IconComponent, className = "" }) => (

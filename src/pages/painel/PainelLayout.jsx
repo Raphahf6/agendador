@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { isAfter, parseISO } from 'date-fns';
 import Joyride, { STATUS } from 'react-joyride';
 
-const API_BASE_URL = "https://api-agendador.onrender.com/api/v1";
+const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
 const SalonContext = createContext({ salonDetails: null, loading: true, error: null, salaoId: null });
 export const useSalon = () => useContext(SalonContext);
