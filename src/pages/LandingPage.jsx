@@ -8,7 +8,8 @@ import {
   BookDashed,
   LayoutDashboard,
   DollarSign,
-  HandCoins
+  HandCoins,
+  Mail
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
 import { DISPLAY_PRICE_SETUP } from '@/utils/pricing'; // Certifique-se que isso exibe o valor da mensalidade (ex: R$ 59,90)
@@ -287,6 +288,10 @@ export function LandingPage() {
               description="Visualize sua semana, bloqueie horários e reorganize compromissos com arrastar e soltar."
             />
             <FeatureCard
+              icon={HandCoins} title="CRM integrado"
+              description="Tenha sua base de clientes sempre em mãos, com histórico de atendimentos e anotações importantes. Podendo enviar lembretes de manutenção e promoções para clientes que não retornam a um tempo."
+            />
+            <FeatureCard
               icon={Users} title="Gestão de Equipe"
               description="Cadastre sua equipe horarios e delegue os serviços."
             />
@@ -307,7 +312,7 @@ export function LandingPage() {
               description="Tenha acesso ao controle financeiro e de estoque integrado, facilitando a gestão do seu negócio."
             />
             <FeatureCard
-              icon={HandCoins} title="Marketing integrado"
+              icon={Mail} title="Marketing"
               description="Envie e-mails promocionais e notificações para sua base de clientes diretamente pelo sistema. Mantenha seus clientes ativos e saiba quais clientes não retornam a um tempo."
             />
           </div>
