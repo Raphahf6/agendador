@@ -6,7 +6,8 @@ import {
   Eye,
   Instagram, Facebook, MessageCircle, Star, Bell,
   HandCoins, Sparkles, Quote,
-  Percent, Headset, ShieldCheck
+  Percent, Headset, ShieldCheck, 
+  MousePointerClick, CalendarCheck, CheckCircle2 // Novos ícones importados
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
 import SignupModalContent from '@/components/landing/SignupModalContent';
@@ -54,7 +55,7 @@ const FeatureCard = ({ icon: IconComp, title, description }) => (
   </div>
 );
 
-// --- COMPONENTE: PASSO A PASSO ---
+// --- COMPONENTE: PASSO A PASSO (SETUP) ---
 const StepCard = ({ number, title, description, highlight = false }) => (
   <div className={`relative flex flex-col items-center text-center p-8 rounded-2xl transition-all ${highlight ? 'bg-cyan-50 border border-cyan-100 shadow-md transform md:-translate-y-2' : 'bg-white'}`} data-aos="fade-up">
     <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold mb-4 shadow-lg ${highlight ? 'bg-cyan-600 text-white' : 'bg-slate-900 text-white shadow-slate-200'}`}>
@@ -63,6 +64,20 @@ const StepCard = ({ number, title, description, highlight = false }) => (
     <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
     <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
   </div>
+);
+
+// --- COMPONENTE: FLUXO DO CLIENTE (NOVO) ---
+const ClientFlowCard = ({ icon: IconComp, step, title, desc }) => (
+    <div className="flex flex-col items-center text-center relative group" data-aos="fade-up">
+        <div className="w-20 h-20 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center mb-6 shadow-sm group-hover:border-cyan-200 group-hover:shadow-md transition-all relative z-10">
+            <IconComp className="w-8 h-8 text-cyan-700" />
+            <div className="absolute -top-2 -right-2 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-sm font-bold border-4 border-white">
+                {step}
+            </div>
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+        <p className="text-sm text-slate-500 leading-relaxed max-w-xs">{desc}</p>
+    </div>
 );
 
 // --- COMPONENTE: PROVA SOCIAL ---
@@ -92,7 +107,6 @@ export function LandingPage() {
 
   useEffect(() => {
     AOS.init({ duration: 600, once: true });
-    // Scripts do Mercado Pago
     const script = document.createElement('script');
     script.src = "https://www.mercadopago.com/v2/security.js";
     script.setAttribute('data-public-key', "APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311");
@@ -120,7 +134,7 @@ export function LandingPage() {
           </div>
 
           <div className="hidden md:flex items-center gap-8">
-            <a href="#como-funciona" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Como Funciona</a>
+            <a href="#experiencia" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Como Funciona</a>
             <a href="#funcionalidades" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Funcionalidades</a>
             <a href="#depoimentos" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Quem usa</a>
 
@@ -154,7 +168,6 @@ export function LandingPage() {
       <section className="pt-32 pb-20 lg:pt-48 lg:pb-32 bg-slate-50 border-b border-slate-200 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center relative z-10">
 
-          {/* LADO ESQUERDO: Texto e CTA */}
           <div className="text-center lg:text-left order-1" data-aos="fade-right">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-cyan-700 text-xs font-bold uppercase tracking-wide mb-6 shadow-sm">
               <Sparkles className="w-3 h-3 fill-cyan-700" />
@@ -178,8 +191,8 @@ export function LandingPage() {
                 <MessageCircle className="w-5 h-5" />
                 Verificar Disponibilidade
               </button>
-              <a href="#como-funciona" className={`px-8 py-4 rounded-lg font-bold text-lg transition-colors w-full sm:w-auto flex items-center justify-center ${BUTTON_OUTLINE}`}>
-                Entenda o serviço
+              <a href="#experiencia" className={`px-8 py-4 rounded-lg font-bold text-lg transition-colors w-full sm:w-auto flex items-center justify-center ${BUTTON_OUTLINE}`}>
+                Ver como funciona
               </a>
             </div>
 
@@ -190,11 +203,9 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* LADO DIREITO: Mockup Celular */}
           <div className="relative w-full flex items-center justify-center order-1 lg:order-2" data-aos="fade-left">
             <div className="relative">
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-gradient-to-tr from-cyan-200 to-blue-200 rounded-full blur-3xl opacity-50"></div>
-
               <div className="relative mx-auto border-gray-900 bg-gray-900 border-[8px] rounded-[2.5rem] h-[600px] w-[300px] shadow-2xl flex flex-col overflow-hidden transform rotate-[-2deg] hover:rotate-0 transition-transform duration-500">
                 <div className="absolute top-0 w-full h-6 bg-transparent z-20 flex justify-center">
                   <div className="h-4 w-32 bg-gray-900 rounded-b-xl"></div>
@@ -220,10 +231,44 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* --- COMO COMEÇAR (MODELO CONSULTIVO) --- */}
-      <section id="como-funciona" className="py-24 bg-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-slate-50 to-white -z-10"></div>
+      {/* --- NOVA SEÇÃO: A EXPERIÊNCIA DO CLIENTE (FLUXO) --- */}
+      <section id="experiencia" className="py-24 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-16">
+                <h2 className="text-3xl font-bold text-slate-900 mb-4">A experiência que seu cliente vai amar</h2>
+                <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+                    Seu cliente agenda em 30 segundos, sem precisar baixar aplicativo e sem te chamar no WhatsApp.
+                </p>
+            </div>
 
+            <div className="grid md:grid-cols-3 gap-12 relative">
+                {/* Linha tracejada conectora */}
+                <div className="hidden md:block absolute top-10 left-1/6 right-1/6 h-0.5 border-t-2 border-dashed border-slate-200 -z-0 w-2/3 mx-auto"></div>
+
+                <ClientFlowCard 
+                    step="1"
+                    icon={MousePointerClick}
+                    title="Link na Bio"
+                    desc="Seu cliente clica no link exclusivo de agendamento no seu perfil Instagram ou WhatsApp."
+                />
+                <ClientFlowCard 
+                    step="2"
+                    icon={CalendarCheck}
+                    title="Escolha Simples"
+                    desc="Escolhe o serviço e o profissional de preferência. Tudo de forma super simples, sem complicação e sem precisar criar conta."
+                />
+                <ClientFlowCard 
+                    step="3"
+                    icon={CheckCircle2}
+                    title="Agendado!"
+                    desc="Pronto. Você recebe o aviso na hora e o horário fica bloqueado na agenda."
+                />
+            </div>
+        </div>
+      </section>
+
+      {/* --- COMO COMEÇAR (MODELO CONSULTIVO) --- */}
+      <section id="como-funciona" className="py-24 bg-slate-50 relative overflow-hidden border-t border-slate-200">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">Tecnologia com Atendimento Humano</h2>
@@ -234,8 +279,6 @@ export function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-14 left-1/6 right-1/6 h-0.5 bg-slate-200 -z-10 w-2/3 mx-auto"></div>
-
             <StepCard
               number="1"
               title="Diagnóstico Gratuito"
@@ -265,7 +308,7 @@ export function LandingPage() {
       </section>
 
       {/* --- FUNCIONALIDADES --- */}
-      <section id="funcionalidades" className="py-24 bg-slate-50 border-y border-slate-200">
+      <section id="funcionalidades" className="py-24 bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">Tudo o que você precisa em um só lugar</h2>
@@ -300,7 +343,7 @@ export function LandingPage() {
               description="Saiba exatamente quanto cada profissional produziu no período. Facilitamos o fechamento da sua equipe."
             />
             
-            {/* CARD NOVO: TREINAMENTO & SUPORTE */}
+            {/* CARD DE TREINAMENTO & SUPORTE */}
             <div className="md:col-span-3 lg:col-span-3"> 
                 <div className="p-8 bg-cyan-50 border border-cyan-100 rounded-xl hover:shadow-xl transition-all duration-300 group h-full flex flex-col md:flex-row items-center gap-6" data-aos="fade-up">
                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
@@ -319,7 +362,7 @@ export function LandingPage() {
       </section>
 
       {/* --- PROVA SOCIAL --- */}
-      <section id="depoimentos" className="py-24 bg-white border-b border-slate-200">
+      <section id="depoimentos" className="py-24 bg-slate-50 border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <span className="text-sm font-bold text-cyan-700 uppercase tracking-wider mb-2 block">Confiança</span>
@@ -350,9 +393,9 @@ export function LandingPage() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
             
             <div className="relative z-10">
-              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Pronto para profissionalizar?</h3>
+              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Transforme sua agenda em uma máquina de resultados.</h3>
               <p className="text-slate-400 max-w-lg">
-                Solicite um orçamento personalizado para o tamanho do seu negócio. Implantação rápida e suporte dedicado.
+                Tire suas dúvidas diretamente com nossa equipe de implantação. Atendimento consultivo, humano e focado em resolver os gargalos reais da sua operação.
               </p>
             </div>
             
@@ -361,14 +404,14 @@ export function LandingPage() {
                 <MessageCircle className="w-5 h-5" />
                 Falar com Especialista
               </button>
-              <p className="text-center text-xs text-slate-500">Respondemos rápido!</p>
+              <p className="text-center text-xs text-slate-500">Planos Flexiveis.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* --- FAQ --- */}
-      <section id="faq" className="py-24 bg-slate-50 border-b border-slate-200">
+      <section id="faq" className="py-24 bg-white border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">Dúvidas Frequentes</h2>
           <div className="space-y-2">
