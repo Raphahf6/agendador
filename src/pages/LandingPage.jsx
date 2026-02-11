@@ -6,7 +6,7 @@ import {
   Eye,
   Instagram, Facebook, MessageCircle, Star, Bell,
   HandCoins, Sparkles, Quote,
-  Percent, Headset, ShieldCheck, 
+  Percent, Headset, ShieldCheck,
   MousePointerClick, CalendarCheck, CheckCircle2 // Novos ícones importados
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
@@ -14,6 +14,7 @@ import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
+import LeadQualificationModal from './LeadQualificationModal';
 
 // --- CONFIGURAÇÕES ---
 const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1%2C%20gostaria%20de%20entender%20como%20o%20Horalis%20funciona%20para%20o%20meu%20neg%C3%B3cio.";
@@ -68,16 +69,16 @@ const StepCard = ({ number, title, description, highlight = false }) => (
 
 // --- COMPONENTE: FLUXO DO CLIENTE (NOVO) ---
 const ClientFlowCard = ({ icon: IconComp, step, title, desc }) => (
-    <div className="flex flex-col items-center text-center relative group" data-aos="fade-up">
-        <div className="w-20 h-20 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center mb-6 shadow-sm group-hover:border-cyan-200 group-hover:shadow-md transition-all relative z-10">
-            <IconComp className="w-8 h-8 text-cyan-700" />
-            <div className="absolute -top-2 -right-2 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-sm font-bold border-4 border-white">
-                {step}
-            </div>
-        </div>
-        <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
-        <p className="text-sm text-slate-500 leading-relaxed max-w-xs">{desc}</p>
+  <div className="flex flex-col items-center text-center relative group" data-aos="fade-up">
+    <div className="w-20 h-20 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center mb-6 shadow-sm group-hover:border-cyan-200 group-hover:shadow-md transition-all relative z-10">
+      <IconComp className="w-8 h-8 text-cyan-700" />
+      <div className="absolute -top-2 -right-2 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center text-sm font-bold border-4 border-white">
+        {step}
+      </div>
     </div>
+    <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
+    <p className="text-sm text-slate-500 leading-relaxed max-w-xs">{desc}</p>
+  </div>
 );
 
 // --- COMPONENTE: PROVA SOCIAL ---
@@ -104,6 +105,7 @@ const TestimonialCard = ({ quote, author, role }) => (
 export function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
 
   useEffect(() => {
     AOS.init({ duration: 600, once: true });
@@ -119,8 +121,8 @@ export function LandingPage() {
     return () => { document.body.style.overflow = ''; };
   }, [isModalOpen]);
 
-  const openWhatsApp = () => {
-    window.open(WHATSAPP_LNK, '_blank');
+  const handleOpenLeadForm = () => {
+    setIsLeadModalOpen(true);
   };
 
   return (
@@ -142,7 +144,7 @@ export function LandingPage() {
               <Link to="/login" className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors ${BUTTON_OUTLINE}`}>
                 Área do Cliente
               </Link>
-              <button onClick={openWhatsApp} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2 ${BUTTON_PRIMARY}`}>
+              <button onClick={handleOpenLeadForm} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-4 h-4" />
                 Falar com Consultor
               </button>
@@ -187,7 +189,7 @@ export function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-              <button onClick={openWhatsApp} className={`px-8 py-4 rounded-lg font-bold text-lg transition-transform hover:-translate-y-0.5 w-full sm:w-auto flex items-center justify-center gap-2 ${BUTTON_PRIMARY}`}>
+              <button onClick={handleOpenLeadForm} className={`px-8 py-4 rounded-lg font-bold text-lg transition-transform hover:-translate-y-0.5 w-full sm:w-auto flex items-center justify-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-5 h-5" />
                 Verificar Disponibilidade
               </button>
@@ -234,36 +236,36 @@ export function LandingPage() {
       {/* --- NOVA SEÇÃO: A EXPERIÊNCIA DO CLIENTE (FLUXO) --- */}
       <section id="experiencia" className="py-24 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-16">
-                <h2 className="text-3xl font-bold text-slate-900 mb-4">A experiência que seu cliente vai amar</h2>
-                <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-                    Seu cliente agenda em 30 segundos, sem precisar baixar aplicativo e sem te chamar no WhatsApp.
-                </p>
-            </div>
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">A experiência que seu cliente vai amar</h2>
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+              Seu cliente agenda em 30 segundos, sem precisar baixar aplicativo e sem te chamar no WhatsApp.
+            </p>
+          </div>
 
-            <div className="grid md:grid-cols-3 gap-12 relative">
-                {/* Linha tracejada conectora */}
-                <div className="hidden md:block absolute top-10 left-1/6 right-1/6 h-0.5 border-t-2 border-dashed border-slate-200 -z-0 w-2/3 mx-auto"></div>
+          <div className="grid md:grid-cols-3 gap-12 relative">
+            {/* Linha tracejada conectora */}
+            <div className="hidden md:block absolute top-10 left-1/6 right-1/6 h-0.5 border-t-2 border-dashed border-slate-200 -z-0 w-2/3 mx-auto"></div>
 
-                <ClientFlowCard 
-                    step="1"
-                    icon={MousePointerClick}
-                    title="Link na Bio"
-                    desc="Seu cliente clica no link exclusivo de agendamento no seu perfil Instagram ou WhatsApp."
-                />
-                <ClientFlowCard 
-                    step="2"
-                    icon={CalendarCheck}
-                    title="Escolha Simples"
-                    desc="Escolhe o serviço e o profissional de preferência. Tudo de forma super simples, sem complicação e sem precisar criar conta."
-                />
-                <ClientFlowCard 
-                    step="3"
-                    icon={CheckCircle2}
-                    title="Agendado!"
-                    desc="Pronto. Você recebe o aviso na hora e o horário fica bloqueado na agenda."
-                />
-            </div>
+            <ClientFlowCard
+              step="1"
+              icon={MousePointerClick}
+              title="Link na Bio"
+              desc="Seu cliente clica no link exclusivo de agendamento no seu perfil Instagram ou WhatsApp."
+            />
+            <ClientFlowCard
+              step="2"
+              icon={CalendarCheck}
+              title="Escolha Simples"
+              desc="Escolhe o serviço e o profissional de preferência. Tudo de forma super simples, sem complicação e sem precisar criar conta."
+            />
+            <ClientFlowCard
+              step="3"
+              icon={CheckCircle2}
+              title="Agendado!"
+              desc="Pronto. Você recebe o aviso na hora e o horário fica bloqueado na agenda."
+            />
+          </div>
         </div>
       </section>
 
@@ -298,7 +300,7 @@ export function LandingPage() {
           </div>
 
           <div className="text-center mt-12">
-            <button onClick={openWhatsApp} className={`px-10 py-4 rounded-lg font-bold text-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mx-auto ${BUTTON_PRIMARY}`}>
+            <button onClick={handleOpenLeadForm} className={`px-10 py-4 rounded-lg font-bold text-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mx-auto ${BUTTON_PRIMARY}`}>
               <MessageCircle className="w-5 h-5" />
               Solicitar Análise Sem Compromisso
             </button>
@@ -342,20 +344,20 @@ export function LandingPage() {
               icon={Percent} title="Controle de Comissões"
               description="Saiba exatamente quanto cada profissional produziu no período. Facilitamos o fechamento da sua equipe."
             />
-            
+
             {/* CARD DE TREINAMENTO & SUPORTE */}
-            <div className="md:col-span-3 lg:col-span-3"> 
-                <div className="p-8 bg-cyan-50 border border-cyan-100 rounded-xl hover:shadow-xl transition-all duration-300 group h-full flex flex-col md:flex-row items-center gap-6" data-aos="fade-up">
-                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
-                        <Headset className="w-8 h-8 text-cyan-700" />
-                    </div>
-                    <div className="text-center md:text-left">
-                        <h3 className="text-xl font-bold text-slate-900 mb-2">Medo de não saber usar? Fique tranquilo!</h3>
-                        <p className="text-slate-600 leading-relaxed">
-                            Nós pegamos na sua mão. Oferecemos <strong>treinamento de uso completo</strong> para você e sua equipe aprenderem em minutos. Além disso, nosso <strong>suporte no WhatsApp</strong> é feito por gente de verdade, pronto para tirar qualquer dúvida na hora.
-                        </p>
-                    </div>
+            <div className="md:col-span-3 lg:col-span-3">
+              <div className="p-8 bg-cyan-50 border border-cyan-100 rounded-xl hover:shadow-xl transition-all duration-300 group h-full flex flex-col md:flex-row items-center gap-6" data-aos="fade-up">
+                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
+                  <Headset className="w-8 h-8 text-cyan-700" />
                 </div>
+                <div className="text-center md:text-left">
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Medo de não saber usar? Fique tranquilo!</h3>
+                  <p className="text-slate-600 leading-relaxed">
+                    Nós pegamos na sua mão. Oferecemos <strong>treinamento de uso completo</strong> para você e sua equipe aprenderem em minutos. Além disso, nosso <strong>suporte no WhatsApp</strong> é feito por gente de verdade, pronto para tirar qualquer dúvida na hora.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -371,17 +373,17 @@ export function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <TestimonialCard 
+            <TestimonialCard
               quote="Eu trabalho sozinha no meu estúdio e achava que sistema era só para salão grande. O Horalis me salvou de ficar respondendo cliente meia-noite no WhatsApp."
               author="Ana Clara"
               role="Designer de Sobrancelhas"
             />
-            <TestimonialCard 
+            <TestimonialCard
               quote="Minha clínica precisava organizar a agenda das doutoras. O sistema resolveu o conflito de horários e o suporte deles é incrível, respondem na hora."
               author="Dra. Juliana Costa"
               role="Biomédica Esteta"
             />
-            <TestimonialCard 
+            <TestimonialCard
               quote="O sistema anti-calote (sinal via Pix) é vida! Antes eu tinha 4 a 5 faltas por semana, hoje é zero. Vale cada centavo, mesmo para mim que sou barbeiro solo."
               author="Ricardo Viana"
               role="Barbeiro"
@@ -391,16 +393,16 @@ export function LandingPage() {
           {/* Call to Action Final */}
           <div className="mt-16 bg-slate-900 rounded-3xl p-8 md:p-12 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-            
+
             <div className="relative z-10">
               <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Transforme sua agenda em uma máquina de resultados.</h3>
               <p className="text-slate-400 max-w-lg">
                 Tire suas dúvidas diretamente com nossa equipe de implantação. Atendimento consultivo, humano e focado em resolver os gargalos reais da sua operação.
               </p>
             </div>
-            
+
             <div className="relative z-10 flex flex-col w-full md:w-auto gap-3">
-              <button onClick={openWhatsApp} className={`px-8 py-4 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500`}>
+              <button onClick={handleOpenLeadForm} className={`px-8 py-4 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500`}>
                 <MessageCircle className="w-5 h-5" />
                 Falar com Especialista
               </button>
@@ -460,7 +462,7 @@ export function LandingPage() {
             <div>
               <h4 className="font-bold text-slate-900 mb-4">Contato</h4>
               <ul className="space-y-2 text-sm text-slate-600">
-                <li><button onClick={openWhatsApp} className="hover:text-cyan-700 transition-colors text-left">WhatsApp Comercial</button></li>
+                <li><button onClick={handleOpenLeadForm} className="hover:text-cyan-700 transition-colors text-left">WhatsApp Comercial</button></li>
                 <li><a href="mailto:suporte@horalis.app" className="hover:text-cyan-700 transition-colors">E-mail Suporte</a></li>
               </ul>
             </div>
@@ -493,6 +495,11 @@ export function LandingPage() {
           </div>
         </div>
       )}
+      {/* MODAL DE QUALIFICAÇÃO DE LEAD (NOVO) */}
+      <LeadQualificationModal
+        isOpen={isLeadModalOpen}
+        onClose={() => setIsLeadModalOpen(false)}
+      />
     </div>
   );
 }
