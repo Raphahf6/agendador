@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Calendar, Search, Filter, User, Clock, CheckCircle, 
-    AlertCircle, XCircle, DollarSign, ChevronDown, Scissors 
+    AlertCircle, XCircle, DollarSign, ChevronDown, Scissors,
+    MessageCircle, ExternalLink 
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
-import { format, isToday, isTomorrow, parseISO } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import HourglassLoading from '@/components/HourglassLoading';
 import axios from 'axios';
@@ -31,11 +32,10 @@ const getStatusConfig = (status) => {
 };
 
 // --- Componente Card de Agendamento ---
-const AgendamentoCard = ({ data }) => {
+const AgendamentoCard = ({ data, nomeSalao }) => {
     const statusConfig = getStatusConfig(data.status);
     const StatusIcon = statusConfig.icon;
     
-    // Formatação de Data Amigável
     const dateObj = data.startTime ? data.startTime.toDate() : new Date();
     let dateLabel = format(dateObj, "dd 'de' MMMM", { locale: ptBR });
     if (isToday(dateObj)) dateLabel = "Hoje";
@@ -43,10 +43,24 @@ const AgendamentoCard = ({ data }) => {
 
     const timeLabel = format(dateObj, "HH:mm");
 
+    // --- LÓGICA DO WHATSAPP ---
+    const handleWhatsAppClick = () => {
+        if (!data.customerPhone) return alert("Cliente sem telefone cadastrado.");
+        
+        // Limpa o número (remove parênteses, espaços e traços)
+        const cleanNumber = data.customerPhone.replace(/\D/g, '');
+        const ddi = cleanNumber.startsWith('55') ? '' : '55';
+        
+        // Template da Mensagem
+        const mensagem = `Olá ${data.customerName}! 👋%0A%0AAqui é do *${nomeSalao}*! Passando para lembrar do seu agendamento de *${data.serviceName}* conosco.%0A%0A📅 *Data:* ${dateLabel.toLowerCase()}%0A⏰ *Horário:* ${timeLabel}%0A%0APodemos confirmar sua presença?`;
+        
+        const url = `https://wa.me/${ddi}${cleanNumber}?text=${mensagem}`;
+        window.open(url, '_blank');
+    };
+
     return (
         <div className="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-4 relative overflow-hidden">
             
-            {/* Barra lateral de status */}
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${statusConfig.color.replace('bg-', 'bg-opacity-50 bg-')}`}></div>
 
             {/* Coluna Horário */}
@@ -80,14 +94,25 @@ const AgendamentoCard = ({ data }) => {
                 </div>
             </div>
 
-            {/* Status e Valor */}
-            <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold ${statusConfig.color}`}>
-                    <StatusIcon className="w-3.5 h-3.5" /> {statusConfig.label}
-                </span>
-                <span className="text-sm font-bold text-gray-900 mt-1">
-                    R$ {data.servicePrice ? Number(data.servicePrice).toFixed(2).replace('.', ',') : '0,00'}
-                </span>
+            {/* Status e Ações */}
+            <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0 gap-3">
+                <div className="flex flex-col items-end">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold ${statusConfig.color}`}>
+                        <StatusIcon className="w-3.5 h-3.5" /> {statusConfig.label}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900 mt-1">
+                        R$ {data.servicePrice ? Number(data.servicePrice).toFixed(2).replace('.', ',') : '0,00'}
+                    </span>
+                </div>
+
+                {/* BOTÃO WHATSAPP */}
+                <button 
+                    onClick={handleWhatsAppClick}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                >
+                    <MessageCircle className="w-4 h-4" />
+                    Lembrar Cliente
+                </button>
             </div>
         </div>
     );
@@ -100,12 +125,10 @@ export default function MeusAgendamentosPage() {
     const [professionals, setProfessionals] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // Filtros
     const [filterProfessional, setFilterProfessional] = useState('todos');
     const [filterStatus, setFilterStatus] = useState('todos');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 1. Carregar Lista de Profissionais (para o filtro)
     useEffect(() => {
         const fetchPros = async () => {
             if (!salaoId || !auth.currentUser) return;
@@ -118,12 +141,10 @@ export default function MeusAgendamentosPage() {
         fetchPros();
     }, [salaoId]);
 
-    // 2. Listener Realtime de Agendamentos (Futuros)
     useEffect(() => {
         if (!salaoId) return;
         setLoading(true);
 
-        // Busca agendamentos de hoje em diante
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
 
@@ -131,7 +152,7 @@ export default function MeusAgendamentosPage() {
             collection(db, 'cabeleireiros', salaoId, 'agendamentos'),
             where("startTime", ">=", startOfToday),
             orderBy("startTime", "asc"),
-            limit(100) // Limite de segurança para não travar a UI
+            limit(100)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -146,18 +167,14 @@ export default function MeusAgendamentosPage() {
         return () => unsubscribe();
     }, [salaoId]);
 
-    // 3. Lógica de Filtragem Local
     const filteredList = useMemo(() => {
         return agendamentos.filter(item => {
-            // Filtro de Texto (Nome Cliente ou Serviço)
             const searchMatch = 
                 item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.serviceName.toLowerCase().includes(searchTerm.toLowerCase());
             
-            // Filtro de Profissional
             const proMatch = filterProfessional === 'todos' || item.professionalId === filterProfessional;
 
-            // Filtro de Status
             let statusMatch = true;
             if (filterStatus === 'confirmados') statusMatch = item.status === 'confirmado';
             if (filterStatus === 'pendentes') statusMatch = item.status === 'pending_payment';
@@ -172,7 +189,6 @@ export default function MeusAgendamentosPage() {
     return (
         <div className="font-sans pb-20 max-w-5xl mx-auto">
             
-            {/* Header */}
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                     <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -183,10 +199,8 @@ export default function MeusAgendamentosPage() {
                 <p className="text-gray-500 mt-1 ml-12 text-sm">Visualize e gerencie os compromissos futuros da equipe.</p>
             </div>
 
-            {/* Barra de Filtros (Card) */}
+            {/* Barra de Filtros */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 grid grid-cols-1 md:grid-cols-12 gap-4">
-                
-                {/* Busca */}
                 <div className="md:col-span-5 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input 
@@ -198,7 +212,6 @@ export default function MeusAgendamentosPage() {
                     />
                 </div>
 
-                {/* Filtro Profissional */}
                 <div className="md:col-span-4 relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <select 
@@ -214,7 +227,6 @@ export default function MeusAgendamentosPage() {
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
 
-                {/* Filtro Status */}
                 <div className="md:col-span-3 relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <select 
@@ -237,18 +249,14 @@ export default function MeusAgendamentosPage() {
                     <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-gray-200">
                         <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-500 font-medium">Nenhum agendamento encontrado.</p>
-                        {searchTerm || filterProfessional !== 'todos' ? (
-                            <button 
-                                onClick={() => { setSearchTerm(''); setFilterProfessional('todos'); setFilterStatus('todos'); }}
-                                className="mt-2 text-sm text-cyan-600 font-bold hover:underline"
-                            >
-                                Limpar filtros
-                            </button>
-                        ) : null}
                     </div>
                 ) : (
                     filteredList.map(agendamento => (
-                        <AgendamentoCard key={agendamento.id} data={agendamento} />
+                        <AgendamentoCard 
+                            key={agendamento.id} 
+                            data={agendamento} 
+                            nomeSalao={salonDetails?.nome_salao || 'Horalis'} 
+                        />
                     ))
                 )}
             </div>

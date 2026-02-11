@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Users, Plus, Trash2, UserCircle, Briefcase, Loader2, X, Save, Clock, Check, ChevronDown, Scissors } from 'lucide-react';
+import { 
+    Users, Plus, Trash2, UserCircle, Briefcase, Loader2, X, Save, 
+    Clock, Check, ChevronDown, Scissors, Percent 
+} from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
@@ -17,13 +20,17 @@ const DIAS_DA_SEMANA = [
 
 const DEFAULT_DAY_SCHEDULE = { isOpen: true, openTime: '09:00', closeTime: '18:00', hasLunch: true, lunchStart: '12:00', lunchEnd: '13:00' };
 
-// --- Modal de Profissional (Com Seleção de Serviços) ---
+// --- Modal de Profissional ---
 const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServices, primaryColor }) => {
-    const [tab, setTab] = useState('dados'); // 'dados' | 'servicos' | 'horarios'
+    const [tab, setTab] = useState('dados');
     const [formData, setFormData] = useState({
         nome: '', cargo: '', foto_url: '',
         horario_trabalho: {},
-        servicos: [] // Lista de IDs de serviços
+        servicos: [],
+        descricao: '',
+        email: '',
+        telefone: '',
+        comissao: '' // ✨ Novo Campo de Comissão
     });
     const [loading, setLoading] = useState(false);
 
@@ -33,10 +40,11 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                 setFormData({
                     ...initialData,
                     horario_trabalho: initialData.horario_trabalho || {},
-                    servicos: initialData.servicos || []
+                    servicos: initialData.servicos || [],
+                    comissao: initialData.comissao || '' // Carrega comissão existente
                 });
             } else {
-                setFormData({ nome: '', cargo: '', foto_url: '', horario_trabalho: {}, servicos: [] });
+                setFormData({ nome: '', cargo: '', foto_url: '', horario_trabalho: {}, servicos: [], descricao: '', email: '', telefone: '', comissao: '' });
             }
             setTab('dados');
         }
@@ -46,12 +54,19 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
         e.preventDefault();
         if (!formData.nome) return;
         setLoading(true);
-        await onSave(formData);
+        
+        // Garante que comissão seja número ou 0
+        const dataToSave = {
+            ...formData,
+            comissao: formData.comissao ? parseFloat(formData.comissao) : 0
+        };
+
+        await onSave(dataToSave);
         setLoading(false);
         onClose();
     };
 
-    // Helpers de Horário (Mantidos)
+    // Helpers de Horário e Serviços (Mantidos)
     const updateDay = (dayKey, field, value) => {
         setFormData(prev => {
             const currentDay = prev.horario_trabalho[dayKey] || { ...DEFAULT_DAY_SCHEDULE };
@@ -59,7 +74,6 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
         });
     };
 
-    // Helper de Serviços (Toggle)
     const toggleService = (serviceId) => {
         setFormData(prev => {
             const currentServices = prev.servicos || [];
@@ -73,163 +87,164 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
 
     const toggleAllServices = () => {
         if (formData.servicos.length === availableServices.length) {
-            setFormData(prev => ({ ...prev, servicos: [] })); // Desmarcar tudo
+            setFormData(prev => ({ ...prev, servicos: [] }));
         } else {
-            setFormData(prev => ({ ...prev, servicos: availableServices.map(s => s.id) })); // Marcar tudo
+            setFormData(prev => ({ ...prev, servicos: availableServices.map(s => s.id) }));
         }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h3 className="text-lg font-bold text-gray-900">{initialData ? 'Editar Profissional' : 'Novo Profissional'}</h3>
-                    <button onClick={onClose}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh] border border-gray-100">
+                
+                {/* HEADER FIXO */}
+                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white">
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-900 leading-tight">
+                            {initialData ? 'Editar Profissional' : 'Novo Integrante'}
+                        </h3>
+                        <p className="text-xs text-gray-400 font-medium">Dados e Comissão</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <X className="w-5 h-5 text-gray-400" />
+                    </button>
                 </div>
 
-                {/* Tabs de Navegação */}
-                <div className="flex border-b border-gray-100 overflow-x-auto no-scrollbar">
+                {/* TABS */}
+                <div className="flex px-2 border-b border-gray-100 bg-gray-50/50">
                     {['dados', 'servicos', 'horarios'].map((t) => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
-                            className={`flex-1 py-3 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${tab === t ? 'text-cyan-700 border-b-2 border-cyan-700' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`flex-1 py-4 px-2 text-sm font-bold transition-all relative ${
+                                tab === t ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                            }`}
                         >
                             {t === 'dados' ? 'Dados' : t === 'servicos' ? 'Serviços' : 'Horários'}
+                            {tab === t && (
+                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 rounded-t-full" style={{ backgroundColor: primaryColor }} />
+                            )}
                         </button>
                     ))}
                 </div>
 
-                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-
-                    {/* TAB: DADOS */}
+                {/* CONTEÚDO */}
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-white">
+                    
                     {tab === 'dados' && (
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome*</label>
-                                <input required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: João Silva" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cargo</label>
-                                <input value={formData.cargo} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="Ex: Barbeiro Master" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição / Bio</label>
-                                <textarea
-                                    value={formData.descricao}
-                                    onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none resize-none"
-                                    placeholder="Conte um pouco sobre a experiência e formação..."
-                                    rows="3"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">E-mail (Notificações)</label>
-                                <input
-                                    type="email"
-                                    value={formData.email || ''}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none"
-                                    placeholder="joao@email.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone</label>
-                                <input
-                                    type="tel"
-                                    value={formData.telefone || ''}
-                                    onChange={e => setFormData({ ...formData, telefone: e.target.value })}
-                                    className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none"
-                                    placeholder="(XX) 99999-9999"
-                                />
-                            </div>
+                        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Nome Completo*</label>
+                                    <input required value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="Ex: João Silva" />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Cargo</label>
+                                        <input value={formData.cargo} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="Ex: Barbeiro" />
+                                    </div>
+                                    {/* ✨ CAMPO DE COMISSÃO */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1">
+                                            <Percent className="w-3 h-3" /> Comissão (%)
+                                        </label>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                min="0" 
+                                                max="100" 
+                                                value={formData.comissao} 
+                                                onChange={e => setFormData({ ...formData, comissao: e.target.value })} 
+                                                className="w-full p-3.5 bg-green-50 rounded-2xl border border-green-100 focus:bg-white focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all text-green-800 font-bold" 
+                                                placeholder="0" 
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-600 font-bold">%</span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Foto URL</label>
-                                <input value={formData.foto_url} onChange={e => setFormData({ ...formData, foto_url: e.target.value })} className="w-full p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-cyan-500 outline-none" placeholder="https://..." />
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Descrição / Bio</label>
+                                    <textarea
+                                        value={formData.descricao}
+                                        onChange={e => setFormData({ ...formData, descricao: e.target.value })}
+                                        className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all resize-none"
+                                        placeholder="Conte um pouco sobre a experiência..."
+                                        rows="3"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Telefone</label>
+                                        <input type="tel" value={formData.telefone} onChange={e => setFormData({ ...formData, telefone: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="(XX) 9..." />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">E-mail</label>
+                                        <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="email@exemplo.com" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Link da Foto (URL)</label>
+                                    <input value={formData.foto_url} onChange={e => setFormData({ ...formData, foto_url: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="https://imagem.com/foto.jpg" />
+                                </div>
                             </div>
                         </div>
-
                     )}
 
-                    {/* TAB: SERVIÇOS (NOVA) */}
                     {tab === 'servicos' && (
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <p className="text-sm text-gray-600">Selecione os serviços que este profissional realiza:</p>
-                                <button type="button" onClick={toggleAllServices} className="text-xs font-bold text-cyan-600 hover:underline">
-                                    {formData.servicos.length === availableServices.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+                        <div className="space-y-4 animate-in fade-in duration-300">
+                            {/* ... (Conteúdo da aba Serviços mantido igual) ... */}
+                            <div className="flex justify-between items-center p-2 bg-gray-50 rounded-xl mb-2">
+                                <p className="text-[11px] font-bold text-gray-500 uppercase ml-1">Serviços habilitados</p>
+                                <button type="button" onClick={toggleAllServices} className="text-xs font-bold px-2 py-1 rounded-lg hover:bg-white transition-all" style={{ color: primaryColor }}>
+                                    {formData.servicos.length === availableServices.length ? 'Remover Todos' : 'Selecionar Todos'}
                                 </button>
                             </div>
-
                             <div className="grid grid-cols-1 gap-2">
                                 {availableServices.map((service) => {
                                     const isSelected = formData.servicos.includes(service.id);
                                     return (
-                                        <div
-                                            key={service.id}
-                                            onClick={() => toggleService(service.id)}
-                                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200 hover:border-gray-300'}`}
-                                        >
+                                        <div key={service.id} onClick={() => toggleService(service.id)} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${isSelected ? 'border-cyan-500 bg-cyan-50/30' : 'border-gray-50 bg-gray-50 hover:border-gray-200'}`}>
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-5 h-5 rounded flex items-center justify-center border ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'border-gray-300 bg-white'}`}>
-                                                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'bg-white border-gray-200'}`}>
+                                                    {isSelected && <Check className="w-4 h-4 text-white" />}
                                                 </div>
-                                                <span className={`text-sm font-medium ${isSelected ? 'text-cyan-900' : 'text-gray-700'}`}>{service.nome_servico}</span>
+                                                <span className={`text-sm font-bold ${isSelected ? 'text-cyan-900' : 'text-gray-600'}`}>{service.nome_servico}</span>
                                             </div>
-                                            <span className="text-xs text-gray-500 font-mono">R$ {service.preco}</span>
+                                            <span className="text-xs font-bold text-gray-400">R$ {service.preco}</span>
                                         </div>
                                     );
                                 })}
                             </div>
-                            {availableServices.length === 0 && (
-                                <p className="text-center text-gray-400 text-sm py-4">Nenhum serviço cadastrado no salão.</p>
-                            )}
                         </div>
                     )}
 
-                    {/* TAB: HORÁRIOS (Mantida) */}
                     {tab === 'horarios' && (
-                        <div className="space-y-2">
-                            <p className="text-xs text-gray-500 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                <span className="font-bold">Nota:</span> Configure apenas as exceções. Dias não configurados seguem o padrão do salão.
-                            </p>
+                        <div className="space-y-3 animate-in fade-in duration-300">
+                            {/* ... (Conteúdo da aba Horários mantido igual) ... */}
+                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 mb-4">
+                                <p className="text-[11px] text-amber-700 leading-relaxed"><strong className="block mb-0.5">Customização de Escala:</strong> Marque os dias que este profissional trabalha diferente do padrão do salão.</p>
+                            </div>
                             {DIAS_DA_SEMANA.map((day) => {
                                 const config = formData.horario_trabalho[day.key];
                                 const isActive = config !== undefined;
                                 const isOpen = config?.isOpen;
-
                                 return (
-                                    <div key={day.key} className={`border rounded-xl p-3 transition-all ${isActive ? 'border-cyan-200 bg-white shadow-sm' : 'border-gray-100 bg-gray-50 opacity-70'}`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <input type="checkbox" checked={isActive} onChange={(e) => {
-                                                    if (e.target.checked) updateDay(day.key, 'isOpen', true);
-                                                    else {
-                                                        const newSchedule = { ...formData.horario_trabalho };
-                                                        delete newSchedule[day.key];
-                                                        setFormData({ ...formData, horario_trabalho: newSchedule });
-                                                    }
-                                                }} className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
-                                                />
-                                                <span className={`font-bold text-sm ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{day.name}</span>
+                                    <div key={day.key} className={`border-2 rounded-2xl p-4 transition-all ${isActive ? 'border-cyan-100 bg-white' : 'border-gray-50 bg-gray-50/50 opacity-60'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <input type="checkbox" checked={isActive} onChange={(e) => { if (e.target.checked) updateDay(day.key, 'isOpen', true); else { const newSchedule = { ...formData.horario_trabalho }; delete newSchedule[day.key]; setFormData({ ...formData, horario_trabalho: newSchedule }); } }} className="w-5 h-5 text-cyan-600 rounded-lg border-gray-300 focus:ring-cyan-500" />
+                                                <span className={`font-bold text-sm ${isActive ? 'text-gray-900' : 'text-gray-400'}`}>{day.name}</span>
                                             </div>
-                                            {isActive && (
-                                                <div className="flex items-center gap-2">
-                                                    <label className="text-xs text-gray-500">Trab?</label>
-                                                    <button type="button" onClick={() => updateDay(day.key, 'isOpen', !isOpen)} className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isOpen ? 'bg-green-500' : 'bg-gray-300'}`}>
-                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isOpen ? 'translate-x-4' : 'translate-x-0'}`} />
-                                                    </button>
-                                                </div>
-                                            )}
+                                            {isActive && ( <button type="button" onClick={() => updateDay(day.key, 'isOpen', !isOpen)} className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${isOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{isOpen ? 'Disponível' : 'Folga'}</button> )}
                                         </div>
                                         {isActive && isOpen && (
-                                            <div className="grid grid-cols-2 gap-3 mt-2 animate-in fade-in">
-                                                <div><label className="text-[10px] font-bold text-gray-400 uppercase">Início</label><input type="time" value={config.openTime} onChange={e => updateDay(day.key, 'openTime', e.target.value)} className="w-full p-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-cyan-500" /></div>
-                                                <div><label className="text-[10px] font-bold text-gray-400 uppercase">Fim</label><input type="time" value={config.closeTime} onChange={e => updateDay(day.key, 'closeTime', e.target.value)} className="w-full p-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-cyan-500" /></div>
+                                            <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-50">
+                                                <div><label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Entrada</label><input type="time" value={config.openTime} onChange={e => updateDay(day.key, 'openTime', e.target.value)} className="w-full p-2 bg-gray-50 rounded-xl border-none text-sm font-medium" /></div>
+                                                <div><label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Saída</label><input type="time" value={config.closeTime} onChange={e => updateDay(day.key, 'closeTime', e.target.value)} className="w-full p-2 bg-gray-50 rounded-xl border-none text-sm font-medium" /></div>
                                             </div>
                                         )}
                                     </div>
@@ -239,8 +254,8 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 bg-white">
-                    <button type="submit" onClick={handleSubmit} disabled={loading} className="w-full py-3 rounded-xl text-white font-bold shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center" style={{ backgroundColor: primaryColor }}>
+                <div className="p-6 border-t border-gray-100 bg-gray-50/50">
+                    <button type="submit" onClick={handleSubmit} disabled={loading} className="w-full py-4 rounded-2xl text-white font-bold shadow-xl shadow-cyan-900/10 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2" style={{ backgroundColor: primaryColor }}>
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Integrante'}
                     </button>
                 </div>
@@ -249,7 +264,8 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
     );
 };
 
-const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
+// --- Card de Profissional (Com Tag de Comissão) ---
+const ProfessionalCard = ({ pro, onEdit, onDelete, primaryColor }) => (
     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all flex items-center justify-between group">
         <div className="flex items-center gap-4">
             {pro.foto_url ? (
@@ -259,7 +275,17 @@ const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
             )}
             <div>
                 <h3 className="font-bold text-gray-900 text-lg">{pro.nome}</h3>
-                <p className="text-sm text-gray-500 flex items-center gap-1"><Briefcase className="w-3 h-3" /> {pro.cargo}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm text-gray-500 flex items-center gap-1"><Briefcase className="w-3 h-3" /> {pro.cargo}</p>
+                    
+                    {/* ✨ VISUALIZAÇÃO DA COMISSÃO */}
+                    {pro.comissao > 0 && (
+                        <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-bold flex items-center gap-1 border border-green-100">
+                            <Percent className="w-3 h-3" /> {pro.comissao}%
+                        </span>
+                    )}
+                </div>
+
                 {pro.servicos && pro.servicos.length > 0 && (
                     <p className="text-xs text-cyan-600 mt-1 bg-cyan-50 px-2 py-0.5 rounded-md inline-block font-medium">
                         {pro.servicos.length} serviços habilitados
@@ -274,27 +300,24 @@ const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
     </div>
 );
 
+// --- PÁGINA PRINCIPAL ---
 export default function EquipePage() {
     const { salaoId, salonDetails } = useSalon();
     const primaryColor = salonDetails?.cor_primaria || '#0E7490';
     const [professionals, setProfessionals] = useState([]);
-    const [services, setServices] = useState([]); // 🌟 Estado de serviços
+    const [services, setServices] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPro, setEditingPro] = useState(null);
 
-    // Fetch Equipe E Serviços
     const fetchData = useCallback(async () => {
         if (!salaoId || !auth.currentUser) return;
         try {
             const token = await auth.currentUser.getIdToken();
-
-            // Paraleliza as chamadas
             const [teamRes, salonRes] = await Promise.all([
                 axios.get(`${API_BASE_URL}/admin/equipe`, { headers: { Authorization: `Bearer ${token}` } }),
                 axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } })
             ]);
-
             setProfessionals(teamRes.data);
             setServices(salonRes.data.servicos || []);
         } catch (err) { console.error(err); toast.error("Erro ao carregar dados."); }
@@ -307,16 +330,20 @@ export default function EquipePage() {
         try {
             const token = await auth.currentUser.getIdToken();
             const headers = { Authorization: `Bearer ${token}` };
+            
             if (editingPro) {
-                // Se não tiver rota PUT, usa o delete/post combo, mas idealmente use PUT
-                await axios.delete(`${API_BASE_URL}/admin/equipe/${editingPro.id}`, { headers });
-                await axios.post(`${API_BASE_URL}/admin/equipe`, data, { headers });
+                // AGORA USA PUT (Atualiza mantendo o ID e o histórico)
+                await axios.put(`${API_BASE_URL}/admin/equipe/${editingPro.id}`, data, { headers });
             } else {
+                // CRIA NOVO
                 await axios.post(`${API_BASE_URL}/admin/equipe`, data, { headers });
             }
             toast.success("Salvo com sucesso!");
             fetchData();
-        } catch (e) { toast.error("Erro ao salvar."); }
+        } catch (e) { 
+            console.error(e);
+            toast.error("Erro ao salvar."); 
+        }
     };
 
     const handleDelete = async (id) => {
@@ -341,7 +368,7 @@ export default function EquipePage() {
                         </div>
                         Minha Equipe
                     </h1>
-                    <p className="text-gray-500 mt-1 ml-12 text-sm">Cadastre seus profissionais e vincule serviços.</p>
+                    <p className="text-gray-500 mt-1 ml-12 text-sm">Cadastre seus profissionais e defina as comissões.</p>
                 </div>
                 <button
                     onClick={() => { setEditingPro(null); setIsModalOpen(true); }}
@@ -376,7 +403,7 @@ export default function EquipePage() {
                 onClose={() => setIsModalOpen(false)}
                 onSave={handleSave}
                 initialData={editingPro}
-                availableServices={services} // 🌟 Passa os serviços para o modal
+                availableServices={services}
                 primaryColor={primaryColor}
             />
         </div>

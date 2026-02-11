@@ -8,6 +8,9 @@ import HandleAuthActions from './components/HandleAuthActions';
 import ResetarSenhaPage from './components/ResetarSenhaPage';
 import MeusAgendamentosPage from './pages/painel/MeusAgendamentosPage';
 import SetupPage from './pages/painel/SetupPage';
+import ComissoesPage from './pages/painel/ComissoesPage';
+import TermosDeUsoPage from './pages/TermosDeUsoPage';
+import PoliticaPrivacidadePage from './pages/PoliticaPrivacidadePage';
 
 // Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
@@ -114,6 +117,8 @@ function App() {
                 <Route path="/recuperar-senha" element={<RecuperarSenhaPage />} />
                 <Route path="/auth/actions" element={<HandleAuthActions />} />
                 <Route path="/resetar-senha" element={<ResetarSenhaPage />} />
+                <Route path="/termos" element={<TermosDeUsoPage />} />
+                <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
 
                 {/* Rota de Agendamento (Pública) */}
                 <Route path="/agendar/:salaoId" element={<SalonMicrosite />} />
@@ -149,6 +154,7 @@ function App() {
                     <Route path="estoque" element={<EstoquePage />} />
                     <Route path="equipe" element={<EquipePage />} />
                     <Route path="agendamentos" element={<MeusAgendamentosPage />} />
+                    <Route path="comissoes" element={<ComissoesPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />

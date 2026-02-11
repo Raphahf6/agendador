@@ -1,28 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Calendar, Clock, Users, Zap, Check,
-  Menu, X, Smartphone, ShieldCheck,
-  CreditCard, TrendingUp, Eye,
+  Calendar, Users, Zap, Check,
+  Menu, X, Smartphone,
+  Eye,
   Instagram, Facebook, MessageCircle, Star, Bell,
-  BookDashed,
-  LayoutDashboard,
-  DollarSign,
-  HandCoins,
-  Mail
+  HandCoins, Sparkles, Quote,
+  Percent, FileCheck
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
-import { DISPLAY_PRICE_SETUP } from '@/utils/pricing'; // Certifique-se que isso exibe o valor da mensalidade (ex: R$ 59,90)
 import SignupModalContent from '@/components/landing/SignupModalContent';
 import { ImageWithFallback } from '@/ui/ImageWithFallback';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
 // --- CONFIGURAÇÕES ---
-// Adicionei uma mensagem pré-definida no link do WhatsApp para facilitar a venda
-const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20a%20implanta%C3%A7%C3%A3o%20do%20Horalis%20e%20os%2030%20dias%20gr%C3%A1tis.";
+const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1%2C%20gostaria%20de%20uma%20an%C3%A1lise%20para%20o%20meu%20estabelecimento.%20Tenho%20interesse%20no%20Horalis.";
 const REAL_MICROSITE_LINK = "https://horalis.app/agendar/5511988062634";
-const PRIMARY_COLOR_CLASS = "text-cyan-700";
 const BUTTON_PRIMARY = "bg-cyan-700 hover:bg-cyan-800 text-white shadow-lg shadow-cyan-700/20";
 const BUTTON_OUTLINE = "border border-slate-300 text-slate-700 hover:bg-slate-50";
 
@@ -30,7 +24,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// --- COMPONENTE: ITEM DE FAQ (Atualizado para o novo modelo) ---
+// --- COMPONENTE: ITEM DE FAQ ---
 const FaqItem = ({ question, answer }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -60,7 +54,7 @@ const FeatureCard = ({ icon: IconComp, title, description }) => (
   </div>
 );
 
-// --- COMPONENTE: PASSO A PASSO (Atualizado para Implantação) ---
+// --- COMPONENTE: PASSO A PASSO ---
 const StepCard = ({ number, title, description, highlight = false }) => (
   <div className={`relative flex flex-col items-center text-center p-8 rounded-2xl transition-all ${highlight ? 'bg-cyan-50 border border-cyan-100 shadow-md transform md:-translate-y-2' : 'bg-white'}`} data-aos="fade-up">
     <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold mb-4 shadow-lg ${highlight ? 'bg-cyan-600 text-white' : 'bg-slate-900 text-white shadow-slate-200'}`}>
@@ -68,6 +62,23 @@ const StepCard = ({ number, title, description, highlight = false }) => (
     </div>
     <h3 className="text-lg font-bold text-slate-900 mb-2">{title}</h3>
     <p className="text-sm text-slate-600 leading-relaxed">{description}</p>
+  </div>
+);
+
+// --- COMPONENTE: PROVA SOCIAL ---
+const TestimonialCard = ({ quote, author, role }) => (
+  <div className="bg-slate-50 p-8 rounded-2xl border border-slate-100 relative hover:shadow-md transition-shadow" data-aos="fade-up">
+    <Quote className="w-8 h-8 text-cyan-200 absolute top-6 left-6 -z-10" />
+    <div className="flex gap-1 mb-4">
+      {[1, 2, 3, 4, 5].map((_, i) => (
+        <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+      ))}
+    </div>
+    <p className="text-slate-700 italic mb-6 leading-relaxed">"{quote}"</p>
+    <div>
+      <h4 className="font-bold text-slate-900">{author}</h4>
+      <span className="text-xs text-slate-500 uppercase tracking-wide font-bold">{role}</span>
+    </div>
   </div>
 );
 
@@ -81,7 +92,7 @@ export function LandingPage() {
 
   useEffect(() => {
     AOS.init({ duration: 600, once: true });
-    // Scripts do Mercado Pago mantidos
+    // Scripts do Mercado Pago
     const script = document.createElement('script');
     script.src = "https://www.mercadopago.com/v2/security.js";
     script.setAttribute('data-public-key', "APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311");
@@ -94,7 +105,6 @@ export function LandingPage() {
     return () => { document.body.style.overflow = ''; };
   }, [isModalOpen]);
 
-  // Função auxiliar para abrir WhatsApp
   const openWhatsApp = () => {
     window.open(WHATSAPP_LNK, '_blank');
   };
@@ -103,7 +113,7 @@ export function LandingPage() {
     <div className="min-h-screen bg-white font-sans text-slate-900">
 
       {/* --- NAVBAR --- */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 transition-all duration-300">
+      <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <LogoHoralis size="h-8" darkText={true} />
@@ -112,15 +122,15 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <a href="#como-funciona" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Como Funciona</a>
             <a href="#funcionalidades" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Funcionalidades</a>
-            <a href="#planos" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Planos</a>
+            <a href="#depoimentos" className="text-sm font-medium text-slate-600 hover:text-cyan-700 transition-colors">Quem usa</a>
 
             <div className="flex items-center gap-3 ml-4">
               <Link to="/login" className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors ${BUTTON_OUTLINE}`}>
-                Painel do Cliente
+                Área do Cliente
               </Link>
               <button onClick={openWhatsApp} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-4 h-4" />
-                Falar com Consultor
+                Falar com Especialista
               </button>
             </div>
           </div>
@@ -132,53 +142,48 @@ export function LandingPage() {
 
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-200 absolute w-full p-6 flex flex-col gap-4 shadow-xl">
-            <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Painel do Cliente</Link>
+            <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Área do Cliente</Link>
             <button onClick={() => { openWhatsApp(); setIsMenuOpen(false); }} className={`w-full py-3 rounded-lg font-bold flex justify-center gap-2 ${BUTTON_PRIMARY}`}>
-              <MessageCircle className="w-5 h-5" /> Falar no WhatsApp
+              <MessageCircle className="w-5 h-5" /> Falar com Consultor
             </button>
           </div>
         )}
       </nav>
 
       {/* --- HERO SECTION --- */}
-      <section className="pt-32 pb-20 lg:pt-48 lg:pb-32 bg-slate-50 border-b border-slate-200 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+      <section className="pt-32 pb-20 lg:pt-48 lg:pb-32 bg-slate-50 border-b border-slate-200 overflow-hidden relative">
+        <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center relative z-10">
 
           {/* LADO ESQUERDO: Texto e CTA */}
-          <div className="text-center lg:text-left z-10 order-1 lg:order-1" data-aos="fade-right">
+          <div className="text-center lg:text-left order-1" data-aos="fade-right">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-cyan-700 text-xs font-bold uppercase tracking-wide mb-6 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-              </span>
-              Sistema de Agendamentos online
+              <Sparkles className="w-3 h-3 fill-cyan-700" />
+              Gestão Premium para Beleza e Estética
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
-              Sua agenda digital pronta para usar, <span className="text-cyan-700">sem dor de cabeça</span>.
+              Sua agenda digital pronta para usar, <span className="text-cyan-700 bg-cyan-50 px-2 rounded-lg">sem dor de cabeça.</span>
             </h1>
 
             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-              Chega de perder horas no WhatsApp agendando horários. Tenha sua agenda online 24/7, elimine faltas com a cobrança de sinal via PIX e envie lembretes automáticos para seus clientes.
-              <br className="hidden lg:block" />
-              E o diferencial: <strong className="text-slate-900">nós cuidamos de toda a implantação inicial para você</strong>. Entregamos o sistema pronto para uso, com seus serviços, horários e equipe já cadastrados.
+              Chega de perder horas no WhatsApp agendando horários. Tenha sua agenda online 24/7, elimine faltas com a cobrança de sinal e tenha clareza das comissões da sua equipe.
+              <br className="mt-4 block" />
+              <strong className="text-slate-900">E o melhor: nós fazemos toda a configuração inicial para você.</strong>
             </p>
-
-           
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
               <button onClick={openWhatsApp} className={`px-8 py-4 rounded-lg font-bold text-lg transition-transform hover:-translate-y-0.5 w-full sm:w-auto flex items-center justify-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-5 h-5" />
-                Solicitar Implantação
+                Verificar Disponibilidade
               </button>
               <a href="#como-funciona" className={`px-8 py-4 rounded-lg font-bold text-lg transition-colors w-full sm:w-auto flex items-center justify-center ${BUTTON_OUTLINE}`}>
-                Entenda como funciona
+                Entenda o serviço
               </a>
             </div>
 
             <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-slate-500 font-medium">
-              <span className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm"><Zap className="w-4 h-4 text-cyan-600" /> Entrega Rápida</span>
-              <span className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm"><Star className="w-4 h-4 text-cyan-600" /> Suporte VIP</span>
+              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Atendimento Humanizado</span>
+              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Implantação Concierge</span>
             </div>
           </div>
 
@@ -212,210 +217,164 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* --- COMO COMEÇAR (NOVO MODELO) --- */}
+      {/* --- COMO COMEÇAR (MODELO CONSULTIVO) --- */}
       <section id="como-funciona" className="py-24 bg-white relative overflow-hidden">
-        {/* Elemento de fundo decorativo */}
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-slate-50 to-white -z-10"></div>
 
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Esqueça tutoriais complicados</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Você foca no cliente, nós focamos no sistema</h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              No Horalis, nós acreditamos que você deve focar em atender seus clientes, não em programar sistemas. Veja como é simples:
+              Sabemos que seu tempo é precioso. Por isso, criamos o modelo de <strong>Implantação Assistida</strong> para Salões, Barbearias e Clínicas.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Linha conectora desktop */}
             <div className="hidden md:block absolute top-14 left-1/6 right-1/6 h-0.5 bg-slate-200 -z-10 w-2/3 mx-auto"></div>
 
             <StepCard
               number="1"
-              title="Solicite a Implantação"
-              description="Chame nosso consultor no WhatsApp. Vamos entender suas necessidades, serviços e preços."
+              title="Diagnóstico Gratuito"
+              description="Converse com nosso especialista no WhatsApp. Vamos entender o perfil da sua equipe e seus serviços."
             />
             <StepCard
               number="2"
-              title="Nós Configuramos Tudo"
-              description="Nossa equipe cadastra sua logo, cores, profissionais, horários e regras de agendamento."
+              title="Configuração VIP"
+              description="Nossa equipe cadastra todos os seus profissionais, regras de comissão e horários para você."
               highlight={true}
             />
             <StepCard
               number="3"
-              title="Receba Pronto"
-              description="Em até 24h, você recebe o login e senha com a agenda pronta para faturar. E ganha 30 dias grátis."
+              title="Entrega Pronta"
+              description="Você recebe o link da agenda pronto para divulgar. E só começa a pagar a mensalidade se aprovar."
             />
           </div>
 
           <div className="text-center mt-12">
             <button onClick={openWhatsApp} className={`px-10 py-4 rounded-lg font-bold text-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mx-auto ${BUTTON_PRIMARY}`}>
               <MessageCircle className="w-5 h-5" />
-              Quero minha agenda configurada
+              Solicitar Análise Gratuita
             </button>
+            <p className="text-xs text-slate-400 mt-4 font-medium">Poucas vagas de implantação para esta semana.</p>
           </div>
         </div>
       </section>
 
-      {/* --- SOBRE (Institucional) --- */}
-      <section id="sobre" className="py-24 bg-slate-50 border-t border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <span className="text-sm font-bold text-cyan-700 uppercase tracking-wider mb-2 block">Nosso Compromisso</span>
-          <h2 className="text-3xl font-bold text-slate-900 mb-8">Tecnologia com atendimento humano</h2>
-          <p className="text-lg text-slate-600 leading-relaxed mb-12">
-            Nascemos com o propósito de eliminar a desorganização de pequenos e médios negócios.
-            Diferente de outros apps onde você é apenas um número, aqui nós seguramos na sua mão para garantir que o sistema funcione para você.
-          </p>
-        </div>
-      </section>
-
       {/* --- FUNCIONALIDADES --- */}
-      <section id="funcionalidades" className="py-24 bg-white border-y border-slate-200">
+      <section id="funcionalidades" className="py-24 bg-slate-50 border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Tudo o que já vai configurado para você</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Uma suíte completa para seu negócio</h2>
             <p className="text-slate-600 max-w-2xl mx-auto">
-              Uma suíte completa de ferramentas que nossa equipe ativa e personaliza no seu perfil.
+              Do agendamento do corte à gestão de procedimentos estéticos. Tudo em um só lugar.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             <FeatureCard
-              icon={Smartphone} title="Microsite Próprio"
-              description="Seu link exclusivo e profissional. O cliente acessa e agenda sem baixar nada, 24 horas por dia."
+              icon={Smartphone} title="Link Exclusivo (Microsite)"
+              description="Sua recepção 24h. O cliente agenda pelo celular, sem baixar apps e sem precisar de cadastro complexo."
             />
             <FeatureCard
-              icon={Calendar} title="Agenda Digital Inteligente"
-              description="Visualize sua semana, bloqueie horários e reorganize compromissos com arrastar e soltar."
+              icon={Users} title="Gestão de Profissionais"
+              description="Ideal para quem tem equipe. Controle horários individuais e folgas de cada especialista."
             />
             <FeatureCard
-              icon={HandCoins} title="CRM integrado"
-              description="Tenha sua base de clientes sempre em mãos, com histórico de atendimentos e anotações importantes. Podendo enviar lembretes de manutenção e promoções para clientes que não retornam a um tempo."
+              icon={HandCoins} title="Histórico do Cliente (CRM)"
+              description="Saiba exatamente quando o cliente veio, qual serviço fez e anote preferências ou detalhes de tratamentos."
             />
             <FeatureCard
-              icon={Users} title="Gestão de Equipe"
-              description="Cadastre sua equipe horarios e delegue os serviços."
+              icon={Zap} title="Sinal via PIX (Anti-No-Show)"
+              description="Acabe com o prejuízo de faltas. O sistema pode cobrar um sinal automático para confirmar o horário."
             />
             <FeatureCard
-              icon={Zap} title="Sinal via PIX (Anti-Furo)"
-              description="Reduza faltas a zero. O sistema cobra um sinal antecipado no agendamento automaticamente."
+              icon={Bell} title="Lembretes Automáticos"
+              description="Reduza esquecimentos. Seu cliente recebe notificações sobre o horário marcado."
             />
             <FeatureCard
-              icon={CreditCard} title="Pagamentos Automáticos"
-              description="Integração total com Mercado Pago. O dinheiro cai direto na sua conta, com segurança total."
-            />
-            <FeatureCard
-              icon={Bell} title="Lembretes"
-              description="O sistema envia lembretes automáticos para seu cliente, evitando esquecimentos."
-            />
-            <FeatureCard
-              icon={DollarSign} title="Controle de caixa e estoque"
-              description="Tenha acesso ao controle financeiro e de estoque integrado, facilitando a gestão do seu negócio."
-            />
-            <FeatureCard
-              icon={Mail} title="Marketing"
-              description="Envie e-mails promocionais e notificações para sua base de clientes diretamente pelo sistema. Mantenha seus clientes ativos e saiba quais clientes não retornam a um tempo."
+              icon={Percent} title="Controle de Comissões"
+              description="Saiba exatamente quanto cada profissional produziu no período. Facilitamos o fechamento da sua equipe."
             />
           </div>
         </div>
       </section>
 
-      {/* --- PREÇOS (Atualizado para Setup + 30 dias) --- */}
-      <section id="planos" className="py-24 bg-slate-900 text-white relative overflow-hidden">
-        {/* Detalhe de fundo */}
-        <div className="absolute -right-20 -top-20 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl"></div>
-        <div className="absolute -left-20 -bottom-20 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+      {/* --- PROVA SOCIAL (SEM FINANCEIRO, FOCO EM AGENDA E COMISSAO) --- */}
+      <section id="depoimentos" className="py-24 bg-white border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-sm font-bold text-cyan-700 uppercase tracking-wider mb-2 block">Confiança</span>
+            <h2 className="text-3xl font-bold text-slate-900">Quem usa, recomenda</h2>
+            <p className="text-slate-600 mt-4">Junte-se aos estabelecimentos que profissionalizaram sua gestão.</p>
+          </div>
 
-        <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">Investimento Simples e Transparente</h2>
-          <p className="text-slate-300 mb-12 max-w-2xl mx-auto">
-            Sem pegadinhas. Pague a implantação para ter tudo pronto e ganhe o primeiro mês.
-          </p>
+          <div className="grid md:grid-cols-3 gap-8">
+            <TestimonialCard 
+              quote="Eu perdia pelo menos 3 horas do meu dia só respondendo WhatsApp. Agora a agenda enche sozinha e eu só foco em atender. O suporte na implantação foi essencial."
+              author="Carlos Mendes"
+              role="Dono de Barbearia"
+            />
+            <TestimonialCard 
+              quote="Minha clínica precisava de organização na agenda das doutoras. O Horalis resolveu o conflito de horários e facilitou muito na hora de calcular o pagamento da equipe."
+              author="Dra. Juliana Costa"
+              role="Biomédica Esteta"
+            />
+            <TestimonialCard 
+              quote="O sistema anti-calote (sinal via Pix) salvou meu faturamento. Antes eu tinha 4 a 5 faltas por semana, hoje é zero. O sistema se paga na primeira semana."
+              author="Ricardo Viana"
+              role="Studio de Tatuagem"
+            />
+          </div>
 
-          <div className="max-w-md mx-auto bg-white text-slate-900 rounded-2xl shadow-2xl overflow-hidden transform hover:scale-105 transition-transform duration-300">
-            {/* Cabeçalho do Card */}
-            <div className="bg-slate-100 p-6 border-b border-slate-200">
-              <h3 className="text-2xl font-bold text-slate-800">Plano Concierge</h3>
-              <p className="text-sm text-slate-500 mt-1">Nós fazemos tudo por você</p>
+          {/* Call to Action Final - SEM PREÇO */}
+          <div className="mt-16 bg-slate-900 rounded-3xl p-8 md:p-12 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+            
+            <div className="relative z-10">
+              <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">Pronto para profissionalizar?</h3>
+              <p className="text-slate-400 max-w-lg">
+                Solicite um orçamento personalizado para o tamanho do seu negócio. Implantação rápida e suporte dedicado.
+              </p>
             </div>
-
-            <div className="p-8">
-              {/* Preço de Setup */}
-              <div className="mb-6">
-                <span className="block text-sm font-bold text-cyan-700 uppercase tracking-wide mb-1">Taxa Única de Implantação</span>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-4xl font-extrabold text-slate-900">R$ 50,00</span>
-                </div>
-                <p className="text-xs text-slate-400 mt-2">Valor pago uma única vez na contratação</p>
-              </div>
-
-              {/* Separador + Oferta */}
-              <div className="bg-cyan-50 rounded-lg p-4 mb-8 border border-cyan-100">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                  <span className="font-bold text-cyan-900">BÔNUS EXCLUSIVO</span>
-                </div>
-                <p className="text-cyan-800 text-sm font-medium">
-                  Ganhe <span className="font-bold underline">30 DIAS GRÁTIS</span>.
-                </p>
-                <p className="text-xs text-cyan-600 mt-1">
-                  Após 30 dias, apenas {DISPLAY_PRICE_SETUP || "R$ 59,90"}/mês.
-                </p>
-              </div>
-
-              <ul className="space-y-4 mb-8 text-left">
-                {[
-                  "Configuração completa feita por especialista",
-                  "Cadastro de serviços e equipe",
-                  "Treinamento de uso (Onboarding)",
-                  "Suporte prioritário no WhatsApp",
-                  "CRM Integrado: Sua base de clientes sempre em mãos",
-                  "Bonus: Controle de caixa e estoque",
-                  "Agendamentos Ilimitados",
-                  "Todas as funções liberadas"
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-slate-700 font-medium text-sm">
-                    <Check className="w-5 h-5 text-cyan-600 flex-shrink-0 mt-0.5" /> {item}
-                  </li>
-                ))}
-              </ul>
-
-              <button onClick={openWhatsApp} className={`w-full py-4 rounded-lg font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-all ${BUTTON_PRIMARY}`}>
+            
+            <div className="relative z-10 flex flex-col w-full md:w-auto gap-3">
+              <button onClick={openWhatsApp} className={`px-8 py-4 rounded-xl font-bold text-lg text-white shadow-lg hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500`}>
                 <MessageCircle className="w-5 h-5" />
-                Agendar Implantação
+                Falar com Especialista
               </button>
-              <p className="text-xs text-slate-400 mt-4">Sem fidelidade. Cancele quando quiser.</p>
+              <p className="text-center text-xs text-slate-500">Atendimento humano. Sem robôs.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* --- FAQ (Perguntas Frequentes) --- */}
-      <section id="faq" className="py-24 bg-white border-b border-slate-200">
+      {/* --- FAQ --- */}
+      <section id="faq" className="py-24 bg-slate-50 border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">Dúvidas Frequentes</h2>
           <div className="space-y-2">
             <FaqItem
-              question="Como funciona a implantação?"
-              answer="Após o pagamento da taxa de setup, nosso consultor entra em contato para pegar sua lista de serviços, preços e horários. Em até 24h, nós configuramos tudo e te entregamos o acesso pronto."
+              question="O sistema serve para Clínicas de Estética?"
+              answer="Sim! O Horalis é perfeito para clínicas. Você pode gerenciar múltiplos profissionais e manter um histórico detalhado dos serviços de cada paciente."
             />
             <FaqItem
-              question="Por que cobrar taxa de implantação?"
-              answer="Diferente de apps 'faça você mesmo', nós dedicamos um especialista real para configurar sua conta e garantir que tudo esteja perfeito. É um serviço personalizado."
+              question="Quanto custa o serviço?"
+              answer="Como trabalhamos com um modelo Concierge (personalizado), o valor depende do tamanho da sua equipe e complexidade da operação. Chame no WhatsApp para receber uma proposta sob medida."
             />
             <FaqItem
-              question="O que acontece após os 30 dias grátis?"
-              answer="Se você gostar (e temos certeza que vai!), você começa a pagar apenas a mensalidade do sistema. Se não quiser continuar, basta cancelar sem multa nenhuma."
+              question="O sistema calcula o pagamento dos funcionários?"
+              answer="Sim. O Horalis gera um relatório de tudo o que foi agendado e realizado por cada profissional, facilitando o cálculo das comissões no final do mês."
             />
             <FaqItem
-              question="Como recebo o dinheiro dos sinais?"
-              answer="O sistema é integrado ao Mercado Pago. O valor do sinal pago pelo cliente cai diretamente na sua conta do Mercado Pago na hora, com segurança total."
+              question="Como funciona o pagamento do sinal?"
+              answer="Nós integramos sua conta do Mercado Pago. O valor cai na hora para você, garantindo que o horário está reservado e reduzindo o risco de faltas."
             />
           </div>
         </div>
       </section>
 
       {/* --- FOOTER --- */}
-      <footer className="bg-white border-t border-slate-200 pt-16 pb-8">
+      <footer className="bg-white pt-16 pb-8">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div className="col-span-2 md:col-span-1">
@@ -423,23 +382,23 @@ export function LandingPage() {
                 <LogoHoralis size="h-8" darkText={true} />
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                Transformando a forma como seu estabelecimento agenda com tecnologia e atendimento humanizado.
+                Tecnologia premium para gestão de agendamentos. Foco em Barbearias, Salões e Clínicas de Estética.
               </p>
             </div>
 
             <div>
-              <h4 className="font-bold text-slate-900 mb-4">Produto</h4>
+              <h4 className="font-bold text-slate-900 mb-4">Solução</h4>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li><a href="#funcionalidades" className="hover:text-cyan-700 transition-colors">Funcionalidades</a></li>
-                <li><a href="#planos" className="hover:text-cyan-700 transition-colors">Planos e Setup</a></li>
+                <li><a href="#como-funciona" className="hover:text-cyan-700 transition-colors">Implantação</a></li>
                 <li><a href={REAL_MICROSITE_LINK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Ver Exemplo</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-bold text-slate-900 mb-4">Fale Conosco</h4>
+              <h4 className="font-bold text-slate-900 mb-4">Contato</h4>
               <ul className="space-y-2 text-sm text-slate-600">
-                <li><button onClick={openWhatsApp} className="hover:text-cyan-700 transition-colors text-left">WhatsApp de Vendas</button></li>
+                <li><button onClick={openWhatsApp} className="hover:text-cyan-700 transition-colors text-left">WhatsApp Comercial</button></li>
                 <li><a href="mailto:suporte@horalis.app" className="hover:text-cyan-700 transition-colors">E-mail Suporte</a></li>
               </ul>
             </div>
@@ -465,7 +424,6 @@ export function LandingPage() {
         </div>
       </footer>
 
-      {/* MODAL MANTIDO APENAS PARA QUEM JÁ TEM CONTA OU LOGIN */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setIsModalOpen(false)}>
           <div className="relative w-full max-w-lg" onClick={e => e.stopPropagation()}>

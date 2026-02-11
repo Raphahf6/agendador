@@ -110,7 +110,7 @@ const SalonSuspended = () => (
             <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-800">
                 Por favor, entre em contato diretamente com o estabelecimento por telefone ou redes sociais para agendar.
             </div>
-            <p className="mt-8 text-xs text-gray-400">Powered by Horalis</p>
+            <p className="mt-8 text-xs text-gray-400"><a href='www.horalis.app'>Powered by Horalis</a></p>
         </div>
     </div>
 );

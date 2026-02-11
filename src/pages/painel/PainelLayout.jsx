@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import {
     Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
     BarChart2, CreditCard, Users, Send, Loader2, CirclePercent, Boxes, 
-    UsersIcon, CalendarDays, HelpCircle, ExternalLink
+    UsersIcon, CalendarDays, HelpCircle, ExternalLink,
+    Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 import { signOut, onAuthStateChanged } from "firebase/auth";
@@ -55,9 +56,10 @@ const navigation = [
     { name: 'Meus Serviços', href: 'servicos', icon: Scissors, tourBaseClass: 'tour-servicos' },
     { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon, tourBaseClass: 'tour-equipe' },
     { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays, tourBaseClass: 'tour-agendamentos' },
+    { name: 'Relatório de Comissões', href: 'comissoes', icon: Sparkles, tourBaseClass: 'tour-comissoes' },
     { name: 'Meus Clientes', href: 'clientes', icon: Users, tourBaseClass: 'tour-clientes' },
-    { name: 'Financeiro', href: 'financeiro', icon: CirclePercent, tourBaseClass: 'tour-financeiro' },
-    { name: 'Estoque', href: 'estoque', icon: Boxes, tourBaseClass: 'tour-estoque' },
+    // { name: 'Financeiro', href: 'financeiro', icon: CirclePercent, tourBaseClass: 'tour-financeiro' },
+    //{ name: 'Estoque', href: 'estoque', icon: Boxes, tourBaseClass: 'tour-estoque' },
     { name: 'Marketing', href: 'marketing', icon: Send, tourBaseClass: 'tour-marketing' },
     { name: 'Horários', href: 'horarios', icon: TimerIcon, tourBaseClass: 'tour-horarios' },
     { name: 'Personalização', href: 'personalizacao', icon: Palette, tourBaseClass: 'tour-personalizacao' },
