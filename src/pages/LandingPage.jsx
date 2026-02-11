@@ -6,7 +6,7 @@ import {
   Eye,
   Instagram, Facebook, MessageCircle, Star, Bell,
   HandCoins, Sparkles, Quote,
-  Percent, FileCheck
+  Percent, Headset, ShieldCheck
 } from 'lucide-react';
 import { LogoHoralis } from '@/components/Logo';
 import SignupModalContent from '@/components/landing/SignupModalContent';
@@ -15,7 +15,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 
 // --- CONFIGURAÇÕES ---
-const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1%2C%20gostaria%20de%20uma%20an%C3%A1lise%20para%20o%20meu%20estabelecimento.%20Tenho%20interesse%20no%20Horalis.";
+const WHATSAPP_LNK = "https://wa.me/5511936200327?text=Ol%C3%A1%2C%20gostaria%20de%20entender%20como%20o%20Horalis%20funciona%20para%20o%20meu%20neg%C3%B3cio.";
 const REAL_MICROSITE_LINK = "https://horalis.app/agendar/5511988062634";
 const BUTTON_PRIMARY = "bg-cyan-700 hover:bg-cyan-800 text-white shadow-lg shadow-cyan-700/20";
 const BUTTON_OUTLINE = "border border-slate-300 text-slate-700 hover:bg-slate-50";
@@ -130,7 +130,7 @@ export function LandingPage() {
               </Link>
               <button onClick={openWhatsApp} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2 ${BUTTON_PRIMARY}`}>
                 <MessageCircle className="w-4 h-4" />
-                Falar com Especialista
+                Falar com Consultor
               </button>
             </div>
           </div>
@@ -158,17 +158,19 @@ export function LandingPage() {
           <div className="text-center lg:text-left order-1" data-aos="fade-right">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-cyan-700 text-xs font-bold uppercase tracking-wide mb-6 shadow-sm">
               <Sparkles className="w-3 h-3 fill-cyan-700" />
-              Gestão Premium para Beleza e Estética
+              Agenda Premium Para Autônomos, Salões e Clínicas
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
-              Sua agenda digital pronta para usar, <span className="text-cyan-700 bg-cyan-50 px-2 rounded-lg">sem dor de cabeça.</span>
+              Sua agenda digital pronta para usar, <span className="text-cyan-700">sem dor de cabeça.</span>
             </h1>
 
             <p className="text-lg text-slate-600 mb-8 leading-relaxed">
-              Chega de perder horas no WhatsApp agendando horários. Tenha sua agenda online 24/7, elimine faltas com a cobrança de sinal e tenha clareza das comissões da sua equipe.
+              Chega de perder horas no WhatsApp agendando horários. Tenha sua agenda online 24/7, elimine faltas com a cobrança de sinal e tenha controle total sobre sua equipe.
               <br className="mt-4 block" />
-              <strong className="text-slate-900">E o melhor: nós fazemos toda a configuração inicial para você.</strong>
+              <strong className="text-slate-900">
+                Nós cuidamos de toda a implantação inicial para você. Entregamos o sistema pronto para uso, com seus serviços e horários já cadastrados.
+              </strong>
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
@@ -182,8 +184,9 @@ export function LandingPage() {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-slate-500 font-medium">
-              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Atendimento Humanizado</span>
-              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Implantação Concierge</span>
+              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Entrega Rápida</span>
+              <span className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-600" /> Planos Flexíveis</span>
+              <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-cyan-600" /> Suporte VIP</span>
             </div>
           </div>
 
@@ -223,9 +226,10 @@ export function LandingPage() {
 
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Você foca no cliente, nós focamos no sistema</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Tecnologia com Atendimento Humano</h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Sabemos que seu tempo é precioso. Por isso, criamos o modelo de <strong>Implantação Assistida</strong> para Salões, Barbearias e Clínicas.
+              Nascemos com o propósito de eliminar a desorganização de pequenos e médios negócios.
+              Diferente de outros apps onde você é apenas um número, aqui nós seguramos na sua mão.
             </p>
           </div>
 
@@ -235,27 +239,27 @@ export function LandingPage() {
             <StepCard
               number="1"
               title="Diagnóstico Gratuito"
-              description="Converse com nosso especialista no WhatsApp. Vamos entender o perfil da sua equipe e seus serviços."
+              description="Converse com nosso especialista no WhatsApp. Vamos entender se você trabalha sozinho ou possui equipe e qual a sua necessidade."
             />
             <StepCard
               number="2"
               title="Configuração VIP"
-              description="Nossa equipe cadastra todos os seus profissionais, regras de comissão e horários para você."
+              description="Nossa equipe cadastra todos os seus serviços, profissionais, regras de comissão e horários para você."
               highlight={true}
             />
             <StepCard
               number="3"
               title="Entrega Pronta"
-              description="Você recebe o link da agenda pronto para divulgar. E só começa a pagar a mensalidade se aprovar."
+              description="Você recebe o sistema pronto para faturar. E só começa a pagar a mensalidade se aprovar o uso."
             />
           </div>
 
           <div className="text-center mt-12">
             <button onClick={openWhatsApp} className={`px-10 py-4 rounded-lg font-bold text-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mx-auto ${BUTTON_PRIMARY}`}>
               <MessageCircle className="w-5 h-5" />
-              Solicitar Análise Gratuita
+              Solicitar Análise Sem Compromisso
             </button>
-            <p className="text-xs text-slate-400 mt-4 font-medium">Poucas vagas de implantação para esta semana.</p>
+            <p className="text-xs text-slate-400 mt-4 font-medium">Atendemos desde autônomos até grandes clínicas.</p>
           </div>
         </div>
       </section>
@@ -264,9 +268,9 @@ export function LandingPage() {
       <section id="funcionalidades" className="py-24 bg-slate-50 border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Uma suíte completa para seu negócio</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-4">Tudo o que você precisa em um só lugar</h2>
             <p className="text-slate-600 max-w-2xl mx-auto">
-              Do agendamento do corte à gestão de procedimentos estéticos. Tudo em um só lugar.
+              Ferramentas poderosas, mas extremamente fáceis de usar. Feitas para facilitar sua vida, não para complicar.
             </p>
           </div>
 
@@ -295,38 +299,53 @@ export function LandingPage() {
               icon={Percent} title="Controle de Comissões"
               description="Saiba exatamente quanto cada profissional produziu no período. Facilitamos o fechamento da sua equipe."
             />
+            
+            {/* CARD NOVO: TREINAMENTO & SUPORTE */}
+            <div className="md:col-span-3 lg:col-span-3"> 
+                <div className="p-8 bg-cyan-50 border border-cyan-100 rounded-xl hover:shadow-xl transition-all duration-300 group h-full flex flex-col md:flex-row items-center gap-6" data-aos="fade-up">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
+                        <Headset className="w-8 h-8 text-cyan-700" />
+                    </div>
+                    <div className="text-center md:text-left">
+                        <h3 className="text-xl font-bold text-slate-900 mb-2">Medo de não saber usar? Fique tranquilo!</h3>
+                        <p className="text-slate-600 leading-relaxed">
+                            Nós pegamos na sua mão. Oferecemos <strong>treinamento de uso completo</strong> para você e sua equipe aprenderem em minutos. Além disso, nosso <strong>suporte no WhatsApp</strong> é feito por gente de verdade, pronto para tirar qualquer dúvida na hora.
+                        </p>
+                    </div>
+                </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* --- PROVA SOCIAL (SEM FINANCEIRO, FOCO EM AGENDA E COMISSAO) --- */}
+      {/* --- PROVA SOCIAL --- */}
       <section id="depoimentos" className="py-24 bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <span className="text-sm font-bold text-cyan-700 uppercase tracking-wider mb-2 block">Confiança</span>
             <h2 className="text-3xl font-bold text-slate-900">Quem usa, recomenda</h2>
-            <p className="text-slate-600 mt-4">Junte-se aos estabelecimentos que profissionalizaram sua gestão.</p>
+            <p className="text-slate-600 mt-4">Junte-se a profissionais que transformaram sua rotina.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard 
-              quote="Eu perdia pelo menos 3 horas do meu dia só respondendo WhatsApp. Agora a agenda enche sozinha e eu só foco em atender. O suporte na implantação foi essencial."
-              author="Carlos Mendes"
-              role="Dono de Barbearia"
+              quote="Eu trabalho sozinha no meu estúdio e achava que sistema era só para salão grande. O Horalis me salvou de ficar respondendo cliente meia-noite no WhatsApp."
+              author="Ana Clara"
+              role="Designer de Sobrancelhas"
             />
             <TestimonialCard 
-              quote="Minha clínica precisava de organização na agenda das doutoras. O Horalis resolveu o conflito de horários e facilitou muito na hora de calcular o pagamento da equipe."
+              quote="Minha clínica precisava organizar a agenda das doutoras. O sistema resolveu o conflito de horários e o suporte deles é incrível, respondem na hora."
               author="Dra. Juliana Costa"
               role="Biomédica Esteta"
             />
             <TestimonialCard 
-              quote="O sistema anti-calote (sinal via Pix) salvou meu faturamento. Antes eu tinha 4 a 5 faltas por semana, hoje é zero. O sistema se paga na primeira semana."
+              quote="O sistema anti-calote (sinal via Pix) é vida! Antes eu tinha 4 a 5 faltas por semana, hoje é zero. Vale cada centavo, mesmo para mim que sou barbeiro solo."
               author="Ricardo Viana"
-              role="Studio de Tatuagem"
+              role="Barbeiro"
             />
           </div>
 
-          {/* Call to Action Final - SEM PREÇO */}
+          {/* Call to Action Final */}
           <div className="mt-16 bg-slate-900 rounded-3xl p-8 md:p-12 text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
             
@@ -342,7 +361,7 @@ export function LandingPage() {
                 <MessageCircle className="w-5 h-5" />
                 Falar com Especialista
               </button>
-              <p className="text-center text-xs text-slate-500">Atendimento humano. Sem robôs.</p>
+              <p className="text-center text-xs text-slate-500">Respondemos rápido!</p>
             </div>
           </div>
         </div>
@@ -354,20 +373,20 @@ export function LandingPage() {
           <h2 className="text-3xl font-bold text-slate-900 text-center mb-12">Dúvidas Frequentes</h2>
           <div className="space-y-2">
             <FaqItem
-              question="O sistema serve para Clínicas de Estética?"
-              answer="Sim! O Horalis é perfeito para clínicas. Você pode gerenciar múltiplos profissionais e manter um histórico detalhado dos serviços de cada paciente."
+              question="Eu trabalho sozinho(a), o sistema serve para mim?"
+              answer="Com certeza! Temos muitos clientes que são autônomos. O sistema vai funcionar como sua secretária virtual, agendando seus clientes enquanto você trabalha."
             />
             <FaqItem
               question="Quanto custa o serviço?"
-              answer="Como trabalhamos com um modelo Concierge (personalizado), o valor depende do tamanho da sua equipe e complexidade da operação. Chame no WhatsApp para receber uma proposta sob medida."
+              answer="Temos planos especiais para quem está começando e planos mais robustos para clínicas maiores. Chame no WhatsApp que encontramos a melhor opção para o seu bolso."
             />
             <FaqItem
-              question="O sistema calcula o pagamento dos funcionários?"
-              answer="Sim. O Horalis gera um relatório de tudo o que foi agendado e realizado por cada profissional, facilitando o cálculo das comissões no final do mês."
+              question="Tenho medo de não saber mexer. É difícil?"
+              answer="Fique tranquilo. O sistema é muito simples e intuitivo. Além disso, nós damos um treinamento completo e ficamos disponíveis no WhatsApp para te ajudar no que precisar."
             />
             <FaqItem
-              question="Como funciona o pagamento do sinal?"
-              answer="Nós integramos sua conta do Mercado Pago. O valor cai na hora para você, garantindo que o horário está reservado e reduzindo o risco de faltas."
+              question="Preciso de computador para usar?"
+              answer="Não. O Horalis funciona perfeitamente no navegador do seu celular. Você gerencia sua agenda na palma da mão."
             />
           </div>
         </div>
@@ -382,7 +401,7 @@ export function LandingPage() {
                 <LogoHoralis size="h-8" darkText={true} />
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                Tecnologia premium para gestão de agendamentos. Foco em Barbearias, Salões e Clínicas de Estética.
+                Tecnologia fácil e acessível para gestão de agendamentos. De autônomos a grandes clínicas.
               </p>
             </div>
 
@@ -390,7 +409,7 @@ export function LandingPage() {
               <h4 className="font-bold text-slate-900 mb-4">Solução</h4>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li><a href="#funcionalidades" className="hover:text-cyan-700 transition-colors">Funcionalidades</a></li>
-                <li><a href="#como-funciona" className="hover:text-cyan-700 transition-colors">Implantação</a></li>
+                <li><a href="#como-funciona" className="hover:text-cyan-700 transition-colors">Como Funciona</a></li>
                 <li><a href={REAL_MICROSITE_LINK} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-700 transition-colors">Ver Exemplo</a></li>
               </ul>
             </div>
