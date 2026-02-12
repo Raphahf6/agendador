@@ -13,6 +13,7 @@ import { auth } from '@/firebaseConfig';
 import toast from 'react-hot-toast';
 import { isAfter, parseISO } from 'date-fns';
 import Joyride, { STATUS } from 'react-joyride';
+import InstallAppBanner from '@/components/InstallAppBanner';
 
 const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
 
@@ -246,6 +247,7 @@ function PainelLayoutComponent() {
                 </header>
                 <main className="flex-1 py-8"><div className="px-4 sm:px-6 lg:px-8 max-w-8xl mx-auto"><Outlet /></div></main>
             </div>
+            <InstallAppBanner />
         </div>
     );
 }
