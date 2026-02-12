@@ -25,11 +25,12 @@ const InstallAppBanner = () => {
       setIsVisible(true);
     }
 
-    // 4. Captura evento do Android/Chrome (beforeinstallprompt)
+    // 4. Captura evento do Android/Chrome
     const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault(); // Impede o banner nativo feio do Chrome
+      console.log("📢 Evento beforeinstallprompt DISPARADO!"); // OLHE O CONSOLE
+      e.preventDefault();
       setDeferredPrompt(e);
-      setIsVisible(true); // Mostra o nosso banner bonito
+      setIsVisible(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -46,6 +47,7 @@ const InstallAppBanner = () => {
     nextWeek.setDate(nextWeek.getDate() + 7);
     localStorage.setItem('horalis_install_hidden_until', nextWeek.toISOString());
   };
+
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;

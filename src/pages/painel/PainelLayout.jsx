@@ -246,6 +246,7 @@ function PainelLayoutComponent() {
                     <span className="text-lg font-bold text-gray-900">Hora<span className="text-cyan-600">lis</span></span>
                 </header>
                 <main className="flex-1 py-8"><div className="px-4 sm:px-6 lg:px-8 max-w-8xl mx-auto"><Outlet /></div></main>
+                 <InstallAppBanner />
             </div>
             <InstallAppBanner />
         </div>
