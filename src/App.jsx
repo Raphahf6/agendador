@@ -11,6 +11,7 @@ import SetupPage from './pages/painel/SetupPage';
 import ComissoesPage from './pages/painel/ComissoesPage';
 import TermosDeUsoPage from './pages/TermosDeUsoPage';
 import PoliticaPrivacidadePage from './pages/PoliticaPrivacidadePage';
+import LeadQualificationModal from './pages/LeadQualificationModal';
 
 // Imports dos Componentes de Agendamento
 import ServiceList from './components/ServiceList';
@@ -119,6 +120,8 @@ function App() {
                 <Route path="/resetar-senha" element={<ResetarSenhaPage />} />
                 <Route path="/termos" element={<TermosDeUsoPage />} />
                 <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
+                <Route path="/form" element={<LeadQualificationModal isOpen={true} onClose={() => {}} />} />
+            
 
                 {/* Rota de Agendamento (Pública) */}
                 <Route path="/agendar/:salaoId" element={<SalonMicrosite />} />
