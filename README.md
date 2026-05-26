@@ -1,17 +1,35 @@
-# React + Vite
+# Agendador / Horalis
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema de agendamento para profissionais e negocios que precisam organizar agenda, clientes, servicos, equipe e pagamentos em uma experiencia simples.
 
-Currently, two official plugins are available:
+## O que este projeto mostra
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Landing page publica para captacao.
+- Fluxo publico de agendamento por estabelecimento.
+- Painel protegido para profissionais.
+- Calendario, servicos, horarios, clientes, equipe, estoque, financeiro e marketing.
+- Integracao com Firebase Auth.
+- Preparacao para Mercado Pago e funcoes comerciais.
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- Vite
+- Firebase
+- React Router
+- FullCalendar
+- Mercado Pago SDK
+- Tailwind CSS
+- Recharts
+- Lucide React
 
-## Expanding the ESLint configuration
+## Como rodar
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-"# agendador" 
+```bash
+npm install
+npm run dev
+```
+
+## Contexto
+
+Este projeto representa uma linha de produto complementar ao Wiver: SaaS vertical para negocios locais, com foco em operacao diaria, agenda, relacionamento e recorrencia.
