@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from '@/firebaseConfig';
 import axios from 'axios';
 import { 
     User, Phone, Mail, CreditCard, Lock as LockIcon, 
@@ -10,7 +8,7 @@ import {
 import toast from 'react-hot-toast';
 
 // O endpoint de registro deve ser ajustado conforme sua rota de backend
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- CONFIGURAÇÕES DE COR E ESTILO ---
 const BRAND_NAME = "Horalis";
@@ -72,26 +70,20 @@ function SignupModalContent({ closeModal, isModalOpen }) {
         setLoading(true);
 
         try {
-            // 1. Cria usuário no Firebase Auth
-            const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-            const user = userCredential.user;
+            // Cria usuário no Supabase Auth e a clínica no backend.
 
             // 2. Atualiza perfil (Nome do Salão como Display Name inicial)
-            await updateProfile(user, { displayName: formData.nomeSalao });
 
             // 3. Obtém Token para autenticar no backend
-            const token = await user.getIdToken();
 
-            // 4. Chama Backend para criar o registro no Firestore com Trial
+            // O backend calcula o slug a partir do nome da clínica.
             // O backend deve calcular o `trialEndsAt` automaticamente (now + 7 dias)
             await axios.post(`${API_BASE_URL}/auth/register-owner`, {
                 nome_salao: formData.nomeSalao,
                 whatsapp: formData.whatsapp.replace(/\D/g, ''), // Envia só números
                 email: formData.email,
                 cpf: formData.cpf.replace(/\D/g, ''), // Envia só números
-                uid: user.uid 
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
+                password: formData.password,
             });
 
             // Sucesso

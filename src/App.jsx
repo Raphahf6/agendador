@@ -49,7 +49,7 @@ import { SalonMicrosite } from './components/SalonMicrosite';
 import FinanceiroPage from './pages/painel/FinanceiroPage';
 import EstoquePage from './pages/painel/EstoquePage';
 import EquipePage from './pages/painel/EquipePage';
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- Componente de Loading (Ampulheta - Reutilizável) ---
 

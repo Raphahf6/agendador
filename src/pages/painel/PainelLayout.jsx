@@ -15,7 +15,7 @@ import { isAfter, parseISO } from 'date-fns';
 import Joyride, { STATUS } from 'react-joyride';
 import InstallAppBanner from '@/components/InstallAppBanner';
 
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 const SalonContext = createContext({ salonDetails: null, loading: true, error: null, salaoId: null });
 export const useSalon = () => useContext(SalonContext);

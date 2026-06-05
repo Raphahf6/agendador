@@ -159,7 +159,7 @@ export function LandingPage() {
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-200 absolute w-full p-6 flex flex-col gap-4 shadow-xl">
             <Link to="/login" className="w-full py-3 text-center rounded-lg border border-slate-300 font-bold text-slate-700">Área do Cliente</Link>
-            <button onClick={() => { openWhatsApp(); setIsMenuOpen(false); }} className={`w-full py-3 rounded-lg font-bold flex justify-center gap-2 ${BUTTON_PRIMARY}`}>
+            <button onClick={() => { handleOpenLeadForm(); setIsMenuOpen(false); }} className={`w-full py-3 rounded-lg font-bold flex justify-center gap-2 ${BUTTON_PRIMARY}`}>
               <MessageCircle className="w-5 h-5" /> Falar com Consultor
             </button>
           </div>

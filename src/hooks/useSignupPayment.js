@@ -4,7 +4,7 @@ import axios from 'axios';
 import { parseApiError } from '@/utils/apiHelpers';
 import {MONTHLY_PRICE_AMOUNT} from '@/utils/pricing';
 // --- CONFIGURAÇÕES GLOBAIS ---
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- NOVO HELPER: Captura o Device ID ---
 // Se o script de segurança do MP estiver carregado, ele cria este input oculto.
@@ -133,7 +133,6 @@ export function useSignupPayment(isModalOpen) {
             // Converte para string e usa 'none' se estiver vazio, embora o Pydantic espere a senha real
             password: String(formData.password), 
             nome_salao: formData.nomeSalao.trim(), 
-            client_whatsapp_id: cleanedWhatsapp, 
             numero_whatsapp: formattedWhatsapp, 
 
             // CAMPOS CRÍTICOS DO CARTÃO: Agora passamos o que vier do cardData (pode ser null/undefined)
@@ -205,7 +204,6 @@ export function useSignupPayment(isModalOpen) {
             email: formData.email, 
             password: formData.password, 
             nome_salao: formData.nomeSalao.trim(), 
-            client_whatsapp_id: cleanedWhatsapp, 
             numero_whatsapp: formattedWhatsapp, 
             device_id: deviceId,
             

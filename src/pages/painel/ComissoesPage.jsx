@@ -11,7 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import HourglassLoading from '@/components/HourglassLoading';
 import axios from 'axios';
 
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- Card de Resumo (Topo) ---
 const SummaryCard = ({ title, value, subtext, icon: Icon, colorClass, bgClass }) => (

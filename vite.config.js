@@ -1,9 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import jsconfigPaths from 'vite-jsconfig-paths' 
+import { fileURLToPath, URL } from 'node:url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      'firebase/auth': fileURLToPath(new URL('./src/lib/supabaseAuthCompat.js', import.meta.url)),
+      'firebase/firestore': fileURLToPath(new URL('./src/lib/supabaseFirestoreCompat.js', import.meta.url)),
+    }
+  },
   plugins: [
     react(),
     jsconfigPaths() 

@@ -6,7 +6,7 @@ import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
@@ -18,6 +18,7 @@ const DIAS_DA_SEMANA = [
     { name: "Sexta-feira", dbKey: "friday" }, { name: "Sábado", dbKey: "saturday" },
     { name: "Domingo", dbKey: "sunday" }
 ];
+const dayNames = DIAS_DA_SEMANA.reduce((acc, item) => ({ ...acc, [item.dbKey]: item.name }), {});
 
 const initialSchedule = DIAS_DA_SEMANA.reduce((acc, item) => {
     acc[item.dbKey] = {

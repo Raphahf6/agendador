@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import HoralisFullCalendar from '@/components/HoralisFullCalendar';
-import { format, differenceInMinutes, isBefore, setHours, setMinutes, addMinutes } from 'date-fns';
+import { format, differenceInMinutes, isBefore, setHours, setMinutes, addMinutes, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { auth, db } from '@/firebaseConfig';
 import { collection, onSnapshot } from "firebase/firestore";
@@ -16,7 +16,7 @@ import {
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 const HORALIS_EVENT_COLORS = ['#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'];
 
 const Icon = ({ icon: IconComponent, className = "" }) => (

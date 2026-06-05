@@ -9,7 +9,7 @@ import 'aos/dist/aos.css';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 // --- Fim dos Imports ---
 
-const API_BASE_URL = "https://api-agendador-2n55.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- Inicialização do Mercado Pago ---
 initMercadoPago("APP_USR-5aba548a-9868-41c3-927a-03bbdf9ca311", {
@@ -288,7 +288,7 @@ function ProfissionalSignupPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">Seu WhatsApp (será seu ID)</label>
+                <label htmlFor="whatsapp" className="text-sm font-medium text-gray-700">WhatsApp para contato</label>
                 <div className="relative">
                   <Icon icon={Phone} className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
