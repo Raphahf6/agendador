@@ -32,7 +32,6 @@ const IconField = ({ icon: IconComponent, ...props }) => (
 function parseApiError(error) {
   const detail = error.response?.data?.detail;
   if (typeof detail === 'string') return detail;
-  if (error.code === 'auth/invalid-credential') return 'Conta criada, mas nao foi possivel entrar automaticamente. Tente fazer login.';
   return 'Nao foi possivel criar sua conta agora. Revise os dados e tente novamente.';
 }
 
@@ -74,18 +73,33 @@ function ProfissionalSignupPage() {
     setLoading(true);
     setError('');
 
+    let response;
+
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register-owner`, {
+      response = await axios.post(`${API_BASE_URL}/auth/register-owner`, {
         nome_salao: formData.nomeSalao.trim(),
         whatsapp: formData.whatsapp.replace(/\D/g, ''),
         email: formData.email.trim(),
         password: formData.password,
       });
+    } catch (err) {
+      setError(parseApiError(err));
+      setLoading(false);
+      return;
+    }
 
+    try {
       await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
       navigate(`/painel/${response.data.slug}/visaoGeral`, { replace: true });
     } catch (err) {
-      setError(parseApiError(err));
+      console.error('Conta criada, mas o login automatico falhou:', err);
+      navigate('/login?cadastro=sucesso', {
+        replace: true,
+        state: {
+          signupSuccess: true,
+          email: formData.email.trim(),
+        },
+      });
     } finally {
       setLoading(false);
     }

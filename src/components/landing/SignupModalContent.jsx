@@ -30,7 +30,6 @@ const IconInput = ({ icon: IconComponent, ...props }) => (
 function parseSignupError(error) {
   const detail = error.response?.data?.detail;
   if (typeof detail === 'string') return detail;
-  if (error.code === 'auth/invalid-credential') return 'Conta criada, mas o login automatico falhou. Entre pelo login.';
   return 'Nao foi possivel criar sua conta agora. Tente novamente.';
 }
 
@@ -71,20 +70,37 @@ function SignupModalContent({ closeModal, isModalOpen }) {
     setLoading(true);
     setError('');
 
+    let response;
+
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register-owner`, {
+      response = await axios.post(`${API_BASE_URL}/auth/register-owner`, {
         nome_salao: formData.nomeSalao.trim(),
         whatsapp: formData.whatsapp.replace(/\D/g, ''),
         email: formData.email.trim(),
         password: formData.password,
       });
+    } catch (err) {
+      setError(parseSignupError(err));
+      setLoading(false);
+      return;
+    }
 
+    try {
       await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
       toast.success('Conta criada. Teste gratis iniciado!');
       closeModal();
       navigate(`/painel/${response.data.slug}/visaoGeral`, { replace: true });
     } catch (err) {
-      setError(parseSignupError(err));
+      console.error('Conta criada, mas o login automatico falhou:', err);
+      toast.success('Conta criada. Entre com seu e-mail e senha.');
+      closeModal();
+      navigate('/login?cadastro=sucesso', {
+        replace: true,
+        state: {
+          signupSuccess: true,
+          email: formData.email.trim(),
+        },
+      });
     } finally {
       setLoading(false);
     }

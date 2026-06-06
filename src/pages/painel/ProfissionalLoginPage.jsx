@@ -27,6 +27,7 @@ function ProfissionalLoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
@@ -37,6 +38,14 @@ function ProfissionalLoginPage() {
             once: true,
         });
     }, []);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (params.get('cadastro') === 'sucesso' || location.state?.signupSuccess) {
+            setSuccessMessage('Conta criada com sucesso. Entre com seu e-mail e senha para acessar o painel.');
+            if (location.state?.email) setEmail(location.state.email);
+        }
+    }, [location.search, location.state]);
 
     const getSalaoIdAndRedirect = async (user) => {
         const token = await user.getIdToken();
@@ -70,6 +79,7 @@ function ProfissionalLoginPage() {
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccessMessage('');
         setLoading(true);
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -165,6 +175,12 @@ function ProfissionalLoginPage() {
                             {error && (
                                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
                                     <p className="text-sm text-red-700">{error}</p>
+                                </div>
+                            )}
+
+                            {successMessage && !error && (
+                                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                                    <p className="text-sm text-green-700">{successMessage}</p>
                                 </div>
                             )}
 
