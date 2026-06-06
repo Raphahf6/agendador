@@ -14,6 +14,8 @@ const HORALIS_TABLES = new Set([
   'integration_accounts',
 ]);
 
+const TRIAL_DAYS = 7;
+
 export function slugify(value) {
   return String(value || '')
     .normalize('NFD')
@@ -239,7 +241,7 @@ export async function syncServices(clinicId, services = []) {
 export async function createClinicForOwner(user, payload = {}) {
   const slug = await uniqueClinicSlug(payload.nome_salao, payload.slug);
   const now = new Date();
-  const trialEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const clinicRows = await insert('clinics', [{
     owner_id: user.id,
@@ -248,8 +250,8 @@ export async function createClinicForOwner(user, payload = {}) {
     telefone: normalizeBrazilPhone(payload.numero_whatsapp || payload.whatsapp),
     email: payload.email || user.email,
     cpf: payload.cpf ? cleanPhone(payload.cpf) : null,
-    subscription_status: payload.subscription_status || 'trialing',
-    trial_ends_at: payload.trial_ends_at || trialEndsAt,
+    subscription_status: payload.subscription_status === 'active' ? 'active' : 'trialing',
+    trial_ends_at: trialEndsAt,
   }]);
 
   const clinic = clinicRows[0];

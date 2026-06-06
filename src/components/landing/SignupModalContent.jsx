@@ -1,256 +1,208 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { 
-    User, Phone, Mail, CreditCard, Lock as LockIcon, 
-    ArrowRight, Loader2, X, CheckCircle, AlertTriangle 
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/firebaseConfig';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  Loader2,
+  Lock,
+  Mail,
+  Phone,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// O endpoint de registro deve ser ajustado conforme sua rota de backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
-// --- CONFIGURAÇÕES DE COR E ESTILO ---
-const BRAND_NAME = "Horalis";
-const PRIMARY_COLOR_TEXT = 'text-cyan-600';
-const PRIMARY_BG_CLASS = 'bg-cyan-800';
-const PRIMARY_BG_HOVER_CLASS = 'hover:bg-cyan-700';
-const FOCUS_RING_CLASS = 'focus:ring-cyan-400';
-const FOCUS_BORDER_CLASS = 'focus:border-cyan-400';
+const primaryButtonClass = 'bg-cyan-800 hover:bg-cyan-700 focus:ring-cyan-500';
+const inputClass = 'h-12 w-full rounded-lg border border-gray-200 bg-gray-50 pl-12 pr-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-70';
 
-const Icon = ({ icon: IconComponent, className = "" }) => (
-    <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
+const IconInput = ({ icon: IconComponent, ...props }) => (
+  <div className="relative">
+    <IconComponent className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+    <input className={inputClass} {...props} />
+  </div>
 );
 
+function parseSignupError(error) {
+  const detail = error.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (error.code === 'auth/invalid-credential') return 'Conta criada, mas o login automatico falhou. Entre pelo login.';
+  return 'Nao foi possivel criar sua conta agora. Tente novamente.';
+}
+
 function SignupModalContent({ closeModal, isModalOpen }) {
-    const navigate = useNavigate();
-    const [step, setStep] = useState(1); // 1: Form, 2: Success
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    nomeSalao: '',
+    whatsapp: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
 
-    const [formData, setFormData] = useState({
-        nomeSalao: '',
-        whatsapp: '',
-        email: '',
-        cpf: '',
-        password: '',
-        confirmPassword: ''
-    });
+  const updateFormField = (field, value) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    if (error) setError('');
+  };
 
-    const updateFormField = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (error) setError(null); // Limpa o erro ao digitar
-    };
+  const validate = () => {
+    const phoneDigits = formData.whatsapp.replace(/\D/g, '');
+    if (formData.nomeSalao.trim().length < 2) return 'Informe o nome da sua clinica ou sala.';
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) return 'Informe um WhatsApp valido com DDD.';
+    if (formData.password.length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
+    if (formData.password !== formData.confirmPassword) return 'As senhas nao coincidem.';
+    return null;
+  };
 
-    const handleRegister = async (e) => {
-        e.preventDefault();
-        setError(null);
+  const handleRegister = async (event) => {
+    event.preventDefault();
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
-        // Validação Básica Frontend
-        if (formData.password !== formData.confirmPassword) {
-            setError("As senhas não coincidem.");
-            return;
-        }
-        if (formData.password.length < 6) {
-            setError("A senha deve ter pelo menos 6 caracteres.");
-            return;
-        }
-        // Validação de CPF (básica, sem regex complexo aqui)
-        // Permite 000.000.000-00 ou 00000000000
-        if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(formData.cpf)) {
-            setError("CPF inválido. Use o formato 000.000.000-00 ou apenas números.");
-            return;
-        }
-        // Validação de WhatsApp (apenas números, 11 dígitos para DDD+Número)
-        if (!/^\d{11}$/.test(formData.whatsapp.replace(/\D/g, ''))) {
-            setError("WhatsApp inválido. Inclua o DDD (ex: 11987654321).");
-            return;
-        }
+    setLoading(true);
+    setError('');
 
-        setLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/register-owner`, {
+        nome_salao: formData.nomeSalao.trim(),
+        whatsapp: formData.whatsapp.replace(/\D/g, ''),
+        email: formData.email.trim(),
+        password: formData.password,
+      });
 
-        try {
-            // Cria usuário no Supabase Auth e a clínica no backend.
+      await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
+      toast.success('Conta criada. Teste gratis iniciado!');
+      closeModal();
+      navigate(`/painel/${response.data.slug}/visaoGeral`, { replace: true });
+    } catch (err) {
+      setError(parseSignupError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            // 2. Atualiza perfil (Nome do Salão como Display Name inicial)
+  if (!isModalOpen) return null;
 
-            // 3. Obtém Token para autenticar no backend
+  return (
+    <div className="relative mx-auto flex max-h-[95vh] w-full max-w-lg flex-col overflow-y-auto rounded-lg bg-white p-6 shadow-2xl sm:p-8">
+      <button
+        onClick={closeModal}
+        className="absolute right-4 top-4 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+        aria-label="Fechar"
+        type="button"
+      >
+        <X className="h-5 w-5" aria-hidden="true" />
+      </button>
 
-            // O backend calcula o slug a partir do nome da clínica.
-            // O backend deve calcular o `trialEndsAt` automaticamente (now + 7 dias)
-            await axios.post(`${API_BASE_URL}/auth/register-owner`, {
-                nome_salao: formData.nomeSalao,
-                whatsapp: formData.whatsapp.replace(/\D/g, ''), // Envia só números
-                email: formData.email,
-                cpf: formData.cpf.replace(/\D/g, ''), // Envia só números
-                password: formData.password,
-            });
+      <div className="mb-6 border-b border-gray-100 pb-5 pr-10">
+        <p className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">7 dias gratis</p>
+        <h2 className="text-2xl font-bold text-gray-950">
+          Cadastre sua clinica
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Sem cartao e sem confirmacao de e-mail. Ao finalizar, voce entra direto no painel.
+        </p>
+      </div>
 
-            // Sucesso
-            setStep(2); // Vai para tela de sucesso
-            toast.success("Conta criada com sucesso! Boas-vindas ao Horalis!");
+      <form onSubmit={handleRegister} className="space-y-4">
+        <IconInput
+          id="modalNomeSalao"
+          icon={Building2}
+          type="text"
+          placeholder="Nome da clinica"
+          value={formData.nomeSalao}
+          onChange={(event) => updateFormField('nomeSalao', event.target.value)}
+          disabled={loading}
+          required
+        />
 
-        } catch (err) {
-            console.error("Erro no cadastro:", err);
-            let msg = "Erro ao criar conta. Tente novamente.";
-            if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
-            else if (err.code === 'auth/weak-password') msg = "A senha é muito fraca. Use uma senha mais forte.";
-            else if (err.response?.data?.detail) msg = err.response.data.detail; // Erros do backend
-            setError(msg);
-        } finally {
-            setLoading(false);
-        }
-    };
+        <IconInput
+          id="modalWhatsapp"
+          icon={Phone}
+          type="tel"
+          inputMode="tel"
+          placeholder="WhatsApp com DDD"
+          value={formData.whatsapp}
+          onChange={(event) => updateFormField('whatsapp', event.target.value)}
+          disabled={loading}
+          required
+        />
 
-    // Não renderiza se o modal não estiver aberto
-    if (!isModalOpen) return null;
+        <IconInput
+          id="modalEmail"
+          icon={Mail}
+          type="email"
+          placeholder="E-mail de acesso"
+          value={formData.email}
+          onChange={(event) => updateFormField('email', event.target.value)}
+          disabled={loading}
+          required
+        />
 
-    return (
-        // A 'div' que envolve o conteúdo do modal.
-        // max-w-lg e mx-auto para centralizar e limitar a largura.
-        // p-8 (ou p-6 em mobile) para o padding interno.
-        // overflow-y-auto e max-h-[95vh] para permitir rolagem APENAS no modal em si se o conteúdo for grande,
-        // mas tentando evitar que isso aconteça com o design atual.
-        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl relative w-full max-w-lg mx-auto transform scale-100 opacity-100 transition-all duration-300 ease-out 
-                    overflow-y-auto max-h-[95vh] flex flex-col">
-            <button
-                onClick={closeModal}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10 p-2 rounded-full hover:bg-gray-100"
-                aria-label="Fechar"
-            >
-                <X className="w-6 h-6" />
-            </button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <IconInput
+            id="modalPassword"
+            icon={Lock}
+            type="password"
+            placeholder="Senha"
+            value={formData.password}
+            onChange={(event) => updateFormField('password', event.target.value)}
+            disabled={loading}
+            required
+          />
 
-            {/* --- CABEÇALHO --- */}
-            <div className="text-center border-b border-gray-100 pb-4 mb-6">
-                <h2 className="text-2xl font-extrabold text-gray-900">
-                    Cadastre-se no <span className={PRIMARY_COLOR_TEXT}>{BRAND_NAME}</span>
-                </h2>
-                <p className="text-gray-600 mt-1 text-sm">
-                    Sua jornada para um salão mais eficiente começa aqui.
-                </p>
-            </div>
-
-            {/* --- PASSO 1: FORMULÁRIO --- */}
-            {step === 1 && (
-                <form onSubmit={handleRegister} className="flex flex-col flex-grow space-y-4">
-                    
-                    {/* Nome do Salão */}
-                    <div className="relative">
-                        <label htmlFor="nomeSalao" className="sr-only">Nome do seu Negócio</label>
-                        <Icon icon={User} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input 
-                            id="nomeSalao" type="text" placeholder="Nome do seu Negócio" required 
-                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
-                            value={formData.nomeSalao} onChange={(e) => updateFormField('nomeSalao', e.target.value)} disabled={loading} 
-                        />
-                    </div>
-
-                    {/* WhatsApp */}
-                    <div className="relative">
-                        <label htmlFor="whatsapp" className="sr-only">WhatsApp</label>
-                        <Icon icon={Phone} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input 
-                            id="whatsapp" type="tel" placeholder="WhatsApp (DDD + Número)" required 
-                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
-                            value={formData.whatsapp} onChange={(e) => updateFormField('whatsapp', e.target.value)} disabled={loading} 
-                        />
-                    </div>
-
-                    {/* Email */}
-                    <div className="relative">
-                        <label htmlFor="email" className="sr-only">Seu Melhor E-mail</label>
-                        <Icon icon={Mail} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input 
-                            id="email" type="email" placeholder="Seu Melhor E-mail" required 
-                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
-                            value={formData.email} onChange={(e) => updateFormField('email', e.target.value)} disabled={loading} 
-                        />
-                    </div>
-
-                    {/* CPF */}
-                    <div className="relative">
-                        <label htmlFor="cpf" className="sr-only">CPF</label>
-                        <Icon icon={CreditCard} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input 
-                            id="cpf" type="tel" placeholder="CPF" required 
-                            className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
-                            value={formData.cpf} onChange={(e) => updateFormField('cpf', e.target.value)} disabled={loading} maxLength={14} 
-                        />
-                    </div>
-
-                    {/* Senha e Confirmar Senha */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="relative">
-                            <label htmlFor="password" className="sr-only">Senha</label>
-                            <Icon icon={LockIcon} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input 
-                                id="password" type="password" placeholder="Senha (Mín. 6 caracteres)" required 
-                                className={`w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS} transition-all duration-200`} 
-                                value={formData.password} onChange={(e) => updateFormField('password', e.target.value)} disabled={loading} 
-                            />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="confirmPassword" className="sr-only">Confirmar Senha</label>
-                            <Icon icon={LockIcon} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input 
-                                id="confirmPassword" type="password" placeholder="Confirmar Senha" required 
-                                className={`w-full pl-12 pr-4 py-3 border rounded-lg h-12 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 ${formData.confirmPassword && formData.password !== formData.confirmPassword ? 'border-red-500 focus:ring-red-400 focus:border-red-500' : `border-gray-300 ${FOCUS_RING_CLASS} ${FOCUS_BORDER_CLASS}`} transition-all duration-200`} 
-                                value={formData.confirmPassword} onChange={(e) => updateFormField('confirmPassword', e.target.value)} disabled={loading} 
-                            />
-                        </div>
-                    </div>
-
-                    {error && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm animate-in fade-in">
-                            <Icon icon={AlertTriangle} className="w-4 h-4 flex-shrink-0" /> {error}
-                        </div>
-                    )}
-
-                    <button 
-                        type="submit" 
-                        className={`w-full h-14 mt-4 flex items-center justify-center text-lg font-bold text-white ${PRIMARY_BG_CLASS} rounded-xl shadow-lg ${PRIMARY_BG_HOVER_CLASS} transition-all transform hover:scale-[1.01] disabled:opacity-70 disabled:hover:scale-100 focus:outline-none focus:ring-2 ${FOCUS_RING_CLASS}`} 
-                        disabled={loading}
-                    >
-                        {loading ? <Icon icon={Loader2} className="w-6 h-6 animate-spin" /> : "Começar Teste Grátis"}
-                    </button>
-                    
-                    <p className="text-center text-xs text-gray-500 mt-4">
-                        Ao criar conta, você concorda com nossos Termos de Uso e Política de Privacidade.
-                    </p>
-                </form>
-            )}
-
-            {/* --- PASSO 2: SUCESSO --- */}
-            {step === 2 && (
-                <div className="text-center py-8 animate-in fade-in zoom-in duration-300 flex-grow flex flex-col justify-center">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Icon icon={CheckCircle} className="w-10 h-10 text-green-600" />
-                    </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Conta Criada!</h3>
-                    <p className="text-gray-600 mb-8 max-w-sm mx-auto">
-                        Seu período de teste de 7 dias começou. Aproveite o Horalis Pro e eleve seu negócio!
-                    </p>
-                    <button
-                        onClick={() => { closeModal(); navigate('/login'); }} 
-                        className={`w-full h-12 flex items-center justify-center text-base font-bold text-white bg-green-600 rounded-xl shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400`}
-                    >
-                        Acessar meu Painel <Icon icon={ArrowRight} className="w-5 h-5 ml-2" />
-                    </button>
-                </div>
-            )}
-
-            {/* Rodapé Login */}
-            {step === 1 && (
-                <div className="text-center text-sm text-gray-600 pt-6 border-t border-gray-100 mt-6">
-                    Já tem uma conta?{' '}
-                    <Link to="/login" className={`font-bold ${PRIMARY_COLOR_TEXT} hover:underline`}>
-                        Fazer Login
-                    </Link>
-                </div>
-            )}
+          <IconInput
+            id="modalConfirmPassword"
+            icon={Lock}
+            type="password"
+            placeholder="Confirmar senha"
+            value={formData.confirmPassword}
+            onChange={(event) => updateFormField('confirmPassword', event.target.value)}
+            disabled={loading}
+            required
+          />
         </div>
-    );
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className={`flex h-12 w-full items-center justify-center rounded-lg px-4 text-sm font-bold text-white shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${primaryButtonClass}`}
+          disabled={loading}
+        >
+          {loading ? (
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+          ) : (
+            <>
+              Criar conta gratis
+              <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </form>
+
+      <div className="mt-6 border-t border-gray-100 pt-5 text-center text-sm text-gray-600">
+        Ja tem uma conta?{' '}
+        <Link to="/login" className="font-semibold text-cyan-700 hover:underline">
+          Entrar no painel
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 export default SignupModalContent;

@@ -95,7 +95,13 @@ async function handleRegisterOwner(req, res) {
   const payload = await readJson(req);
   const user = await createOrLoadOwner(payload, req);
   const clinic = await ensureClinicForOwner(user, payload);
-  return json(res, 201, { ok: true, salao_id: clinic.slug, slug: clinic.slug });
+  return json(res, 201, {
+    ok: true,
+    salao_id: clinic.slug,
+    slug: clinic.slug,
+    subscription_status: clinic.subscription_status,
+    trial_ends_at: clinic.trial_ends_at,
+  });
 }
 
 async function createMercadoPagoPayment(payload, metadata = {}) {
