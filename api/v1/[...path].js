@@ -748,3 +748,58 @@ export default async function handler(req, res) {
     return serverError(res, error);
   }
 }
+
+class WebResponseAdapter {
+  constructor() {
+    this.statusCode = 200;
+    this.headers = new Headers();
+    this.body = '';
+  }
+
+  setHeader(name, value) {
+    this.headers.set(name, value);
+  }
+
+  end(body = '') {
+    this.body = body;
+  }
+
+  toResponse() {
+    return new Response(this.body, {
+      status: this.statusCode,
+      headers: this.headers,
+    });
+  }
+}
+
+async function toLegacyRequest(request) {
+  const url = new URL(request.url);
+  const headers = Object.fromEntries(request.headers.entries());
+  headers.host ||= url.host;
+
+  let body;
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    body = await request.text();
+  }
+
+  return {
+    method: request.method,
+    url: request.url,
+    headers,
+    body,
+  };
+}
+
+async function handleWebRequest(request) {
+  const req = await toLegacyRequest(request);
+  const res = new WebResponseAdapter();
+  await handler(req, res);
+  return res.toResponse();
+}
+
+export const GET = handleWebRequest;
+export const POST = handleWebRequest;
+export const PUT = handleWebRequest;
+export const PATCH = handleWebRequest;
+export const DELETE = handleWebRequest;
+export const OPTIONS = handleWebRequest;
