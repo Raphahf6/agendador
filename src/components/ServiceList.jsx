@@ -53,7 +53,12 @@ function ServiceList({ salaoId, onDataLoaded, onServiceClick, primaryColor }) {
         });
 
         if (typeof response.data === 'string') {
-          throw new Error('A API retornou uma resposta de texto em vez de JSON.');
+          const looksLikeHtml = response.data.trim().startsWith('<!doctype') || response.data.trim().startsWith('<html');
+          throw new Error(
+            looksLikeHtml
+              ? 'A rota da API caiu no fallback do frontend. Aguarde a nova publicacao e tente novamente.'
+              : 'A API retornou texto em vez de JSON.'
+          );
         }
 
         responseData = normalizePublicClinicPayload(response.data, salaoId);
