@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
-    Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type, 
-    AlertTriangle, Copy, Check, Feather, MapPin, Phone, Instagram, 
-    Facebook, CreditCard, Wifi, Car, Coffee, PawPrint, Info, Plus, Trash2, Baby, Eye, X 
+    Palette, Loader2, Save, Image as ImageIcon, Link as LinkIcon, Type,
+    AlertTriangle, Copy, Check, Feather, MapPin, Phone, UploadCloud,
+    CreditCard, Wifi, Car, Coffee, Info, Trash2, Baby, Eye, X
 } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
-import ImageWithFallback from '@/ui/ImageWithFallback';
 import BookingPagePreview from '@/components/BookingPagePreview'; 
 import toast from 'react-hot-toast';
+import { getSupabaseClient } from '@/lib/supabaseClient';
+import { getErrorMessage, normalizePhotos } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const MEDIA_BUCKET = 'horalis-media';
+const MAX_IMAGE_SIZE_MB = 6;
 
 // --- ESTILOS PREMIUM (RESTAURADOS) ---
 const CIANO_COLOR_TEXT = 'text-cyan-800';
@@ -57,7 +60,10 @@ export default function PersonalizacaoPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
     const [linkCopied, setLinkCopied] = useState(false);
-    const copyTimeoutRef = useRef(null);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingGallery, setUploadingGallery] = useState(false);
+    const logoInputRef = useRef(null);
+    const galleryInputRef = useRef(null);
     
     // Estado para controlar o Modal de Preview no Mobile
     const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
@@ -73,8 +79,6 @@ export default function PersonalizacaoPage() {
         fotos_carousel: []
     });
     
-    const [newPhotoUrl, setNewPhotoUrl] = useState('');
-
     // Carregar dados
     useEffect(() => {
         if (salonDetails) {
@@ -94,7 +98,7 @@ export default function PersonalizacaoPage() {
                 formas_pagamento: salonDetails.formas_pagamento || '',
                 redes_sociais: { instagram: instaUser, facebook: faceUser },
                 comodidades: salonDetails.comodidades || {},
-                fotos_carousel: salonDetails.fotos_carousel || [],
+                fotos_carousel: normalizePhotos(salonDetails.fotos_carousel, []),
             }));
         }
     }, [salonDetails]);
@@ -121,14 +125,79 @@ export default function PersonalizacaoPage() {
         }));
     };
 
-    const handleAddPhoto = () => {
-        if (!newPhotoUrl.trim()) return toast.error("Cole a URL da imagem.");
-        setFormData(prev => ({
-            ...prev,
-            fotos_carousel: [...prev.fotos_carousel, { url: newPhotoUrl, alt: 'Foto do Salão' }]
-        }));
-        setNewPhotoUrl('');
-        toast.success("Foto adicionada!");
+    const clinicStorageId = salonDetails?.clinic_id || salonDetails?.uuid || salonDetails?.clinicId || null;
+
+    const uploadMediaFile = async (file, folder) => {
+        if (!clinicStorageId) throw new Error('ID interno da clinica indisponivel. Recarregue a pagina e tente novamente.');
+        if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
+        if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`Cada imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
+
+        const supabase = getSupabaseClient();
+        const extension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const randomId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const filePath = `${clinicStorageId}/${folder}/${randomId}.${extension}`;
+
+        const { data, error: uploadError } = await supabase.storage
+            .from(MEDIA_BUCKET)
+            .upload(filePath, file, {
+                cacheControl: '31536000',
+                contentType: file.type,
+                upsert: false,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(data.path);
+        if (!publicData?.publicUrl) throw new Error('Upload concluido, mas nao foi possivel gerar a URL publica.');
+
+        return {
+            url: publicData.publicUrl,
+            path: data.path,
+            bucket: MEDIA_BUCKET,
+            alt: file.name.replace(/\.[^.]+$/, ''),
+        };
+    };
+
+    const handleLogoUpload = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        setUploadingLogo(true);
+        const toastId = toast.loading('Enviando logo...');
+        try {
+            const uploaded = await uploadMediaFile(file, 'branding');
+            setFormData(prev => ({ ...prev, url_logo: uploaded.url }));
+            toast.success('Logo enviado!', { id: toastId });
+        } catch (err) {
+            toast.error(getErrorMessage(err, 'Falha ao enviar logo.'), { id: toastId });
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
+    const handleGalleryUpload = async (event) => {
+        const files = Array.from(event.target.files || []);
+        event.target.value = '';
+        if (!files.length) return;
+
+        setUploadingGallery(true);
+        const toastId = toast.loading(files.length === 1 ? 'Enviando foto...' : `Enviando ${files.length} fotos...`);
+        try {
+            const uploadedPhotos = [];
+            for (const file of files) {
+                uploadedPhotos.push(await uploadMediaFile(file, 'gallery'));
+            }
+            setFormData(prev => ({
+                ...prev,
+                fotos_carousel: [...prev.fotos_carousel, ...uploadedPhotos],
+            }));
+            toast.success(files.length === 1 ? 'Foto enviada!' : 'Fotos enviadas!', { id: toastId });
+        } catch (err) {
+            toast.error(getErrorMessage(err, 'Falha ao enviar foto.'), { id: toastId });
+        } finally {
+            setUploadingGallery(false);
+        }
     };
 
     const handleRemovePhoto = (index) => {
@@ -174,7 +243,7 @@ export default function PersonalizacaoPage() {
 
             toast.success("Salvo com sucesso!");
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || "Falha ao salvar.";
+            const errorMsg = getErrorMessage(err, "Falha ao salvar.");
             setError(errorMsg);
             toast.error(errorMsg);
         } finally {
@@ -182,13 +251,27 @@ export default function PersonalizacaoPage() {
         }
     };
 
-    const copyLink = () => {
+    const copyLink = async () => {
         const publicUrl = `https://horalis.app/agendar/${salaoId}`;
-        navigator.clipboard.writeText(publicUrl).then(() => {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(publicUrl);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = publicUrl;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
             toast.success("Link copiado!");
-        });
+        } catch {
+            toast.error('Nao foi possivel copiar o link.');
+        }
     };
 
     if (loadingContext || !salaoId) return <div className="h-96 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-cyan-800"/></div>;
@@ -243,6 +326,33 @@ export default function PersonalizacaoPage() {
                                 <label className={LABEL_CLASS}>Slogan (Tagline)</label>
                                 <Icon icon={Feather} className={INPUT_ICON} />
                                 <input name="tagline" value={formData.tagline || ''} onChange={handleChange} className={INPUT_FIELD} placeholder="Ex: Onde a beleza acontece" />
+                            </div>
+
+                            <div>
+                                <label className={LABEL_CLASS}>Logo da Clinica</label>
+                                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                <div className="flex items-center gap-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                                    {formData.url_logo ? (
+                                        <img src={formData.url_logo} alt="Logo da clinica" className="w-16 h-16 rounded-xl object-cover border border-white shadow-sm bg-white" />
+                                    ) : (
+                                        <div className="w-16 h-16 rounded-xl bg-white border border-dashed border-gray-200 flex items-center justify-center text-gray-300">
+                                            <ImageIcon className="w-7 h-7" />
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-800">Envie uma imagem quadrada para aparecer no topo do microsite.</p>
+                                        <p className="text-xs text-gray-400 mt-1">PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB.</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => logoInputRef.current?.click()}
+                                        disabled={uploadingLogo}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-100 text-cyan-800 font-bold text-sm hover:bg-cyan-200 disabled:opacity-60"
+                                    >
+                                        {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                                        {uploadingLogo ? 'Enviando' : 'Enviar'}
+                                    </button>
+                                </div>
                             </div>
                             
                             <div>
@@ -316,11 +426,24 @@ export default function PersonalizacaoPage() {
                     {/* 4. Galeria de Fotos */}
                     <div className={CARD_CLASS}>
                         <h3 className={SECTION_TITLE}><Icon icon={ImageIcon} className="w-5 h-5 text-cyan-600"/> Galeria de Fotos</h3>
-                        <div className="flex gap-3 mb-6">
-                            <div className="flex-grow relative">
-                                <input value={newPhotoUrl} onChange={(e) => setNewPhotoUrl(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-gray-50 border-none rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-cyan-500/20" placeholder="Cole a URL da imagem (https://...)" />
+                        <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryUpload} />
+                        <div className="mb-6 rounded-2xl border border-dashed border-cyan-200 bg-cyan-50/50 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-cyan-700 shadow-sm border border-cyan-100">
+                                <UploadCloud className="w-6 h-6" />
                             </div>
-                            <button type="button" onClick={handleAddPhoto} className="bg-cyan-100 text-cyan-700 px-5 rounded-xl hover:bg-cyan-200 font-bold flex items-center"><Plus className="w-5 h-5" /></button>
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-gray-900">Suba fotos para o banner e carrossel do microsite.</p>
+                                <p className="text-xs text-gray-500 mt-1">Selecione uma ou varias imagens. PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB cada.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => galleryInputRef.current?.click()}
+                                disabled={uploadingGallery}
+                                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-cyan-700 text-white font-bold text-sm hover:bg-cyan-800 disabled:opacity-60"
+                            >
+                                {uploadingGallery ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                                {uploadingGallery ? 'Enviando...' : 'Enviar fotos'}
+                            </button>
                         </div>
                         
                         {formData.fotos_carousel.length > 0 ? (

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
-    ArrowLeft, Clock, MapPin, Wifi, Car, Coffee, Users, 
-    Phone, Instagram, Facebook, Share2, CalendarCheck, MessageCircle,
+    ArrowLeft, Clock, MapPin,
+    Instagram, Facebook, Share2, MessageCircle,
     DollarSign, Star, User as UserIcon 
 } from 'lucide-react';
 
@@ -18,10 +18,10 @@ import ServiceList from '@/components/ServiceList';
 import HourglassLoading from '@/components/HourglassLoading';
 import ConfirmationPage from '@/components/ConfirmationPage'; 
 import AppointmentScheduler from '@/components/AppointmentScheduler'; 
+import { asArray, asObject, defaultHeroPhotos, normalizePublicClinicPayload } from '@/utils/horalisRuntime';
 
 // Helpers e Configs
-const initMercadoPago = (key, options) => { console.log(`MP SDK: ${key}`); };
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const initMercadoPago = (key) => { console.log(`MP SDK: ${key}`); };
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
@@ -79,12 +79,6 @@ const formatHoursForDisplay = (map) => {
         return { day: dayNames[k], ...d };
     }).filter(Boolean);
 };
-const amenitiesMap = {
-    wifi: { icon: Wifi, label: 'Wi-Fi' },
-    estacionamento: { icon: Car, label: 'Estacionamento' },
-    cafe: { icon: Coffee, label: 'Café' },
-};
-
 // --- SUB-COMPONENTE: SPLASH SCREEN PREMIUM ---
 const PremiumSplash = ({ isFadingOut, primaryColor }) => (
     <div className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-white transition-opacity duration-700 ${isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -116,7 +110,9 @@ const SalonSuspended = () => (
 );
 
 // --- SUB-COMPONENTE: SELEÇÃO DE PROFISSIONAL (BIO ESTILO CITAÇÃO) ---
-const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
+const ProfessionalSelection = ({ professionals, onSelect }) => {
+    const list = asArray(professionals);
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 py-4">
             <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Escolha um Profissional</h3>
@@ -124,8 +120,13 @@ const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
             
             <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
                 
-                {/* Lista de Profissionais Filtrada */}
-                {professionals.map((pro) => (
+                {list.length === 0 && (
+                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-500">
+                        Nenhum profissional disponivel para este servico.
+                    </div>
+                )}
+
+                {list.map((pro) => (
                     <div 
                         key={pro.id}
                         onClick={() => onSelect(pro)}
@@ -166,7 +167,7 @@ const ProfessionalSelection = ({ professionals, onSelect, primaryColor }) => {
 };
 // --- SUB-COMPONENTE: HERO SECTION ---
 const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
-    const photos = details.fotos_carousel?.length > 0 ? details.fotos_carousel : [{ url: "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop", alt: "Atmosphere" }];
+    const photos = defaultHeroPhotos(details?.fotos_carousel);
 
     return (
         <div className="relative w-full h-[50vh] lg:h-[60vh] overflow-hidden rounded-b-[2rem] lg:rounded-b-[3rem] shadow-2xl z-10">
@@ -182,7 +183,7 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                 {photos.map((p, i) => (
                     <SwiperSlide key={i}>
                         <div className="w-full h-full relative">
-                            <img src={p.url} alt={p.alt} className="w-full h-full object-cover" />
+                            <img src={p.url} alt={p.alt || 'Foto do estabelecimento'} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                         </div>
                     </SwiperSlide>
@@ -306,7 +307,7 @@ export function SalonMicrosite() {
     const [filteredProfessionals, setFilteredProfessionals] = useState([]);
     const [appointmentConfirmed, setAppointmentConfirmed] = useState(null);
     
-    const [deviceId, setDeviceId] = useState(null);
+    const deviceId = window.deviceId || window.MP_DEVICE_SESSION_ID || null;
     const [isSuspended, setIsSuspended] = useState(false);
 
     const [salonDetails, setSalonDetails] = useState({
@@ -344,32 +345,38 @@ export function SalonMicrosite() {
     const handleDataLoaded = useCallback((details, err) => {
         setLoading(false);
         if (err) { 
-            if (err.includes("403")) {
+            const message = String(err || 'Erro ao carregar a pagina de agendamento.');
+            if (message.includes("403")) {
                 setIsSuspended(true);
             } else {
-                setError(err); 
+                setError(message);
             }
             return; 
         }
-        if (details) {
-            setSalonDetails(prev => ({ ...prev, ...details }));
-            applyTheme(details);
-            if (details.mp_public_key) {
-                try { initMercadoPago(details.mp_public_key, { locale: 'pt-BR' }); setSdkReady(true); } 
+        const normalizedDetails = normalizePublicClinicPayload(details, salaoId);
+        if (normalizedDetails) {
+            setSalonDetails(prev => ({ ...prev, ...normalizedDetails }));
+            applyTheme(normalizedDetails);
+            if (normalizedDetails.mp_public_key) {
+                try { initMercadoPago(normalizedDetails.mp_public_key, { locale: 'pt-BR' }); setSdkReady(true); }
                 catch (e) { console.error(e); }
             } else { setSdkReady(true); }
+        } else {
+            setError('Nao foi possivel interpretar os dados deste estabelecimento.');
         }
-    }, [applyTheme]);
+    }, [applyTheme, salaoId]);
 
     // --- HANDLER 1: Clicou no Serviço ---
     const handleServiceSelect = (service) => { 
         setSelectedService(service); 
         
-        if (salonDetails.profissionais && salonDetails.profissionais.length > 0) {
+        const professionals = asArray(salonDetails.profissionais);
+        if (professionals.length > 0) {
             // Filtra profissionais que fazem este serviço
-            const eligiblePros = salonDetails.profissionais.filter(pro => {
+            const serviceId = String(service?.id || '');
+            const eligiblePros = professionals.filter(pro => {
                 if (!pro.servicos || pro.servicos.length === 0) return true; // Se não tem lista, faz tudo
-                return pro.servicos.includes(service.id);
+                return asArray(pro.servicos).map(String).includes(serviceId);
             });
 
             if (eligiblePros.length > 0) {
@@ -405,7 +412,7 @@ export function SalonMicrosite() {
             setIsChoosingProfessional(false);
             setSelectedService(null);
         } else if (selectedService) {
-            if (salonDetails.profissionais && salonDetails.profissionais.length > 0 && filteredProfessionals.length > 0) {
+            if (asArray(salonDetails.profissionais).length > 0 && filteredProfessionals.length > 0) {
                 setIsChoosingProfessional(true); 
                 setSelectedProfessional(null);
             } else {
@@ -419,7 +426,19 @@ export function SalonMicrosite() {
     const handleHome = () => { setAppointmentConfirmed(null); setSelectedService(null); setIsChoosingProfessional(false); setSelectedProfessional(null); };
 
     const renderMainContent = () => {
-        if (error) return <div className="text-center py-20 text-red-500">{error}</div>;
+        const amenities = asObject(salonDetails.comodidades);
+
+        if (error) {
+            return (
+                <div className="text-center py-20">
+                    <p className="text-red-500 font-semibold">Nao foi possivel carregar esta pagina de agendamento.</p>
+                    <p className="text-gray-500 text-sm mt-2 max-w-md mx-auto">{error}</p>
+                    <button type="button" onClick={() => window.location.reload()} className="mt-4 text-sm font-semibold hover:underline" style={{ color: salonDetails.cor_primaria }}>
+                        Tentar novamente
+                    </button>
+                </div>
+            );
+        }
         
         if (appointmentConfirmed) return <ConfirmationPage appointmentDetails={appointmentConfirmed} onGoBack={handleHome} salonName={salonDetails.nome_salao} primaryColor={salonDetails.cor_primaria} />;
         
@@ -504,11 +523,11 @@ export function SalonMicrosite() {
                             ))}
                         </ul>
 
-                        {Object.keys(salonDetails.comodidades).length > 0 && (
+                        {Object.keys(amenities).length > 0 && (
                             <div className="mt-8">
                                 <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase tracking-wider">Comodidades</h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {Object.entries(salonDetails.comodidades).filter(([_, v]) => v).map(([k]) => (
+                                    {Object.entries(amenities).filter(([_, v]) => v).map(([k]) => (
                                         <span key={k} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-white border border-gray-200 text-gray-600">
                                             {k}
                                         </span>
@@ -538,7 +557,7 @@ export function SalonMicrosite() {
     
     return (
         <>
-            {showSplash && <PremiumSplash isFadingOut={isFadingOut} />}
+            {showSplash && <PremiumSplash isFadingOut={isFadingOut} primaryColor={salonDetails.cor_primaria} />}
 
             <div className={`min-h-screen bg-[#FAFAFA] font-sans selection:bg-black/10 transition-opacity duration-700 ${showSplash ? 'opacity-0' : 'opacity-100'}`}>
                 

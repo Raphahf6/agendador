@@ -29,7 +29,14 @@ export async function supabaseFetch(path, options = {}) {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text.slice(0, 500) };
+    }
+  }
 
   if (!response.ok) {
     const message = data?.message || data?.msg || data?.error_description || data?.error || response.statusText;

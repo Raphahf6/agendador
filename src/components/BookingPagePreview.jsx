@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-  Clock, MapPin, Wifi, Car, Coffee, Users, Info,
-  Phone, Instagram, Facebook, ArrowRight, CalendarCheck, MessageCircle
+  Clock, MapPin, Wifi, Car, Coffee, Users,
+  CalendarCheck, MessageCircle
 } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
+import { asObject, defaultHeroPhotos, getErrorMessage, normalizePublicClinicPayload } from '@/utils/horalisRuntime';
 
 // Importações do Swiper (Para o Hero)
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -29,7 +30,7 @@ const amenitiesMap = {
 // --- COMPONENTE PRINCIPAL DO PREVIEW ---
 function BookingPagePreview({
   salaoId, nomeSalao, tagline, logoUrl, primaryColor,
-  telefone, endereco, fotos, redesSociais, formasPagamento, comodidades
+  telefone, endereco, fotos, formasPagamento, comodidades
 }) {
 
   const primary = primaryColor || '#0E7490';
@@ -43,10 +44,11 @@ function BookingPagePreview({
       if (!salaoId) { if (isMounted) setLoading(false); return; }
       try {
         const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`);
-        if (isMounted && response.data?.servicos) {
-          setServices(response.data.servicos.slice(0, 3)); // Pega 3 para preview
+        const normalized = normalizePublicClinicPayload(response.data, salaoId);
+        if (isMounted) {
+          setServices((normalized?.servicos || []).slice(0, 3)); // Pega 3 para preview
         }
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error(getErrorMessage(err, 'Erro ao carregar preview.')); }
       finally { if (isMounted) setLoading(false); }
     };
     fetchServices();
@@ -54,9 +56,8 @@ function BookingPagePreview({
   }, [salaoId]);
 
   // Fotos do Hero (Usa as do form ou placeholder)
-  const photosToDisplay = fotos && fotos.length > 0 ? fotos : [
-    { url: "https://images.unsplash.com/photo-1521528628468-f95155f9f688?q=80&w=1470&auto=format&fit=crop", alt: "Fachada" }
-  ];
+  const photosToDisplay = defaultHeroPhotos(fotos);
+  const amenities = asObject(comodidades);
 
   return (
     // Container Base (Fundo Cinza Claro igual ao Microsite)
@@ -198,14 +199,14 @@ function BookingPagePreview({
           </div>
 
           {/* Comodidades */}
-          {comodidades && Object.keys(comodidades).length > 0 && (
+          {Object.keys(amenities).length > 0 && (
             <div className="pt-4 border-t border-gray-100">
               <h3 className="font-bold text-gray-900 mb-3 flex items-center text-sm">
                 <Icon icon={Users} className="w-4 h-4 mr-2" style={{ color: primary }} />
                 Comodidades
               </h3>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(comodidades).filter(([_, v]) => v).map(([k]) => {
+                {Object.entries(amenities).filter(([_, v]) => v).map(([k]) => {
                   const amenity = amenitiesMap[k];
                   return amenity && (
                     <span key={k} className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium bg-gray-50 border border-gray-200 text-gray-600">

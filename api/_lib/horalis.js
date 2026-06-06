@@ -134,6 +134,8 @@ export function clinicToLegacy(clinic, services = [], professionals = []) {
   return {
     ...clinic,
     id: clinic.slug,
+    clinic_id: clinic.id,
+    uuid: clinic.id,
     salao_id: clinic.slug,
     slug: clinic.slug,
     nome_salao: clinic.nome_salao,

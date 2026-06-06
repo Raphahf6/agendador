@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { format, isBefore, startOfToday, parseISO } from 'date-fns';
-import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy, Sun, Moon, Sunset, Calendar } from 'lucide-react';
+import { Clock, User, Phone, Mail, Loader2, ArrowRight, Copy, Sun, Moon, Sunset } from 'lucide-react';
 import HoralisCalendar from './HoralisCalendar';
 import toast from 'react-hot-toast';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Payment } from '@mercadopago/sdk-react';
+import { cleanDigits, getErrorMessage } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
@@ -50,7 +51,7 @@ const PixPayment = ({ pixData, salaoId, agendamentoId, onCopy, onPaymentSuccess,
 };
 
 // --- SUB-COMPONENTE: GRUPO DE HORÁRIOS ---
-const TimeSlotGroup = ({ title, icon, slots, selectedSlot, onSelect, isDisabled, primaryColor }) => {
+const TimeSlotGroup = ({ title, icon, slots = [], selectedSlot, onSelect, isDisabled, primaryColor }) => {
     if (slots.length === 0) return null; 
 
     return (
@@ -97,7 +98,6 @@ function AppointmentScheduler({
     sinalValor, 
     publicKeyExists, 
     primaryColor, 
-    onBackClick, 
     selectedProfessional, // 🌟 NOVO PROP RECEBIDO
     deviceId 
 }) {
@@ -137,7 +137,10 @@ function AppointmentScheduler({
         return () => { if (script.parentNode) script.parentNode.removeChild(script); };
     }, []);
 
-    const isFormValid = selectedSlot && customerName.trim().length > 2 && customerEmail.trim() && customerPhone.replace(/\D/g, '').length >= 10 && customerPhone === confirmCustomerPhone && (!requiresPayment || (requiresPayment && customerCpf.replace(/\D/g, '').length === 11)) && !isBooking;
+    const phoneDigits = cleanDigits(customerPhone);
+    const confirmPhoneDigits = cleanDigits(confirmCustomerPhone);
+    const cpfDigits = cleanDigits(customerCpf);
+    const isFormValid = selectedSlot && customerName.trim().length > 2 && customerEmail.trim() && phoneDigits.length >= 10 && phoneDigits === confirmPhoneDigits && (!requiresPayment || (requiresPayment && cpfDigits.length === 11)) && !isBooking;
     const serviceName = selectedService?.nome_servico || 'Serviço';
     const serviceDuration = selectedService?.duracao_minutos || 0;
 
@@ -163,13 +166,16 @@ function AppointmentScheduler({
                 });
                 
                 if (isMounted) {
-                    if (response.data?.horarios_disponiveis) {
-                        const sortedSlots = response.data.horarios_disponiveis.map(slot => parseISO(slot)).sort((a, b) => a - b);
+                    if (Array.isArray(response.data?.horarios_disponiveis)) {
+                        const sortedSlots = response.data.horarios_disponiveis
+                            .map(slot => parseISO(slot))
+                            .filter(slot => !Number.isNaN(slot.getTime()))
+                            .sort((a, b) => a - b);
                         setAvailableSlots(sortedSlots);
                     } else { setErrorSlots("Nenhum horário retornado."); setAvailableSlots([]); }
                 }
             } catch (error) {
-                if (isMounted) { setErrorSlots(error.response?.data?.detail || "Erro ao buscar horários."); setAvailableSlots([]); }
+                if (isMounted) { setErrorSlots(getErrorMessage(error, "Erro ao buscar horários.")); setAvailableSlots([]); }
             } finally { if (isMounted) { setLoadingSlots(false); } }
         };
         fetchSlots();
@@ -222,7 +228,7 @@ function AppointmentScheduler({
                 start_time: startTimeISO,
                 customer_name: customerName.trim(), 
                 customer_email: customerEmail.trim(), 
-                customer_phone: customerPhone.replace(/\D/g, ''),
+                customer_phone: phoneDigits,
                 
                 professional_id: selectedProfessional?.id,
                 professional_name: selectedProfessional?.nome
@@ -231,8 +237,9 @@ function AppointmentScheduler({
             toast.success("Agendamento confirmado!", { id: toastId });
             onAppointmentSuccess({ serviceName, startTime: startTimeISO, customerName: customerName.trim(), paymentStatus: 'free' });
         } catch (error) {
-            toast.error(error.response?.data?.detail || 'Erro ao agendar.', { id: toastId });
-            setValidationError(`Erro: ${error.response?.data?.detail || 'Tente novamente.'}`);
+            const message = getErrorMessage(error, 'Erro ao agendar.');
+            toast.error(message, { id: toastId });
+            setValidationError(`Erro: ${message}`);
             setIsBooking(false);
         }
     };
@@ -243,11 +250,12 @@ function AppointmentScheduler({
         try {
             const payload = createBasePayload('pix');
             const response = await axios.post(`${API_BASE_URL}/agendamentos/iniciar-pagamento-sinal`, payload);
+            if (!response.data?.payment_data?.qr_code) throw new Error('Pagamento criado sem dados de PIX.');
             setPixData(response.data.payment_data);
             setAgendamentoIdPendente(response.data.payment_data.agendamento_id_ref);
         } catch (err) {
             console.error("Erro PIX:", err.response);
-            setPaymentError(err.response?.data?.detail || "Não foi possível gerar o PIX.");
+            setPaymentError(getErrorMessage(err, "Não foi possível gerar o PIX."));
             setStep(1);
         } finally { setIsBooking(false); }
     };
@@ -274,7 +282,7 @@ function AppointmentScheduler({
             }
         } catch (err) {
             console.error("Erro Cartão:", err);
-            setPaymentError(err.response?.data?.detail || "Erro ao processar cartão.");
+            setPaymentError(getErrorMessage(err, "Erro ao processar cartão."));
             setIsBooking(false);
         }
     };
@@ -282,8 +290,8 @@ function AppointmentScheduler({
     const handleProceed = (e) => {
         e.preventDefault(); setValidationError(''); setPaymentError(null);
         if (!isFormValid) {
-            if (customerPhone !== confirmCustomerPhone) setValidationError("Os telefones não coincidem.");
-            else if (requiresPayment && customerCpf.replace(/\D/g, '').length !== 11) setValidationError("CPF inválido.");
+            if (phoneDigits !== confirmPhoneDigits) setValidationError("Os telefones não coincidem.");
+            else if (requiresPayment && cpfDigits.length !== 11) setValidationError("CPF inválido.");
             else setValidationError("Preencha todos os campos.");
             return;
         }
@@ -301,7 +309,7 @@ function AppointmentScheduler({
             start_time: selectedSlot.toISOString(),
             customer_name: customerName.trim(), 
             customer_email: customerEmail.trim(), 
-            customer_phone: customerPhone.replace(/\D/g, ''),
+            customer_phone: phoneDigits,
             
             // 🌟 ATUALIZADO: Envia dados do profissional no pagamento também
             professional_id: selectedProfessional?.id,
@@ -310,16 +318,28 @@ function AppointmentScheduler({
             payment_method_id: paymentMethodId, 
             transaction_amount: sinalAmount, 
             device_session_id: finalDeviceId || null,
-            payer: { email: customerEmail.trim(), identification: { type: 'CPF', number: customerCpf.replace(/\D/g, '') } }
+            payer: { email: customerEmail.trim(), identification: { type: 'CPF', number: cpfDigits } }
         };
     };
 
-    const handleCopyPix = (code) => {
-        navigator.clipboard.writeText(code).then(() => {
+    const handleCopyPix = async (code) => {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(code);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = code;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
             toast.success("Código PIX copiado!");
-        }).catch(err => {
+        } catch {
             toast.error('Erro ao copiar código.');
-        });
+        }
     };
 
     // Brick Customization
@@ -382,7 +402,7 @@ function AppointmentScheduler({
                             <div className="relative"><Icon icon={User} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="text" placeholder="Nome Completo" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerName} onChange={e => setCustomerName(e.target.value)} disabled={isBooking} /></div>
                             <div className="relative"><Icon icon={Mail} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="email" placeholder="E-mail" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} disabled={isBooking} /></div>
                             <div className="relative"><Icon icon={Phone} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="WhatsApp (DDD + Número)" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} disabled={isBooking} /></div>
-                            <div className="relative"><Icon icon={Phone} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="Confirme o WhatsApp" className={`pl-9 pr-3 py-2.5 w-full border rounded-lg focus:outline-none focus:ring-1 ${confirmCustomerPhone && customerPhone !== confirmCustomerPhone ? 'border-red-500' : 'border-gray-300'}`} style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={confirmCustomerPhone} onChange={e => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} /></div>
+                            <div className="relative"><Icon icon={Phone} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="Confirme o WhatsApp" className={`pl-9 pr-3 py-2.5 w-full border rounded-lg focus:outline-none focus:ring-1 ${confirmCustomerPhone && phoneDigits !== confirmPhoneDigits ? 'border-red-500' : 'border-gray-300'}`} style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={confirmCustomerPhone} onChange={e => setConfirmCustomerPhone(e.target.value)} disabled={isBooking} /></div>
                             {requiresPayment && (
                                 <div className="relative"><Icon icon={User} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="tel" placeholder="CPF (somente números)" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerCpf} onChange={e => setCustomerCpf(e.target.value)} disabled={isBooking} /></div>
                             )}
@@ -422,7 +442,7 @@ function AppointmentScheduler({
                                 amount: sinalAmount,
                                 payer: { 
                                     email: customerEmail, 
-                                    identification: { type: 'CPF', number: customerCpf.replace(/\D/g, '') } 
+                                    identification: { type: 'CPF', number: cpfDigits }
                                 },
                             }}
                             customization={paymentBrickCustomization} // Definido abaixo

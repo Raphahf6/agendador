@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
@@ -35,7 +35,7 @@ const EMAIL_TEMPLATES = {
 };
 
 // --- SUB-COMPONENTE: CARD DE SELEÇÃO DE PÚBLICO ---
-const AudienceCard = ({ id, title, description, icon: IconComp, isSelected, onClick, primaryColor }) => (
+const AudienceCard = ({ title, description, icon: IconComp, isSelected, onClick, primaryColor }) => (
     <button
         type="button"
         onClick={onClick}
@@ -170,15 +170,12 @@ export default function MarketingPage() {
     const [successMessage, setSuccessMessage] = useState('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [linkCopied, setLinkCopied] = useState(false);
-    const copyTimeoutRef = useRef(null);
 
     const salonName = salonDetails?.nome_salao || "Seu Salão";
     const publicUrl = `https://horalis.app/agendar/${salaoId}`;
     const cotaTotal = salonDetails?.marketing_cota_total || 100;
     const cotaUsada = salonDetails?.marketing_cota_usada || 0;
     const cotaResetEm = salonDetails?.marketing_cota_reset_em ? parseISO(salonDetails.marketing_cota_reset_em) : null;
-
-    const fetchSalonData = useCallback(async () => { /* ... */ }, [salaoId]);
 
     // 🌟 NOVO HANDLER: Troca de Segmento e Carrega Template 🌟
     const handleSegmentChange = (newSegment) => {
@@ -229,12 +226,26 @@ export default function MarketingPage() {
         }
     };
 
-    const copyLink = () => {
-        navigator.clipboard.writeText(publicUrl).then(() => {
+    const copyLink = async () => {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(publicUrl);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = publicUrl;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
             setLinkCopied(true);
             toast.success("Link copiado!");
             setTimeout(() => setLinkCopied(false), 2000);
-        });
+        } catch {
+            toast.error('Nao foi possivel copiar o link.');
+        }
     };
 
     const downloadStylishQRCode = async () => {

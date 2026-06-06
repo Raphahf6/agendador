@@ -27,7 +27,15 @@ export function serverError(res, error) {
 
 export async function readJson(req) {
   if (req.body && typeof req.body === 'object') return req.body;
-  if (req.body && typeof req.body === 'string') return JSON.parse(req.body);
+  if (req.body && typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      const error = new Error('JSON invalido');
+      error.status = 400;
+      throw error;
+    }
+  }
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -37,7 +45,9 @@ export async function readJson(req) {
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error('JSON invalido');
+    const error = new Error('JSON invalido');
+    error.status = 400;
+    throw error;
   }
 }
 
