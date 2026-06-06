@@ -790,7 +790,7 @@ async function toLegacyRequest(request) {
   };
 }
 
-async function handleWebRequest(request) {
+export async function handleWebRequest(request) {
   const req = await toLegacyRequest(request);
   const res = new WebResponseAdapter();
   await handler(req, res);
