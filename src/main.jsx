@@ -9,13 +9,11 @@ setupAxiosInterceptor();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registrado com sucesso:', registration.scope);
+    navigator.serviceWorker.getRegistrations()
+      .then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
       })
-      .catch((err) => {
-        console.log('Falha no SW:', err);
-      });
+      .catch(() => {});
   });
 }
 

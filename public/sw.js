@@ -3,26 +3,14 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+    await self.registration.unregister();
 
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
-    return;
-  }
-
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('/index.html');
-      }
-
-      return new Response('', {
-        status: 504,
-        statusText: 'Network unavailable',
-      });
-    })
-  );
+    const clients = await self.clients.matchAll({ type: 'window' });
+    clients.forEach((client) => {
+      if ('navigate' in client) client.navigate(client.url);
+    });
+  })());
 });
