@@ -180,6 +180,8 @@ export default function AtendimentoAgentPage() {
   const [previewAppointment, setPreviewAppointment] = useState(null);
   const [previewRoute, setPreviewRoute] = useState('');
   const [previewHistory, setPreviewHistory] = useState([]);
+  const [previewConversationId, setPreviewConversationId] = useState('');
+  const [previewMemoryPersisted, setPreviewMemoryPersisted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,6 +212,11 @@ export default function AtendimentoAgentPage() {
     return () => {
       cancelled = true;
     };
+  }, [salaoId]);
+
+  useEffect(() => {
+    if (!salaoId) return;
+    setPreviewConversationId(window.localStorage.getItem(`horalis-agent-preview:${salaoId}`) || '');
   }, [salaoId]);
 
   const contextMetrics = useMemo(() => {
@@ -245,11 +252,14 @@ export default function AtendimentoAgentPage() {
     setPreviewPayment(null);
     setPreviewAppointment(null);
     setPreviewRoute('');
+    setPreviewMemoryPersisted(false);
   };
 
   const resetPreviewConversation = () => {
     clearPreviewResult();
     setPreviewHistory([]);
+    setPreviewConversationId('');
+    if (salaoId) window.localStorage.removeItem(`horalis-agent-preview:${salaoId}`);
     setPreviewMessage('Oi, gostaria de marcar uma avaliacao essa semana.');
   };
 
@@ -294,6 +304,8 @@ export default function AtendimentoAgentPage() {
       const response = await apiPost(`/admin/agent/${salaoId}/chat`, {
         message: messageToSend,
         history: historyBefore,
+        conversation_id: previewConversationId || undefined,
+        channel: 'preview',
       });
       setPreviewReply(response.data?.reply || 'Sem resposta.');
       setPreviewStatus(response.data?.status || '');
@@ -302,6 +314,11 @@ export default function AtendimentoAgentPage() {
       setPreviewPayment(response.data?.payment || null);
       setPreviewAppointment(response.data?.appointment || null);
       setPreviewRoute(response.data?.routed_by || '');
+      setPreviewMemoryPersisted(response.data?.memory_persisted === true);
+      if (response.data?.conversation_id) {
+        setPreviewConversationId(response.data.conversation_id);
+        window.localStorage.setItem(`horalis-agent-preview:${salaoId}`, response.data.conversation_id);
+      }
       setPreviewHistory([
         ...historyBefore,
         userEntry,
@@ -608,6 +625,9 @@ export default function AtendimentoAgentPage() {
                     {routeLabel(previewRoute)}
                   </div>
                 )}
+                <div className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-cyan-700">
+                  {previewMemoryPersisted ? 'Memoria Supabase' : 'Memoria local'}
+                </div>
                 {previewActions.map((action, index) => (
                   <div key={`${action.type}-${index}`} className="rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
                     <p className="font-semibold text-gray-900">{actionLabel(action.type)}</p>

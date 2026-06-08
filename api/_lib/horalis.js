@@ -13,6 +13,8 @@ const HORALIS_TABLES = new Set([
   'stock_products',
   'integration_accounts',
   'ai_agent_settings',
+  'ai_agent_conversations',
+  'ai_agent_messages',
 ]);
 
 const TRIAL_DAYS = 7;

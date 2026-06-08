@@ -1732,6 +1732,175 @@ async function naturalizeAgentResult({ message, result, clinic, services, profes
   return response.text || result.reply || settings.fallback_message;
 }
 
+function isMissingAgentMemoryTable(error) {
+  const message = `${error?.message || ''} ${error?.data?.message || ''} ${error?.data?.code || ''}`.toLowerCase();
+  return error?.status === 404 && (
+    message.includes('ai_agent_conversations')
+    || message.includes('ai_agent_messages')
+    || message.includes('schema cache')
+    || message.includes('pgrst205')
+  );
+}
+
+function normalizeConversationHistory(rows = []) {
+  return rows.map((row) => ({
+    role: row.role,
+    content: row.content,
+    ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
+  }));
+}
+
+function fallbackPayloadHistory(payload = {}) {
+  return Array.isArray(payload.history)
+    ? payload.history
+      .filter((entry) => ['user', 'assistant', 'system'].includes(entry?.role))
+      .slice(-30)
+    : [];
+}
+
+async function ensureAgentConversation(clinic, payload = {}) {
+  const channel = String(payload.channel || 'preview').trim().slice(0, 40) || 'preview';
+  const conversationId = String(payload.conversation_id || '').trim();
+  const externalId = String(payload.external_id || '').trim().slice(0, 160);
+  const customerPhone = cleanPhone(payload.customer_phone || payload.phone || '');
+  const customerName = String(payload.customer_name || '').trim().slice(0, 160);
+
+  if (isUuid(conversationId)) {
+    const rows = await select('ai_agent_conversations', {
+      select: '*',
+      id: `eq.${conversationId}`,
+      clinic_id: `eq.${clinic.id}`,
+      limit: 1,
+    });
+    if (rows.length) return rows[0];
+  }
+
+  if (externalId) {
+    const found = await select('ai_agent_conversations', {
+      select: '*',
+      clinic_id: `eq.${clinic.id}`,
+      channel: `eq.${channel}`,
+      external_id: `eq.${externalId}`,
+      limit: 1,
+    });
+    if (found.length) return found[0];
+  }
+
+  const rows = await insert('ai_agent_conversations', [{
+    clinic_id: clinic.id,
+    channel,
+    external_id: externalId || null,
+    customer_phone: customerPhone || null,
+    customer_name: customerName || null,
+    state: {},
+  }]);
+  return rows[0];
+}
+
+async function loadAgentConversationMessages(conversation) {
+  if (!conversation?.id) return [];
+  const rows = await select('ai_agent_messages', {
+    select: 'role,content,metadata,created_at',
+    conversation_id: `eq.${conversation.id}`,
+    clinic_id: `eq.${conversation.clinic_id}`,
+    order: 'created_at.desc',
+    limit: 40,
+  });
+  return normalizeConversationHistory(rows.reverse());
+}
+
+async function prepareAgentMemory(clinic, payload = {}) {
+  try {
+    const conversation = await ensureAgentConversation(clinic, payload);
+    const history = await loadAgentConversationMessages(conversation);
+    return {
+      conversation,
+      history: history.length ? history : fallbackPayloadHistory(payload),
+      persisted: true,
+    };
+  } catch (error) {
+    if (!isMissingAgentMemoryTable(error)) throw error;
+    return {
+      conversation: null,
+      history: fallbackPayloadHistory(payload),
+      persisted: false,
+    };
+  }
+}
+
+function buildConversationState(assistantEntry = {}) {
+  const plan = assistantEntry.plan || {};
+  return {
+    status: assistantEntry.status || null,
+    routed_by: assistantEntry.routed_by || null,
+    field: assistantEntry.field || plan.field || null,
+    service_id: plan.service_id || null,
+    professional_id: plan.professional_id || null,
+    date: plan.date || null,
+    start_time: plan.start_time || null,
+    customer_name: plan.customer_name || null,
+    customer_phone: plan.customer_phone || null,
+    customer_email: plan.customer_email || null,
+    slots: Array.isArray(assistantEntry.slots) ? assistantEntry.slots.slice(0, 10) : [],
+    appointment_id: assistantEntry.appointment?.id || null,
+    payment_status: assistantEntry.payment?.status || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function appendAgentConversationMessages(conversation, userEntry, assistantEntry) {
+  if (!conversation?.id) return false;
+
+  await insert('ai_agent_messages', [
+    {
+      conversation_id: conversation.id,
+      clinic_id: conversation.clinic_id,
+      role: 'user',
+      content: userEntry.content,
+      metadata: userEntry.metadata || {},
+    },
+    {
+      conversation_id: conversation.id,
+      clinic_id: conversation.clinic_id,
+      role: 'assistant',
+      content: assistantEntry.content,
+      metadata: {
+        status: assistantEntry.status || '',
+        routed_by: assistantEntry.routed_by || '',
+        field: assistantEntry.field || '',
+        plan: assistantEntry.plan || null,
+        actions: assistantEntry.actions || [],
+        slots: assistantEntry.slots || [],
+        appointment: assistantEntry.appointment || null,
+        payment: assistantEntry.payment || null,
+        response_id: assistantEntry.response_id || null,
+        model: assistantEntry.model || null,
+      },
+    },
+  ]);
+
+  const nextState = buildConversationState(assistantEntry);
+  await patch('ai_agent_conversations', {
+    id: `eq.${conversation.id}`,
+    clinic_id: `eq.${conversation.clinic_id}`,
+  }, {
+    state: nextState,
+    customer_phone: nextState.customer_phone || conversation.customer_phone,
+    customer_name: nextState.customer_name || conversation.customer_name,
+  });
+
+  return true;
+}
+
+async function safeAppendAgentConversationMessages(conversation, userEntry, assistantEntry) {
+  try {
+    return await appendAgentConversationMessages(conversation, userEntry, assistantEntry);
+  } catch (error) {
+    console.warn('Agent memory persistence failed', error?.message || error);
+    return false;
+  }
+}
+
 function buildAgentRuntimeContext({ clinic, services, professionals }) {
   const signalValue = Number(clinic.sinal_valor || 0);
   return {
@@ -1759,6 +1928,7 @@ function buildAgentRuntimeContext({ clinic, services, professionals }) {
       active: professional.active !== false,
     })),
     capabilities: [
+      'memoria_persistente_por_conversa',
       'respostas_hibridas_sem_ia',
       'consultar_horarios',
       'criar_agendamento',
@@ -1812,9 +1982,10 @@ async function handleAgent(req, res, user, parts) {
     if (!message) return badRequest(res, 'Informe uma mensagem para testar o agente.');
 
     const { settings, services, professionals } = await loadRuntime();
+    const memory = await prepareAgentMemory(clinic, payload);
     const hybrid = await tryHybridAgentResponse({
       message: message.slice(0, 3000),
-      history: payload.history,
+      history: memory.history,
       clinic,
       services,
       professionals,
@@ -1822,6 +1993,24 @@ async function handleAgent(req, res, user, parts) {
     });
 
     if (hybrid) {
+      const memorySaved = await safeAppendAgentConversationMessages(
+        memory.conversation,
+        { content: message },
+        {
+          content: hybrid.reply,
+          status: hybrid.status,
+          routed_by: 'hybrid',
+          field: hybrid.field || null,
+          plan: hybrid.plan || null,
+          actions: hybrid.actions || [],
+          slots: Array.isArray(hybrid.slots) ? hybrid.slots.slice(0, 10) : [],
+          appointment: hybrid.appointment || null,
+          payment: hybrid.payment || null,
+          response_id: null,
+          model: null,
+        },
+      );
+
       return json(res, 200, {
         reply: hybrid.reply,
         status: hybrid.status,
@@ -1834,12 +2023,14 @@ async function handleAgent(req, res, user, parts) {
         response_id: null,
         model: null,
         routed_by: 'hybrid',
+        conversation_id: memory.conversation?.id || payload.conversation_id || null,
+        memory_persisted: memory.persisted && memorySaved,
       });
     }
 
     const decision = await planAgentAction({
       message: message.slice(0, 3000),
-      history: payload.history,
+      history: memory.history,
       clinic,
       services,
       professionals,
@@ -1849,6 +2040,24 @@ async function handleAgent(req, res, user, parts) {
     const reply = ['answered', 'handoff', 'needs_info'].includes(result.status)
       ? (result.reply || settings.fallback_message)
       : await naturalizeAgentResult({ message, result, clinic, services, professionals, settings });
+
+    const memorySaved = await safeAppendAgentConversationMessages(
+      memory.conversation,
+      { content: message },
+      {
+        content: reply,
+        status: result.status,
+        routed_by: 'openai',
+        field: result.field || null,
+        plan: decision.plan,
+        actions: result.actions || [],
+        slots: Array.isArray(result.slots) ? result.slots.slice(0, 10) : [],
+        appointment: result.appointment || null,
+        payment: result.payment || null,
+        response_id: decision.response_id,
+        model: settings.model || DEFAULT_AGENT_MODEL,
+      },
+    );
 
     return json(res, 200, {
       reply,
@@ -1862,6 +2071,8 @@ async function handleAgent(req, res, user, parts) {
       response_id: decision.response_id,
       model: settings.model || DEFAULT_AGENT_MODEL,
       routed_by: 'openai',
+      conversation_id: memory.conversation?.id || payload.conversation_id || null,
+      memory_persisted: memory.persisted && memorySaved,
     });
   }
 
