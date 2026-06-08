@@ -23,12 +23,12 @@ function HandleAuthActions() {
         if (mode === 'resetPassword') {
             // Verificar a validade do código antes de redirecionar
             verifyPasswordResetCode(auth, actionCode)
-                .then((email) => {
+                .then(() => {
                     // O código é válido. Redireciona para a página de redefinição final
                     // passando o código como parâmetro
                     navigate(`/resetar-senha?code=${actionCode}`);
                 })
-                .catch((error) => {
+                .catch(() => {
                     toast.error("Link de redefinição expirado ou inválido. Tente novamente.");
                     navigate('/recuperar-senha');
                 });

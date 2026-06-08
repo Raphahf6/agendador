@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, MessageCircle, ArrowRight, User, Briefcase, Users, Store,Smartphone } from 'lucide-react';
 
 const LeadQualificationModal = ({ isOpen, onClose }) => {
-  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     nome: '',
     whatsapp: '',

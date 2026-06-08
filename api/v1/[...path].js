@@ -146,6 +146,23 @@ function addDateFilters(params, start, end) {
   else if (end) params.start_time = `lte.${end}`;
 }
 
+function datePart(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function sameMinute(a, b) {
+  const first = new Date(a);
+  const second = new Date(b);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) return false;
+  return Math.abs(first.getTime() - second.getTime()) < 60 * 1000;
+}
+
+function firstName(value) {
+  return String(value || '').trim().split(/\s+/)[0] || 'Cliente';
+}
+
 async function requireUser(req) {
   const user = await verifyUser(req);
   if (!user) {
@@ -253,6 +270,10 @@ async function createMercadoPagoPayment(payload, metadata = {}) {
   return data;
 }
 
+function appointmentStatusFromPayment(paymentStatus) {
+  return paymentStatus === 'approved' ? 'confirmado' : 'pending_payment';
+}
+
 async function handlePaidSignup(req, res) {
   const payload = await readJson(req);
   const payment = payload.payment_method_id
@@ -304,46 +325,60 @@ async function handlePublicServices(_req, res, slug) {
   return json(res, 200, clinicToLegacy(clinic, services, professionals));
 }
 
-async function handleAvailableSlots(req, res, slug) {
-  const query = getQuery(req);
-  const serviceId = query.get('service_id');
-  const date = query.get('date');
-  const professionalId = query.get('professional_id');
+async function getAvailableSlotsForClinic(clinic, { serviceId, date, professionalId = null }) {
+  if (!serviceId || !date) {
+    const error = new Error('service_id e date sao obrigatorios.');
+    error.status = 400;
+    throw error;
+  }
 
-  if (!serviceId || !date) return badRequest(res, 'service_id e date sao obrigatorios.');
-
-  const clinic = await getClinicBySlug(slug);
   const services = await select('services', { select: '*', id: `eq.${serviceId}`, clinic_id: `eq.${clinic.id}`, limit: 1 });
-  if (!services.length) return notFound(res, 'Servico nao encontrado.');
+  if (!services.length) {
+    const error = new Error('Servico nao encontrado.');
+    error.status = 404;
+    throw error;
+  }
 
   let schedule = clinic.horario_trabalho_detalhado || defaultSchedule();
+  let professional = null;
 
   if (professionalId && isUuid(professionalId)) {
     const proRows = await select('professionals', {
       select: '*',
       id: `eq.${professionalId}`,
       clinic_id: `eq.${clinic.id}`,
+      active: 'eq.true',
       limit: 1,
     });
-    if (proRows[0]?.horario_trabalho && Object.keys(proRows[0].horario_trabalho).length) {
-      schedule = { ...schedule, ...proRows[0].horario_trabalho };
+    professional = proRows[0] || null;
+
+    if (!professional) return { service: services[0], professional: null, slots: [] };
+    if (Array.isArray(professional.servicos) && professional.servicos.length && !professional.servicos.includes(serviceId)) {
+      return { service: services[0], professional, slots: [] };
+    }
+    if (professional.horario_trabalho && Object.keys(professional.horario_trabalho).length) {
+      schedule = { ...schedule, ...professional.horario_trabalho };
     }
   }
 
   const day = schedule[weekdayKey(date)];
-  if (!day?.isOpen) return json(res, 200, { horarios_disponiveis: [] });
+  if (!day?.isOpen) return { service: services[0], professional, slots: [] };
 
   const start = minutesFromHHMM(day.openTime);
   const end = minutesFromHHMM(day.closeTime);
   const duration = Number(services[0].duracao_minutos || 30);
-  const appointments = await select('appointments', {
-    select: 'start_time,end_time',
+  const appointmentParams = {
+    select: 'start_time,end_time,professional_id',
     clinic_id: `eq.${clinic.id}`,
     start_time: `gte.${date}T00:00:00${SAO_PAULO_OFFSET}`,
     end_time: `lte.${date}T23:59:59${SAO_PAULO_OFFSET}`,
     status: 'neq.cancelado',
-  });
+  };
+  if (professionalId && isUuid(professionalId)) {
+    appointmentParams.or = `(professional_id.is.null,professional_id.eq.${professionalId})`;
+  }
 
+  const appointments = await select('appointments', appointmentParams);
   const slots = [];
   for (let cursor = start; cursor + duration <= end; cursor += 15) {
     if (day.hasLunch) {
@@ -364,6 +399,19 @@ async function handleAvailableSlots(req, res, slug) {
     if (!blocked) slots.push(slotStart.toISOString());
   }
 
+  return { service: services[0], professional, slots };
+}
+
+async function handleAvailableSlots(req, res, slug) {
+  const query = getQuery(req);
+  const serviceId = query.get('service_id');
+  const date = query.get('date');
+  const professionalId = query.get('professional_id');
+
+  if (!serviceId || !date) return badRequest(res, 'service_id e date sao obrigatorios.');
+
+  const clinic = await getClinicBySlug(slug);
+  const { slots } = await getAvailableSlotsForClinic(clinic, { serviceId, date, professionalId });
   return json(res, 200, { horarios_disponiveis: slots });
 }
 
@@ -430,7 +478,10 @@ async function handleAppointmentPayment(req, res) {
   const payload = await readJson(req);
   const clinic = await getClinicBySlug(payload.salao_id);
   const payment = await createMercadoPagoPayment(payload, { description: 'Sinal de agendamento Horalis', external_reference: clinic.slug });
-  const appointment = await createAppointmentFromPayload(clinic, payload, {
+  const appointment = await createAppointmentFromPayload(clinic, {
+    ...payload,
+    status: appointmentStatusFromPayment(payment.status),
+  }, {
     status: payment.status,
     payment_id: payment.id,
   });
@@ -748,6 +799,370 @@ async function createOpenAIResponse({ instructions, input, model, maxOutputToken
   };
 }
 
+function parseJsonObject(text) {
+  const raw = String(text || '').trim();
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fenced || raw;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(candidate.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function nullableText(value) {
+  const text = String(value ?? '').trim();
+  return !text || text.toLowerCase() === 'null' ? null : text;
+}
+
+function normalizeAgentPlan(plan = {}) {
+  const allowed = new Set(['answer', 'list_slots', 'create_booking', 'handoff']);
+  const action = allowed.has(plan.action) ? plan.action : 'answer';
+  return {
+    action,
+    reply: String(plan.reply || '').trim(),
+    service_id: nullableText(plan.service_id),
+    professional_id: isUuid(plan.professional_id) ? plan.professional_id : null,
+    date: nullableText(plan.date)?.slice(0, 10) || null,
+    start_time: nullableText(plan.start_time),
+    customer_name: String(plan.customer_name || '').trim(),
+    customer_phone: cleanPhone(plan.customer_phone),
+    customer_email: String(plan.customer_email || '').trim(),
+    notes: String(plan.notes || '').trim(),
+    confidence: clampNumber(plan.confidence, 0, 1, 0),
+  };
+}
+
+function buildAgentDecisionInstructions({ clinic, services, professionals, settings }) {
+  return [
+    buildAgentInstructions({ clinic, services, professionals, settings }),
+    '',
+    'Escolha uma acao operacional segura para o backend executar.',
+    'Responda somente com JSON valido, sem markdown e sem texto fora do JSON.',
+    'Acoes permitidas:',
+    '- answer: responder ou pedir dado faltante.',
+    '- list_slots: consultar horarios disponiveis para service_id/date/professional_id opcional.',
+    '- create_booking: criar agendamento somente quando tiver service_id, start_time ISO, customer_name e customer_phone. Se houver sinal, customer_email tambem sera necessario.',
+    '- handoff: encaminhar para humano.',
+    '',
+    'Regras criticas:',
+    '- Nunca use create_booking se o cliente ainda nao confirmou explicitamente o horario.',
+    '- Nunca invente IDs. Use apenas service_id e professional_id do contexto.',
+    '- Se faltar servico, data, horario, nome ou telefone, use answer e pergunte apenas o proximo dado.',
+    '- Se o cliente pedir opcoes de horario, use list_slots.',
+    '- Se houver duvida, use answer ou handoff.',
+    '',
+    'Formato JSON:',
+    '{"action":"answer|list_slots|create_booking|handoff","reply":"mensagem se for answer/handoff","service_id":"uuid ou null","professional_id":"uuid ou null","date":"YYYY-MM-DD ou null","start_time":"ISO ou null","customer_name":"","customer_phone":"","customer_email":"","notes":"","confidence":0.0}',
+  ].join('\n');
+}
+
+function buildAgentContextPayload({ message, history = [], clinic, services, professionals }) {
+  return JSON.stringify({
+    now: new Date().toISOString(),
+    timezone: 'America/Sao_Paulo',
+    message,
+    history: Array.isArray(history) ? history.slice(-8) : [],
+    clinic: {
+      slug: clinic.slug,
+      nome_salao: clinic.nome_salao,
+      sinal_valor: Number(clinic.sinal_valor || 0),
+      cobrar_sinal: Number(clinic.sinal_valor || 0) > 0,
+      google_sync_enabled: clinic.google_sync_enabled === true,
+      horario_trabalho_detalhado: clinic.horario_trabalho_detalhado || defaultSchedule(),
+    },
+    services: services.map((service) => ({
+      id: service.id,
+      nome_servico: service.nome_servico,
+      duracao_minutos: service.duracao_minutos,
+      preco: service.preco,
+      descricao: service.descricao,
+    })),
+    professionals: professionals.map((professional) => ({
+      id: professional.id,
+      nome: professional.nome,
+      cargo: professional.cargo,
+      servicos: professional.servicos || [],
+    })),
+  });
+}
+
+async function planAgentAction({ message, history, clinic, services, professionals, settings }) {
+  const response = await createOpenAIResponse({
+    instructions: buildAgentDecisionInstructions({ clinic, services, professionals, settings }),
+    input: buildAgentContextPayload({ message, history, clinic, services, professionals }),
+    model: settings.model || DEFAULT_AGENT_MODEL,
+    maxOutputTokens: 650,
+    metadata: {
+      product: 'horalis',
+      clinic_id: clinic.id,
+      route: 'agent-plan',
+    },
+  });
+
+  const parsed = parseJsonObject(response.text);
+  return {
+    response_id: response.id,
+    raw: response.text,
+    plan: normalizeAgentPlan(parsed || { action: 'answer', reply: settings.fallback_message }),
+  };
+}
+
+function formatSlot(slot) {
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    }).format(new Date(slot));
+  } catch {
+    return slot;
+  }
+}
+
+function missingFieldResult(field, reply) {
+  return {
+    status: 'needs_info',
+    field,
+    reply,
+    actions: [],
+  };
+}
+
+async function executeAgentPlan(plan, { clinic, services, professionals, settings }) {
+  if (plan.action === 'handoff') {
+    return {
+      status: 'handoff',
+      reply: plan.reply || settings.handoff_message,
+      actions: [{ type: 'handoff' }],
+    };
+  }
+
+  if (plan.action === 'answer') {
+    return {
+      status: 'answered',
+      reply: plan.reply || settings.fallback_message,
+      actions: [],
+    };
+  }
+
+  const service = services.find((item) => item.id === plan.service_id);
+  if (!service) return missingFieldResult('service_id', 'Qual servico voce gostaria de agendar?');
+
+  if (plan.action === 'list_slots') {
+    if (!plan.date) return missingFieldResult('date', 'Para qual dia voce gostaria de ver horarios?');
+    const { slots, professional } = await getAvailableSlotsForClinic(clinic, {
+      serviceId: service.id,
+      date: plan.date,
+      professionalId: plan.professional_id,
+    });
+
+    return {
+      status: 'slots_found',
+      service,
+      professional,
+      slots,
+      reply: slots.length
+        ? `Encontrei estes horarios para ${service.nome_servico}: ${slots.slice(0, 5).map(formatSlot).join(', ')}.`
+        : `Nao encontrei horarios livres para ${service.nome_servico} nessa data.`,
+      actions: [{
+        type: 'list_slots',
+        service_id: service.id,
+        date: plan.date,
+        professional_id: plan.professional_id,
+        slots: slots.slice(0, 10),
+      }],
+    };
+  }
+
+  if (plan.action === 'create_booking') {
+    if (!plan.start_time) return missingFieldResult('start_time', 'Qual horario voce quer confirmar?');
+    if (!plan.customer_name) return missingFieldResult('customer_name', 'Me passa seu nome completo para eu finalizar.');
+    if (!plan.customer_phone) return missingFieldResult('customer_phone', 'Me passa seu WhatsApp para eu finalizar o agendamento.');
+
+    const signalValue = Number(clinic.sinal_valor || 0);
+    if (signalValue > 0 && !plan.customer_email) {
+      return missingFieldResult('customer_email', 'Para gerar o PIX do sinal, me passa tambem seu e-mail.');
+    }
+
+    const bookingDate = plan.date || datePart(plan.start_time);
+    if (!bookingDate) return missingFieldResult('date', 'Nao consegui entender a data do horario. Pode me enviar novamente?');
+
+    const { slots, professional } = await getAvailableSlotsForClinic(clinic, {
+      serviceId: service.id,
+      date: bookingDate,
+      professionalId: plan.professional_id,
+    });
+
+    const selectedSlot = slots.find((slot) => sameMinute(slot, plan.start_time));
+    if (!selectedSlot) {
+      return {
+        status: 'slot_unavailable',
+        service,
+        professional,
+        slots,
+        reply: slots.length
+          ? `Esse horario nao esta mais livre. Tenho estas opcoes: ${slots.slice(0, 5).map(formatSlot).join(', ')}.`
+          : 'Esse horario nao esta mais livre e nao encontrei alternativas nessa data.',
+        actions: [{
+          type: 'slot_unavailable',
+          requested_start_time: plan.start_time,
+          slots: slots.slice(0, 10),
+        }],
+      };
+    }
+
+    const professionalName = professional?.nome || professionals.find((item) => item.id === plan.professional_id)?.nome || null;
+    const appointmentPayload = {
+      salao_id: clinic.slug,
+      service_id: service.id,
+      service_name: service.nome_servico,
+      service_price: Number(service.preco || 0),
+      professional_id: professional?.id || plan.professional_id,
+      professional_name: professionalName,
+      start_time: selectedSlot,
+      duration_minutes: Number(service.duracao_minutos || 30),
+      customer_name: plan.customer_name,
+      customer_phone: plan.customer_phone,
+      customer_email: plan.customer_email || null,
+      notes: plan.notes || 'Agendamento criado pelo agente Horalis.',
+    };
+
+    if (signalValue > 0) {
+      const payment = await createMercadoPagoPayment({
+        transaction_amount: signalValue,
+        payment_method_id: 'pix',
+        payer: {
+          email: plan.customer_email,
+          first_name: firstName(plan.customer_name),
+        },
+      }, {
+        description: `Sinal de agendamento - ${service.nome_servico}`,
+        external_reference: clinic.slug,
+        idempotency_key: `agent-${clinic.id}-${service.id}-${new Date(selectedSlot).getTime()}-${cleanPhone(plan.customer_phone)}`,
+      });
+
+      const appointment = await createAppointmentFromPayload(clinic, {
+        ...appointmentPayload,
+        status: appointmentStatusFromPayment(payment.status),
+      }, {
+        status: payment.status,
+        payment_id: payment.id,
+      });
+      const transaction = payment.point_of_interaction?.transaction_data || {};
+
+      return {
+        status: 'payment_created',
+        appointment: appointmentToClient(appointment),
+        payment: {
+          status: payment.status,
+          payment_id: payment.id,
+          qr_code: transaction.qr_code,
+          qr_code_base64: transaction.qr_code_base64,
+          amount: signalValue,
+        },
+        reply: `Agendamento pre-reservado para ${formatSlot(selectedSlot)}. Para confirmar, envie o PIX do sinal de R$ ${signalValue.toFixed(2).replace('.', ',')}.`,
+        actions: [{
+          type: 'create_booking_with_signal',
+          appointment_id: appointment.id,
+          payment_id: payment.id,
+          amount: signalValue,
+        }],
+      };
+    }
+
+    const appointment = await createAppointmentFromPayload(clinic, appointmentPayload, { status: 'free' });
+    return {
+      status: 'booking_created',
+      appointment: appointmentToClient(appointment),
+      reply: `Agendamento confirmado para ${formatSlot(selectedSlot)}.`,
+      actions: [{
+        type: 'create_booking',
+        appointment_id: appointment.id,
+      }],
+    };
+  }
+
+  return {
+    status: 'answered',
+    reply: settings.fallback_message,
+    actions: [],
+  };
+}
+
+async function naturalizeAgentResult({ message, result, clinic, services, professionals, settings }) {
+  const response = await createOpenAIResponse({
+    instructions: [
+      buildAgentInstructions({ clinic, services, professionals, settings }),
+      '',
+      'Transforme o resultado operacional em uma resposta final para o cliente.',
+      'Se houver PIX, mencione claramente o valor do sinal e inclua o codigo copia e cola se existir.',
+      'Nao invente dados alem do resultado operacional. Seja curto, humano e natural.',
+    ].join('\n'),
+    input: JSON.stringify({
+      message,
+      result,
+    }),
+    model: settings.model || DEFAULT_AGENT_MODEL,
+    maxOutputTokens: settings.max_output_tokens || 450,
+    metadata: {
+      product: 'horalis',
+      clinic_id: clinic.id,
+      route: 'agent-final-reply',
+    },
+  });
+
+  return response.text || result.reply || settings.fallback_message;
+}
+
+function buildAgentRuntimeContext({ clinic, services, professionals }) {
+  const signalValue = Number(clinic.sinal_valor || 0);
+  return {
+    clinic: {
+      slug: clinic.slug,
+      nome_salao: clinic.nome_salao,
+      cobrar_sinal: signalValue > 0,
+      sinal_valor: signalValue,
+      google_sync_enabled: clinic.google_sync_enabled === true,
+      mercado_pago_configured: !!process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.HORALIS_ALLOW_DEV_PAYMENTS === 'true',
+      schedule_summary: summarizeSchedule(clinic.horario_trabalho_detalhado || defaultSchedule()),
+    },
+    services: services.map((service) => ({
+      id: service.id,
+      nome_servico: service.nome_servico,
+      duracao_minutos: service.duracao_minutos,
+      preco: service.preco,
+      active: service.active !== false,
+    })),
+    professionals: professionals.map((professional) => ({
+      id: professional.id,
+      nome: professional.nome,
+      cargo: professional.cargo,
+      servicos: Array.isArray(professional.servicos) ? professional.servicos : [],
+      active: professional.active !== false,
+    })),
+    capabilities: [
+      'consultar_horarios',
+      'criar_agendamento',
+      'cobrar_sinal_pix',
+      'handoff_humano',
+    ],
+  };
+}
+
 async function handleAgent(req, res, user, parts) {
   const slug = parts[2];
   const action = parts[3];
@@ -772,32 +1187,48 @@ async function handleAgent(req, res, user, parts) {
     return json(res, 200, rows[0]);
   }
 
-  if (action === 'preview' && req.method === 'POST') {
-    const payload = await readJson(req);
-    const message = String(payload.message || '').trim();
-    if (!message) return badRequest(res, 'Informe uma mensagem para testar o agente.');
-
+  const loadRuntime = async () => {
     const [settings, services, professionals] = await Promise.all([
       loadAgentSettings(clinic),
       getServices(clinic.id, { activeOnly: true }),
       getProfessionals(clinic.id, { activeOnly: true }),
     ]);
+    return { settings, services, professionals };
+  };
 
-    const response = await createOpenAIResponse({
-      instructions: buildAgentInstructions({ clinic, services, professionals, settings }),
-      input: message.slice(0, 3000),
-      model: settings.model || DEFAULT_AGENT_MODEL,
-      maxOutputTokens: settings.max_output_tokens || 450,
-      metadata: {
-        product: 'horalis',
-        clinic_id: clinic.id,
-        route: 'agent-preview',
-      },
+  if (action === 'context' && req.method === 'GET') {
+    const runtime = await loadRuntime();
+    return json(res, 200, buildAgentRuntimeContext({ clinic, ...runtime }));
+  }
+
+  if (['preview', 'chat'].includes(action) && req.method === 'POST') {
+    const payload = await readJson(req);
+    const message = String(payload.message || '').trim();
+    if (!message) return badRequest(res, 'Informe uma mensagem para testar o agente.');
+
+    const { settings, services, professionals } = await loadRuntime();
+    const decision = await planAgentAction({
+      message: message.slice(0, 3000),
+      history: payload.history,
+      clinic,
+      services,
+      professionals,
+      settings,
     });
+    const result = await executeAgentPlan(decision.plan, { clinic, services, professionals, settings });
+    const reply = ['answered', 'handoff', 'needs_info'].includes(result.status)
+      ? (result.reply || settings.fallback_message)
+      : await naturalizeAgentResult({ message, result, clinic, services, professionals, settings });
 
     return json(res, 200, {
-      reply: response.text,
-      response_id: response.id,
+      reply,
+      status: result.status,
+      plan: decision.plan,
+      actions: result.actions || [],
+      slots: Array.isArray(result.slots) ? result.slots.slice(0, 10) : [],
+      appointment: result.appointment || null,
+      payment: result.payment || null,
+      response_id: decision.response_id,
       model: settings.model || DEFAULT_AGENT_MODEL,
     });
   }

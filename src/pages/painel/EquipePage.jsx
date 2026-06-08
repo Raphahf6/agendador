@@ -265,7 +265,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
 };
 
 // --- Card de Profissional (Com Tag de Comissão) ---
-const ProfessionalCard = ({ pro, onEdit, onDelete, primaryColor }) => (
+const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all flex items-center justify-between group">
         <div className="flex items-center gap-4">
             {pro.foto_url ? (
@@ -392,7 +392,6 @@ export default function EquipePage() {
                             pro={pro}
                             onEdit={() => { setEditingPro(pro); setIsModalOpen(true); }}
                             onDelete={handleDelete}
-                            primaryColor={primaryColor}
                         />
                     ))}
                 </div>

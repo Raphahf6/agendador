@@ -7,7 +7,6 @@ import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { format, parseISO } from 'date-fns'; // 🌟 parseISO adicionado aqui
-import { ptBR } from 'date-fns/locale';
 import axios from 'axios';
 import { auth } from '@/firebaseConfig';
 import toast from 'react-hot-toast';

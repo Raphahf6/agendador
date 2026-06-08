@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   AlertTriangle,
   Bot,
+  CalendarDays,
+  CheckCircle2,
+  CreditCard,
   Loader2,
   MessageSquareText,
   Power,
@@ -11,13 +13,13 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Users,
+  Wand2,
 } from 'lucide-react';
 
-import { auth } from '@/firebaseConfig';
-import { useSalon } from './PainelLayout';
+import { apiGet, apiPost, apiPut } from '@/lib/horalisApi';
 import { getErrorMessage } from '@/utils/horalisRuntime';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+import { useSalon } from './PainelLayout';
 
 const DEFAULT_SETTINGS = {
   enabled: false,
@@ -31,6 +33,39 @@ const DEFAULT_SETTINGS = {
   model: 'gpt-5.4-mini',
   max_output_tokens: 450,
 };
+
+const PERSONA_PRESETS = [
+  {
+    id: 'acolhedor',
+    label: 'Acolhedor',
+    persona: 'Atendente calorosa, paciente e segura. Trata o cliente pelo nome quando souber, confirma preferencias e passa tranquilidade em cada etapa.',
+    tone: 'Use frases naturais, com gentileza e objetividade. Evite excesso de formalidade. Pergunte uma coisa por vez e confirme dados importantes antes de agir.',
+  },
+  {
+    id: 'premium',
+    label: 'Premium',
+    persona: 'Consultora elegante e precisa. Valoriza experiencia, conforto e cuidado personalizado sem soar distante.',
+    tone: 'Use linguagem refinada, curta e confiante. Evite girias. Reforce disponibilidade, profissionalismo e proximo passo com clareza.',
+  },
+  {
+    id: 'objetivo',
+    label: 'Objetivo',
+    persona: 'Atendente pratica e direta. Resolve o agendamento com o menor numero de mensagens possivel mantendo educacao.',
+    tone: 'Use respostas enxutas. Liste opcoes quando houver horarios. Solicite apenas o dado faltante e evite textos longos.',
+  },
+  {
+    id: 'natural',
+    label: 'Natural',
+    persona: 'Atendente com conversa leve, humana e proxima. Mantem profissionalismo, mas responde como uma pessoa real da recepcao.',
+    tone: 'Use linguagem simples, simpatica e natural. Pode usar pequenas expressoes de acolhimento, sem exageros e sem prometer o que nao foi consultado.',
+  },
+];
+
+const TEST_SCENARIOS = [
+  'Oi, quero ver horarios disponiveis para amanha.',
+  'Quero confirmar um horario hoje a tarde. Meu nome e Ana e meu WhatsApp e 11999999999.',
+  'Preciso marcar com um profissional especifico e pagar o sinal.',
+];
 
 const fieldClass = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100';
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500';
@@ -57,6 +92,35 @@ function textToSamples(value) {
     .slice(0, 12);
 }
 
+function formatCurrency(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function actionLabel(type) {
+  const labels = {
+    list_slots: 'Consultou horarios',
+    create_booking: 'Criou agendamento',
+    create_booking_with_signal: 'Criou agendamento com sinal',
+    slot_unavailable: 'Horario indisponivel',
+    handoff: 'Chamou humano',
+  };
+  return labels[type] || type || 'Acao';
+}
+
 function Section({ icon: Icon, title, children }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -69,12 +133,28 @@ function Section({ icon: Icon, title, children }) {
   );
 }
 
+function Metric({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-50 text-cyan-700">
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</dt>
+        <dd className="truncate text-sm font-bold text-gray-900">{value}</dd>
+      </div>
+    </div>
+  );
+}
+
 export default function AtendimentoAgentPage() {
   const { salaoId, salonDetails } = useSalon();
   const primaryColor = salonDetails?.cor_primaria || '#0E7490';
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [samplesText, setSamplesText] = useState('');
+  const [agentContext, setAgentContext] = useState(null);
+  const [selectedPreset, setSelectedPreset] = useState('acolhedor');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -82,24 +162,30 @@ export default function AtendimentoAgentPage() {
   const [previewReply, setPreviewReply] = useState('');
   const [previewError, setPreviewError] = useState('');
   const [previewing, setPreviewing] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState('');
+  const [previewActions, setPreviewActions] = useState([]);
+  const [previewSlots, setPreviewSlots] = useState([]);
+  const [previewPayment, setPreviewPayment] = useState(null);
+  const [previewAppointment, setPreviewAppointment] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadSettings() {
-      if (!salaoId || !auth.currentUser) return;
+    async function loadAgentData() {
+      if (!salaoId) return;
       setLoading(true);
       setPageError('');
 
       try {
-        const token = await auth.currentUser.getIdToken();
-        const response = await axios.get(`${API_BASE_URL}/admin/agent/${salaoId}/settings`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const [settingsResponse, contextResponse] = await Promise.all([
+          apiGet(`/admin/agent/${salaoId}/settings`),
+          apiGet(`/admin/agent/${salaoId}/context`),
+        ]);
         if (cancelled) return;
-        const normalized = normalizeSettings(response.data);
+        const normalized = normalizeSettings(settingsResponse.data);
         setSettings(normalized);
         setSamplesText(samplesToText(normalized.sample_dialogues));
+        setAgentContext(contextResponse.data || null);
       } catch (err) {
         if (!cancelled) setPageError(getErrorMessage(err, 'Nao foi possivel carregar o agente.'));
       } finally {
@@ -107,14 +193,44 @@ export default function AtendimentoAgentPage() {
       }
     }
 
-    loadSettings();
+    loadAgentData();
     return () => {
       cancelled = true;
     };
   }, [salaoId]);
 
+  const contextMetrics = useMemo(() => {
+    const services = agentContext?.services?.length || 0;
+    const professionals = agentContext?.professionals?.length || 0;
+    const signal = agentContext?.clinic?.cobrar_sinal
+      ? formatCurrency(agentContext.clinic.sinal_valor)
+      : 'Desativado';
+    const calendar = agentContext?.clinic?.google_sync_enabled ? 'Google Agenda' : 'Agenda Horalis';
+
+    return { services, professionals, signal, calendar };
+  }, [agentContext]);
+
   const updateField = (field, value) => {
     setSettings((current) => ({ ...current, [field]: value }));
+  };
+
+  const applyPreset = (preset) => {
+    setSelectedPreset(preset.id);
+    setSettings((current) => ({
+      ...current,
+      persona_summary: preset.persona,
+      tone_instructions: preset.tone,
+    }));
+  };
+
+  const clearPreviewResult = () => {
+    setPreviewError('');
+    setPreviewReply('');
+    setPreviewStatus('');
+    setPreviewActions([]);
+    setPreviewSlots([]);
+    setPreviewPayment(null);
+    setPreviewAppointment(null);
   };
 
   const handleSave = async () => {
@@ -122,15 +238,12 @@ export default function AtendimentoAgentPage() {
     setPageError('');
 
     try {
-      const token = await auth.currentUser.getIdToken();
       const payload = {
         ...settings,
         sample_dialogues: textToSamples(samplesText),
         max_output_tokens: Number(settings.max_output_tokens || DEFAULT_SETTINGS.max_output_tokens),
       };
-      const response = await axios.put(`${API_BASE_URL}/admin/agent/${salaoId}/settings`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiPut(`/admin/agent/${salaoId}/settings`, payload);
       const normalized = normalizeSettings(response.data);
       setSettings(normalized);
       setSamplesText(samplesToText(normalized.sample_dialogues));
@@ -152,17 +265,19 @@ export default function AtendimentoAgentPage() {
     }
 
     setPreviewing(true);
-    setPreviewError('');
-    setPreviewReply('');
+    clearPreviewResult();
 
     try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.post(`${API_BASE_URL}/admin/agent/${salaoId}/preview`, {
+      const response = await apiPost(`/admin/agent/${salaoId}/chat`, {
         message: previewMessage,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
+        history: [],
       });
       setPreviewReply(response.data?.reply || 'Sem resposta.');
+      setPreviewStatus(response.data?.status || '');
+      setPreviewActions(Array.isArray(response.data?.actions) ? response.data.actions : []);
+      setPreviewSlots(Array.isArray(response.data?.slots) ? response.data.slots : []);
+      setPreviewPayment(response.data?.payment || null);
+      setPreviewAppointment(response.data?.appointment || null);
     } catch (err) {
       setPreviewError(getErrorMessage(err, 'Nao foi possivel testar o agente.'));
     } finally {
@@ -209,10 +324,19 @@ export default function AtendimentoAgentPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <dl className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric icon={MessageSquareText} label="Servicos" value={contextMetrics.services} />
+          <Metric icon={Users} label="Profissionais" value={contextMetrics.professionals} />
+          <Metric icon={CreditCard} label="Sinal" value={contextMetrics.signal} />
+          <Metric icon={CalendarDays} label="Agenda" value={contextMetrics.calendar} />
+        </dl>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
         <div className="space-y-6">
           <Section icon={Power} title="Status">
-            <div className="grid gap-4 md:grid-cols-[1fr_1fr_160px]">
+            <div className="grid gap-4 md:grid-cols-[1fr_1fr_170px]">
               <label className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
                 <span className="text-sm font-semibold text-gray-800">Agente ativo</span>
                 <input
@@ -247,9 +371,26 @@ export default function AtendimentoAgentPage() {
           </Section>
 
           <Section icon={Sparkles} title="Persona">
-            <div className="grid gap-4">
+            <div className="space-y-4">
+              <div className="grid gap-2 sm:grid-cols-4">
+                {PERSONA_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                      selectedPreset === preset.id
+                        ? 'border-cyan-500 bg-cyan-50 text-cyan-800'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-cyan-200'
+                    }`}
+                  >
+                    <Wand2 className="h-4 w-4" aria-hidden="true" />
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
               <div>
-                <label className={labelClass}>Resumo da personalidade</label>
+                <label className={labelClass}>Personalidade</label>
                 <textarea
                   className={`${fieldClass} min-h-28 resize-y`}
                   value={settings.persona_summary}
@@ -315,8 +456,23 @@ export default function AtendimentoAgentPage() {
         </div>
 
         <aside className="space-y-6">
-          <Section icon={Bot} title="Preview">
+          <Section icon={Bot} title="Teste">
             <form onSubmit={handlePreview} className="space-y-4">
+              <div className="grid gap-2">
+                {TEST_SCENARIOS.map((scenario) => (
+                  <button
+                    key={scenario}
+                    type="button"
+                    onClick={() => {
+                      setPreviewMessage(scenario);
+                      clearPreviewResult();
+                    }}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-semibold text-gray-700 transition hover:border-cyan-200 hover:bg-cyan-50"
+                  >
+                    {scenario}
+                  </button>
+                ))}
+              </div>
               <div>
                 <label className={labelClass}>Mensagem do cliente</label>
                 <textarea
@@ -331,13 +487,66 @@ export default function AtendimentoAgentPage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Testar resposta
+                Testar atendente
               </button>
             </form>
 
             {(previewReply || previewError) && (
               <div className={`mt-5 rounded-lg border p-4 text-sm ${previewError ? 'border-red-200 bg-red-50 text-red-700' : 'border-cyan-100 bg-cyan-50 text-gray-800'}`}>
                 {previewError || previewReply}
+              </div>
+            )}
+
+            {(previewStatus || previewActions.length > 0) && !previewError && (
+              <div className="mt-4 space-y-3">
+                {previewStatus && (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-gray-700">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-cyan-600" aria-hidden="true" />
+                    {previewStatus}
+                  </div>
+                )}
+                {previewActions.map((action, index) => (
+                  <div key={`${action.type}-${index}`} className="rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
+                    <p className="font-semibold text-gray-900">{actionLabel(action.type)}</p>
+                    {Array.isArray(action.slots) && action.slots.length > 0 && (
+                      <p className="mt-1 text-xs text-gray-500">{action.slots.slice(0, 4).map(formatDateTime).join(' | ')}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {previewSlots.length > 0 && !previewError && (
+              <div className="mt-4">
+                <label className={labelClass}>Horarios</label>
+                <div className="flex flex-wrap gap-2">
+                  {previewSlots.slice(0, 8).map((slot) => (
+                    <span key={slot} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200">
+                      {formatDateTime(slot)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {previewPayment && !previewError && (
+              <div className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                <p className="font-bold">Sinal {formatCurrency(previewPayment.amount)}</p>
+                <p>Status: {previewPayment.status}</p>
+                {previewPayment.qr_code && (
+                  <textarea
+                    readOnly
+                    className="h-24 w-full resize-none rounded-lg border border-emerald-200 bg-white p-2 text-xs text-gray-700 outline-none"
+                    value={previewPayment.qr_code}
+                  />
+                )}
+              </div>
+            )}
+
+            {previewAppointment && !previewError && (
+              <div className="mt-4 rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900">{previewAppointment.serviceName || previewAppointment.service_name || 'Agendamento'}</p>
+                <p>{formatDateTime(previewAppointment.startTime || previewAppointment.start_time)}</p>
               </div>
             )}
           </Section>

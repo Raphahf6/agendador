@@ -111,7 +111,7 @@ export default function ServicosPage() {
     const { salaoId } = useSalon();
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [, setError] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');

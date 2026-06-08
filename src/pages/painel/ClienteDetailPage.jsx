@@ -143,7 +143,6 @@ const AgendamentoServiceModal = ({ isOpen, onClose, cliente, salaoId, onSaveSucc
             setFetchingServices(true);
             const fetchServices = async () => {
                 try {
-                    const token = await auth.currentUser.getIdToken();
                     const response = await axios.get(`${API_BASE_URL}/saloes/${salaoId}/servicos`);
                     setServices(response.data.servicos || []);
                 } catch (err) { console.error(err); } 

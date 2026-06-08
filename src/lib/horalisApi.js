@@ -61,6 +61,14 @@ export async function apiPost(path, data = {}, config = {}) {
   });
 }
 
+export async function apiPut(path, data = {}, config = {}) {
+  const headers = await getAuthHeaders();
+  return axios.put(`${API_BASE_URL}${path}`, data, {
+    ...config,
+    headers: { ...headers, ...(config.headers || {}) },
+  });
+}
+
 export async function apiPatch(path, data = {}, config = {}) {
   const headers = await getAuthHeaders();
   return axios.patch(`${API_BASE_URL}${path}`, data, {

@@ -66,8 +66,8 @@ function Calendar({
       }}
       components={{
         // Removemos a anotação de tipo { className, ...props } mas mantemos a lógica
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />, // Corrigido 'size-4' para h-4 w-4
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />, // Corrigido 'size-4' para h-4 w-4
+        IconLeft: () => <ChevronLeft className="h-4 w-4" />, // Corrigido 'size-4' para h-4 w-4
+        IconRight: () => <ChevronRight className="h-4 w-4" />, // Corrigido 'size-4' para h-4 w-4
       }}
       {...props} // Passa o resto das props para o DayPicker
     />
