@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   AlertTriangle,
@@ -158,6 +159,7 @@ function Metric({ icon: Icon, label, value }) {
 
 export default function AtendimentoAgentPage() {
   const { salaoId, salonDetails } = useSalon();
+  const navigate = useNavigate();
   const primaryColor = salonDetails?.cor_primaria || '#0E7490';
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -177,6 +179,7 @@ export default function AtendimentoAgentPage() {
   const [previewPayment, setPreviewPayment] = useState(null);
   const [previewAppointment, setPreviewAppointment] = useState(null);
   const [previewRoute, setPreviewRoute] = useState('');
+  const [previewHistory, setPreviewHistory] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +247,12 @@ export default function AtendimentoAgentPage() {
     setPreviewRoute('');
   };
 
+  const resetPreviewConversation = () => {
+    clearPreviewResult();
+    setPreviewHistory([]);
+    setPreviewMessage('Oi, gostaria de marcar uma avaliacao essa semana.');
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setPageError('');
@@ -279,9 +288,12 @@ export default function AtendimentoAgentPage() {
     clearPreviewResult();
 
     try {
+      const messageToSend = previewMessage.trim();
+      const historyBefore = previewHistory;
+      const userEntry = { role: 'user', content: messageToSend };
       const response = await apiPost(`/admin/agent/${salaoId}/chat`, {
-        message: previewMessage,
-        history: [],
+        message: messageToSend,
+        history: historyBefore,
       });
       setPreviewReply(response.data?.reply || 'Sem resposta.');
       setPreviewStatus(response.data?.status || '');
@@ -290,6 +302,23 @@ export default function AtendimentoAgentPage() {
       setPreviewPayment(response.data?.payment || null);
       setPreviewAppointment(response.data?.appointment || null);
       setPreviewRoute(response.data?.routed_by || '');
+      setPreviewHistory([
+        ...historyBefore,
+        userEntry,
+        {
+          role: 'assistant',
+          content: response.data?.reply || 'Sem resposta.',
+          status: response.data?.status || '',
+          routed_by: response.data?.routed_by || '',
+          field: response.data?.field || '',
+          plan: response.data?.plan || null,
+          actions: Array.isArray(response.data?.actions) ? response.data.actions : [],
+          slots: Array.isArray(response.data?.slots) ? response.data.slots : [],
+          appointment: response.data?.appointment || null,
+          payment: response.data?.payment || null,
+        },
+      ]);
+      setPreviewMessage('');
     } catch (err) {
       setPreviewError(getErrorMessage(err, 'Nao foi possivel testar o agente.'));
     } finally {
@@ -501,6 +530,7 @@ export default function AtendimentoAgentPage() {
                     key={scenario}
                     type="button"
                     onClick={() => {
+                      setPreviewHistory([]);
                       setPreviewMessage(scenario);
                       clearPreviewResult();
                     }}
@@ -510,6 +540,30 @@ export default function AtendimentoAgentPage() {
                   </button>
                 ))}
               </div>
+              {previewHistory.length > 0 && (
+                <div className="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  {previewHistory.map((entry, index) => (
+                    <div
+                      key={`${entry.role}-${index}`}
+                      className={`flex ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[88%] rounded-lg px-3 py-2 text-sm ${
+                        entry.role === 'user'
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-white text-gray-800 ring-1 ring-gray-200'
+                      }`}
+                      >
+                        <p className="whitespace-pre-wrap">{entry.content}</p>
+                        {entry.role === 'assistant' && entry.routed_by && (
+                          <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                            {routeLabel(entry.routed_by)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Mensagem do cliente</label>
                 <textarea
@@ -525,6 +579,13 @@ export default function AtendimentoAgentPage() {
               >
                 {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Testar atendente
+              </button>
+              <button
+                type="button"
+                onClick={resetPreviewConversation}
+                className="inline-flex w-full items-center justify-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+              >
+                Limpar conversa
               </button>
             </form>
 
@@ -586,9 +647,17 @@ export default function AtendimentoAgentPage() {
             )}
 
             {previewAppointment && !previewError && (
-              <div className="mt-4 rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
+              <div className="mt-4 space-y-3 rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
                 <p className="font-semibold text-gray-900">{previewAppointment.serviceName || previewAppointment.service_name || 'Agendamento'}</p>
                 <p>{formatDateTime(previewAppointment.startTime || previewAppointment.start_time)}</p>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/painel/${salaoId}/calendario`)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-cyan-800"
+                >
+                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                  Abrir agenda
+                </button>
               </div>
             )}
           </Section>

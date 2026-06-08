@@ -728,6 +728,7 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     'Use o exemplo completo como referencia de estilo, ritmo, ordem das perguntas e forma de confirmar dados.',
     'Nunca copie nomes, telefones, datas ou horarios ficticios do exemplo completo; use apenas dados reais do contexto ou do cliente.',
     'Quando o cliente pedir para marcar, remarcar, cancelar ou confirmar horario, colete os dados necessarios e diga que vai consultar a agenda antes de confirmar.',
+    'Sempre que perguntar qual servico o cliente deseja, liste os servicos cadastrados em linhas curtas.',
     'Se faltar informacao, faca uma pergunta curta por vez.',
     'Se a pergunta sair do escopo da clinica ou houver incerteza, use a mensagem de fallback ou encaminhe para humano.',
     '',
@@ -1029,6 +1030,231 @@ function formatCurrencyBRL(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 }
 
+function formatServiceOptions(services, maxItems = 8) {
+  const list = services.slice(0, maxItems).map((service, index) => {
+    const price = Number(service.preco || 0);
+    const duration = Number(service.duracao_minutos || 30);
+    return `${index + 1}. ${service.nome_servico} - ${formatCurrencyBRL(price)} (${duration} min)`;
+  });
+  return list.join('\n');
+}
+
+function serviceQuestionReply(services, intro = 'Qual servico voce gostaria de agendar?') {
+  const options = formatServiceOptions(services);
+  return options ? `${intro}\n\nServicos disponiveis:\n${options}` : intro;
+}
+
+function extractPhoneFromMessage(message) {
+  const candidates = String(message || '').match(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-.\s]?\d{4}/g) || [];
+  const phone = cleanPhone(candidates[0] || '');
+  return phone.length >= 10 ? phone : '';
+}
+
+function extractEmailFromMessage(message) {
+  return String(message || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+}
+
+function titleName(value) {
+  return normalizeAgentText(value)
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+}
+
+function extractNameFromMessage(message, { expected = false } = {}) {
+  const withoutContact = String(message || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
+    .replace(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-.\s]?\d{4}/g, ' ');
+  const normalized = normalizeAgentText(withoutContact);
+  const explicit = normalized.match(/\b(?:meu nome e|me chamo|sou)\s+([a-z\s]{3,80})/);
+  if (explicit) return titleName(explicit[1]);
+
+  if (!expected) return '';
+  if (parseMessageDate(message) || wantsScheduling(message) || wantsPrice(message) || wantsHuman(message)) return '';
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.length < 2 || words.length > 5) return '';
+  if (words.some((word) => word.length < 2 || /\d/.test(word))) return '';
+  return titleName(words.join(' '));
+}
+
+function isConfirmation(message) {
+  const text = normalizeAgentText(message);
+  return hasAnyTerm(text, ['sim', 'pode confirmar', 'confirmar', 'confirmado', 'fechado', 'pode ser', 'isso mesmo', 'esta correto', 'ta certo']);
+}
+
+function slotTimeParts(slot) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(slot));
+  const get = (type) => Number(parts.find((part) => part.type === type)?.value || 0);
+  return { hour: get('hour'), minute: get('minute') };
+}
+
+function extractSlotChoice(message, slots = []) {
+  if (!slots.length) return null;
+  const text = normalizeAgentText(message);
+  const ordinal = [
+    ['primeiro', 0],
+    ['primeira', 0],
+    ['1', 0],
+    ['segundo', 1],
+    ['segunda', 1],
+    ['2', 1],
+    ['terceiro', 2],
+    ['terceira', 2],
+    ['3', 2],
+  ].find(([term]) => text.split(' ').includes(term));
+  if (ordinal && slots[ordinal[1]]) return slots[ordinal[1]];
+
+  const time = text.match(/\b(\d{1,2})(?:h|:)?(\d{2})?\b/);
+  if (!time) return null;
+  const hour = Number(time[1]);
+  const minute = Number(time[2] || 0);
+  return slots.find((slot) => {
+    const parts = slotTimeParts(slot);
+    return parts.hour === hour && parts.minute === minute;
+  }) || null;
+}
+
+function collectHybridContext(history = [], services = [], professionals = []) {
+  const context = {
+    service_id: null,
+    professional_id: null,
+    date: null,
+    start_time: null,
+    customer_name: '',
+    customer_phone: '',
+    customer_email: '',
+    slots: [],
+    field: null,
+    appointment: null,
+  };
+
+  for (const entry of Array.isArray(history) ? history : []) {
+    const role = entry?.role;
+    const content = String(entry?.content || entry?.reply || '');
+
+    if (role === 'assistant') {
+      const plan = entry.plan || {};
+      if (plan.service_id) context.service_id = plan.service_id;
+      if (plan.professional_id) context.professional_id = plan.professional_id;
+      if (plan.date) context.date = plan.date;
+      if (plan.start_time) context.start_time = plan.start_time;
+      if (plan.customer_name) context.customer_name = plan.customer_name;
+      if (plan.customer_phone) context.customer_phone = plan.customer_phone;
+      if (plan.customer_email) context.customer_email = plan.customer_email;
+      if (plan.field) context.field = plan.field;
+      if (entry.field) context.field = entry.field;
+      if (Array.isArray(entry.slots) && entry.slots.length) context.slots = entry.slots;
+      if (entry.appointment) context.appointment = entry.appointment;
+      for (const action of entry.actions || []) {
+        if (action.service_id) context.service_id = action.service_id;
+        if (action.professional_id) context.professional_id = action.professional_id;
+        if (action.date) context.date = action.date;
+        if (Array.isArray(action.slots) && action.slots.length) context.slots = action.slots;
+      }
+      continue;
+    }
+
+    if (role === 'user') {
+      const service = findServiceInMessage(content, services);
+      if (service) context.service_id = service.id;
+      const professional = findProfessionalInMessage(content, professionals);
+      if (professional) context.professional_id = professional.id;
+      const date = parseMessageDate(content);
+      if (date) context.date = date;
+      const slot = extractSlotChoice(content, context.slots);
+      if (slot) context.start_time = slot;
+      const phone = extractPhoneFromMessage(content);
+      if (phone) context.customer_phone = phone;
+      const email = extractEmailFromMessage(content);
+      if (email) context.customer_email = email;
+      const name = extractNameFromMessage(content, { expected: context.field === 'customer_name' });
+      if (name) context.customer_name = name;
+    }
+  }
+
+  return context;
+}
+
+async function createHybridAppointment({ clinic, service, professionals, startTime, professionalId, customerName, customerPhone, customerEmail, notes }) {
+  const professional = professionals.find((item) => item.id === professionalId) || null;
+  const signalValue = Number(clinic.sinal_valor || 0);
+  const appointmentPayload = {
+    salao_id: clinic.slug,
+    service_id: service.id,
+    service_name: service.nome_servico,
+    service_price: Number(service.preco || 0),
+    professional_id: professional?.id || professionalId || null,
+    professional_name: professional?.nome || null,
+    start_time: startTime,
+    duration_minutes: Number(service.duracao_minutos || 30),
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_email: customerEmail || null,
+    notes: notes || 'Agendamento criado pelo atendimento hibrido Horalis.',
+  };
+
+  if (signalValue > 0) {
+    const payment = await createMercadoPagoPayment({
+      transaction_amount: signalValue,
+      payment_method_id: 'pix',
+      payer: {
+        email: customerEmail,
+        first_name: firstName(customerName),
+      },
+    }, {
+      description: `Sinal de agendamento - ${service.nome_servico}`,
+      external_reference: clinic.slug,
+      idempotency_key: `hybrid-${clinic.id}-${service.id}-${new Date(startTime).getTime()}-${cleanPhone(customerPhone)}`,
+    });
+
+    const appointment = await createAppointmentFromPayload(clinic, {
+      ...appointmentPayload,
+      status: appointmentStatusFromPayment(payment.status),
+    }, {
+      status: payment.status,
+      payment_id: payment.id,
+    });
+    const transaction = payment.point_of_interaction?.transaction_data || {};
+
+    return {
+      status: 'payment_created',
+      appointment: appointmentToClient(appointment),
+      payment: {
+        status: payment.status,
+        payment_id: payment.id,
+        qr_code: transaction.qr_code,
+        qr_code_base64: transaction.qr_code_base64,
+        amount: signalValue,
+      },
+      actions: [{
+        type: 'create_booking_with_signal',
+        appointment_id: appointment.id,
+        payment_id: payment.id,
+        amount: signalValue,
+      }],
+      reply: `Agendamento pre-reservado para ${formatSlot(startTime)}. Para confirmar, envie o PIX do sinal de ${formatCurrencyBRL(signalValue)}.`,
+    };
+  }
+
+  const appointment = await createAppointmentFromPayload(clinic, appointmentPayload, { status: 'free' });
+  return {
+    status: 'booking_created',
+    appointment: appointmentToClient(appointment),
+    payment: null,
+    actions: [{
+      type: 'create_booking',
+      appointment_id: appointment.id,
+    }],
+    reply: `Prontinho, ${firstName(customerName)}. Seu horario ficou confirmado para ${formatSlot(startTime)}.`,
+  };
+}
+
 function hybridResult(status, reply, extra = {}) {
   return {
     status,
@@ -1041,11 +1267,20 @@ function hybridResult(status, reply, extra = {}) {
 
 async function tryHybridAgentResponse({ message, history, clinic, services, professionals, settings }) {
   const isFirstTurn = !Array.isArray(history) || history.length === 0;
-  const service = findServiceInMessage(message, services);
-  const professional = findProfessionalInMessage(message, professionals);
-  const date = parseMessageDate(message);
+  const context = collectHybridContext(history, services, professionals);
+  const currentService = findServiceInMessage(message, services);
+  const service = currentService || services.find((item) => item.id === context.service_id) || null;
+  const currentProfessional = findProfessionalInMessage(message, professionals);
+  const professionalId = currentProfessional?.id || context.professional_id || null;
+  const currentDate = parseMessageDate(message);
+  const date = currentDate || context.date;
   const period = detectPeriod(message);
   const schedulingIntent = wantsScheduling(message);
+  const selectedSlot = context.start_time || extractSlotChoice(message, context.slots);
+  const customerName = extractNameFromMessage(message, { expected: context.field === 'customer_name' }) || context.customer_name;
+  const customerPhone = extractPhoneFromMessage(message) || context.customer_phone;
+  const customerEmail = extractEmailFromMessage(message) || context.customer_email;
+  const signalValue = Number(clinic.sinal_valor || 0);
 
   if (wantsHuman(message)) {
     return hybridResult('handoff', settings.handoff_message, {
@@ -1062,9 +1297,9 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
   if (wantsPrice(message)) {
     if (!service) {
-      return hybridResult('needs_info', 'Claro. Qual servico voce gostaria de consultar?', {
+      return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de consultar?'), {
         field: 'service_id',
-        plan: { action: 'answer', confidence: 0.95 },
+        plan: { action: 'answer', field: 'service_id', confidence: 0.95 },
       });
     }
 
@@ -1076,6 +1311,78 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     });
   }
 
+  if (selectedSlot && service) {
+    const bookingDate = date || datePart(selectedSlot);
+    const basePlan = {
+      action: 'confirm_booking',
+      service_id: service.id,
+      professional_id: professionalId,
+      date: bookingDate,
+      start_time: selectedSlot,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_email: customerEmail,
+      confidence: 0.95,
+    };
+
+    if (!customerName) {
+      return hybridResult('needs_info', `Perfeito, separei ${formatSlot(selectedSlot)} para ${service.nome_servico}. Me passa seu nome completo para eu finalizar, por favor?`, {
+        field: 'customer_name',
+        plan: { ...basePlan, field: 'customer_name' },
+      });
+    }
+
+    if (!customerPhone) {
+      return hybridResult('needs_info', `Obrigado, ${firstName(customerName)}. Me passa seu WhatsApp para eu finalizar o agendamento, por favor?`, {
+        field: 'customer_phone',
+        plan: { ...basePlan, field: 'customer_phone' },
+      });
+    }
+
+    if (signalValue > 0 && !customerEmail) {
+      return hybridResult('needs_info', 'Para gerar o PIX do sinal, me passa tambem seu e-mail.', {
+        field: 'customer_email',
+        plan: { ...basePlan, customer_phone: customerPhone, field: 'customer_email' },
+      });
+    }
+
+    if (!isConfirmation(message) || context.field !== 'confirm_booking') {
+      return hybridResult('needs_confirmation', `Vou confirmar: ${service.nome_servico} em ${formatSlot(selectedSlot)} para ${customerName}. Posso confirmar?`, {
+        field: 'confirm_booking',
+        plan: {
+          ...basePlan,
+          customer_phone: customerPhone,
+          customer_email: customerEmail,
+          field: 'confirm_booking',
+        },
+      });
+    }
+
+    const created = await createHybridAppointment({
+      clinic,
+      service,
+      professionals,
+      startTime: selectedSlot,
+      professionalId,
+      customerName,
+      customerPhone,
+      customerEmail,
+    });
+
+    return hybridResult(created.status, created.reply, {
+      appointment: created.appointment,
+      payment: created.payment,
+      actions: created.actions,
+      plan: {
+        ...basePlan,
+        action: 'create_booking',
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
+        confidence: 1,
+      },
+    });
+  }
+
   if (isGreetingOnly(message) || (isFirstTurn && schedulingIntent && !service && !date)) {
     return hybridResult('answered', settings.opening_message || defaultAgentSettings(clinic).opening_message, {
       plan: { action: 'answer', confidence: 1 },
@@ -1083,9 +1390,9 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (date && !service && (schedulingIntent || isFirstTurn)) {
-    return hybridResult('needs_info', 'Perfeito. Qual servico voce gostaria de agendar?', {
+    return hybridResult('needs_info', serviceQuestionReply(services, 'Perfeito. Qual servico voce gostaria de agendar?'), {
       field: 'service_id',
-      plan: { action: 'answer', date, confidence: 0.9 },
+      plan: { action: 'answer', date, field: 'service_id', confidence: 0.9 },
     });
   }
 
@@ -1093,7 +1400,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     return hybridResult('needs_info', `Perfeito, para ${service.nome_servico}. ${settings.opening_message || 'Me passa o melhor dia e horario para voce, por favor?'}`, {
       field: 'date',
       service,
-      plan: { action: 'answer', service_id: service.id, confidence: 0.9 },
+      plan: { action: 'answer', service_id: service.id, field: 'date', confidence: 0.9 },
     });
   }
 
@@ -1101,7 +1408,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     const { slots, professional: selectedProfessional } = await getAvailableSlotsForClinic(clinic, {
       serviceId: service.id,
       date,
-      professionalId: professional?.id || null,
+      professionalId,
     });
     const filteredSlots = filterSlotsByPeriod(slots, period);
     const usableSlots = filteredSlots.length ? filteredSlots : slots;
@@ -1110,19 +1417,19 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
       ? `Encontrei estes horarios para ${service.nome_servico}${periodLabel(period)}: ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}. Qual deles fica melhor para voce?`
       : `Nao encontrei horarios livres para ${service.nome_servico}${periodLabel(period)} nessa data.`, {
       service,
-      professional: selectedProfessional || professional,
+      professional: selectedProfessional || professionals.find((item) => item.id === professionalId) || null,
       slots: usableSlots,
       actions: [{
         type: 'hybrid_list_slots',
         service_id: service.id,
         date,
-        professional_id: selectedProfessional?.id || professional?.id || null,
+        professional_id: selectedProfessional?.id || professionalId,
         slots: usableSlots.slice(0, 10),
       }],
       plan: {
         action: 'list_slots',
         service_id: service.id,
-        professional_id: selectedProfessional?.id || professional?.id || null,
+        professional_id: selectedProfessional?.id || professionalId,
         date,
         confidence: 0.95,
       },
@@ -1150,6 +1457,7 @@ function buildAgentDecisionInstructions({ clinic, services, professionals, setti
     '- Se for o primeiro contato e o cliente mandou apenas saudacao ou mensagem vaga, use answer com a mensagem inicial configurada como base.',
     '- Se o cliente ja informou servico, data, horario ou preferencia concreta, nao reinicie o fluxo; continue a partir do dado recebido.',
     '- Se faltar servico, data, horario, nome ou telefone, use answer e pergunte apenas o proximo dado.',
+    '- Se for perguntar qual servico, inclua a lista de servicos disponiveis do contexto.',
     '- Se o cliente pedir opcoes de horario, use list_slots.',
     '- Se houver duvida, use answer ou handoff.',
     '',
@@ -1256,7 +1564,7 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
   }
 
   const service = services.find((item) => item.id === plan.service_id);
-  if (!service) return missingFieldResult('service_id', 'Qual servico voce gostaria de agendar?');
+  if (!service) return missingFieldResult('service_id', serviceQuestionReply(services));
 
   if (plan.action === 'list_slots') {
     if (!plan.date) return missingFieldResult('date', 'Para qual dia voce gostaria de ver horarios?');
@@ -1519,6 +1827,7 @@ async function handleAgent(req, res, user, parts) {
         status: hybrid.status,
         plan: hybrid.plan || null,
         actions: hybrid.actions || [],
+        field: hybrid.field || null,
         slots: Array.isArray(hybrid.slots) ? hybrid.slots.slice(0, 10) : [],
         appointment: hybrid.appointment || null,
         payment: hybrid.payment || null,
@@ -1546,6 +1855,7 @@ async function handleAgent(req, res, user, parts) {
       status: result.status,
       plan: decision.plan,
       actions: result.actions || [],
+      field: result.field || null,
       slots: Array.isArray(result.slots) ? result.slots.slice(0, 10) : [],
       appointment: result.appointment || null,
       payment: result.payment || null,
