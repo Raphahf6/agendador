@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { format, differenceInMinutes, isBefore, parse, setHours, setMinutes } from 'date-fns';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { format, differenceInMinutes, parse, setHours, setMinutes } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
   Calendar as CalendarIcon,
@@ -21,6 +21,97 @@ import { apiDelete, apiPatch, apiPost, fetchAppointments, fetchClinic } from '@/
 import { useSalon } from './PainelLayout';
 
 const HORALIS_EVENT_COLORS = ['#3788D8', '#1B9AAA', '#7C3AED', '#37D88B', '#EC4899', '#F59E0B', '#10B981'];
+const DEFAULT_CALENDAR_SCHEDULE = {
+  sunday: { isOpen: false, openTime: '09:00', closeTime: '18:00' },
+  monday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+  tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+  wednesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+  thursday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+  friday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+  saturday: { isOpen: true, openTime: '09:00', closeTime: '13:00' },
+};
+const FULLCALENDAR_WEEKDAYS = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+const CALENDAR_FOLLOW_OFFSET_MINUTES = 60;
+
+function padTimeUnit(value) {
+  return String(value).padStart(2, '0');
+}
+
+function minutesFromTime(value, fallback = 0) {
+  const [hours, minutes] = String(value || '').split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return fallback;
+  return Math.min(1440, Math.max(0, (hours * 60) + minutes));
+}
+
+function timeFromMinutes(totalMinutes) {
+  const safeMinutes = Math.min(1440, Math.max(0, Math.round(totalMinutes)));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+  return `${padTimeUnit(hours)}:${padTimeUnit(minutes)}:00`;
+}
+
+function roundToNextQuarter(date = new Date()) {
+  const next = new Date(date);
+  next.setSeconds(0, 0);
+  const remainder = next.getMinutes() % 15;
+  if (remainder > 0) next.setMinutes(next.getMinutes() + (15 - remainder));
+  if (next.getTime() < Date.now()) next.setMinutes(next.getMinutes() + 15);
+  return next;
+}
+
+function isPastDateTime(date) {
+  return date instanceof Date && date.getTime() < Date.now();
+}
+
+function serviceAllowsProfessional(serviceId, professional) {
+  const services = Array.isArray(professional?.servicos) ? professional.servicos.map(String) : [];
+  return !serviceId || services.length === 0 || services.includes(String(serviceId));
+}
+
+function buildCalendarScheduleSettings(schedule = {}, now = new Date()) {
+  const normalized = { ...DEFAULT_CALENDAR_SCHEDULE, ...(schedule || {}) };
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  let minMinutes = 23 * 60;
+  let maxMinutes = 0;
+
+  const businessHours = Object.entries(normalized)
+    .filter(([, day]) => day?.isOpen)
+    .map(([key, day]) => {
+      const open = minutesFromTime(day.openTime, 9 * 60);
+      const close = minutesFromTime(day.closeTime, 18 * 60);
+      minMinutes = Math.min(minMinutes, open);
+      maxMinutes = Math.max(maxMinutes, close);
+      return {
+        daysOfWeek: [FULLCALENDAR_WEEKDAYS[key]],
+        startTime: day.openTime || '09:00',
+        endTime: day.closeTime || '18:00',
+      };
+    })
+    .filter((item) => Number.isInteger(item.daysOfWeek[0]));
+
+  if (!businessHours.length) {
+    minMinutes = 7 * 60;
+    maxMinutes = 23 * 60;
+  }
+
+  minMinutes = Math.min(minMinutes, Math.max(0, nowMinutes - CALENDAR_FOLLOW_OFFSET_MINUTES));
+  maxMinutes = Math.max(maxMinutes, Math.min(1440, nowMinutes + CALENDAR_FOLLOW_OFFSET_MINUTES));
+
+  return {
+    businessHours,
+    slotMinTime: timeFromMinutes(Math.max(0, minMinutes - 30)),
+    slotMaxTime: timeFromMinutes(Math.min(1440, maxMinutes + 30)),
+    scrollTime: timeFromMinutes(Math.max(0, nowMinutes - CALENDAR_FOLLOW_OFFSET_MINUTES)),
+  };
+}
 
 const Icon = ({ icon: IconComponent, className = '' }) => (
   <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
@@ -214,34 +305,50 @@ function EventDetailsModal({ isOpen, onClose, event, salaoId, onCancelSuccess })
   );
 }
 
-function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initialDuration, onSaveSuccess, services, primaryColor }) {
+function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initialDuration, onSaveSuccess, services = [], professionals = [], primaryColor }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [serviceId, setServiceId] = useState('');
+  const [professionalId, setProfessionalId] = useState('');
   const [duration, setDuration] = useState(initialDuration || 30);
-  const [date, setDate] = useState(initialDateTime ? new Date(initialDateTime) : new Date());
-  const [time, setTime] = useState(initialDateTime ? format(new Date(initialDateTime), 'HH:mm') : '09:00');
+  const [date, setDate] = useState(initialDateTime ? new Date(initialDateTime) : roundToNextQuarter());
+  const [time, setTime] = useState(initialDateTime ? format(new Date(initialDateTime), 'HH:mm') : format(roundToNextQuarter(), 'HH:mm'));
   const [loading, setLoading] = useState(false);
+
+  const activeServices = useMemo(
+    () => services.filter((service) => service?.active !== false),
+    [services],
+  );
+  const eligibleProfessionals = useMemo(
+    () => professionals
+      .filter((professional) => professional?.active !== false)
+      .filter((professional) => serviceAllowsProfessional(serviceId, professional)),
+    [professionals, serviceId],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
+    const nextStart = initialDateTime ? new Date(initialDateTime) : roundToNextQuarter();
     setName('');
     setPhone('');
     setEmail('');
     setServiceId('');
-    if (initialDateTime) {
-      setDate(initialDateTime);
-      setTime(format(initialDateTime, 'HH:mm'));
-    }
+    setProfessionalId('');
+    setDate(nextStart);
+    setTime(format(nextStart, 'HH:mm'));
     setDuration(initialDuration || 30);
   }, [isOpen, initialDateTime, initialDuration]);
 
   const handleServiceChange = (event) => {
     const sid = event.target.value;
     setServiceId(sid);
-    const service = services.find((item) => item.id === sid);
+    const service = activeServices.find((item) => item.id === sid);
     if (service) setDuration(service.duracao_minutos || 30);
+    if (professionalId) {
+      const professional = professionals.find((item) => item.id === professionalId);
+      if (!serviceAllowsProfessional(sid, professional)) setProfessionalId('');
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -250,7 +357,23 @@ function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initial
     try {
       const [hours, minutes] = time.split(':').map(Number);
       const finalDate = setMinutes(setHours(date, hours), minutes);
-      const service = services.find((item) => item.id === serviceId);
+      const service = activeServices.find((item) => item.id === serviceId);
+      const professional = eligibleProfessionals.find((item) => item.id === professionalId);
+
+      if (Number.isNaN(finalDate.getTime())) {
+        toast.error('Informe uma data e horario validos.');
+        return;
+      }
+
+      if (!service) {
+        toast.error('Selecione um servico ativo.');
+        return;
+      }
+
+      if (isPastDateTime(finalDate)) {
+        toast.error('Nao e possivel agendar no passado.');
+        return;
+      }
 
       await apiPost('/admin/calendario/agendar', {
         salao_id: salaoId,
@@ -262,6 +385,8 @@ function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initial
         service_id: serviceId,
         service_name: service?.nome_servico || 'Servico Manual',
         service_price: Number(service?.preco || 0),
+        professional_id: professional?.id || null,
+        professional_name: professional?.nome || null,
       });
 
       toast.success('Agendado com sucesso!');
@@ -276,9 +401,14 @@ function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initial
 
   if (!isOpen) return null;
 
+  const selectedDateText = format(date, 'yyyy-MM-dd');
+  const todayText = format(new Date(), 'yyyy-MM-dd');
+  const selectedDateIsToday = selectedDateText === todayText;
+  const minTime = selectedDateIsToday ? format(roundToNextQuarter(), 'HH:mm') : undefined;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Novo Agendamento Manual</h2>
           <button onClick={onClose} aria-label="Fechar">
@@ -289,11 +419,11 @@ function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initial
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">Data</label>
-              <input type="date" value={format(date, 'yyyy-MM-dd')} onChange={(event) => setDate(parse(event.target.value, 'yyyy-MM-dd', new Date()))} className="w-full rounded-lg border p-2 text-sm outline-none focus:ring-2 focus:ring-opacity-50" style={{ borderColor: primaryColor, '--tw-ring-color': primaryColor }} />
+              <input type="date" min={todayText} value={selectedDateText} onChange={(event) => setDate(parse(event.target.value, 'yyyy-MM-dd', new Date()))} className="w-full rounded-lg border p-2 text-sm outline-none focus:ring-2 focus:ring-opacity-50" style={{ borderColor: primaryColor, '--tw-ring-color': primaryColor }} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">Hora</label>
-              <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="w-full rounded-lg border p-2 text-sm outline-none focus:ring-2 focus:ring-opacity-50" style={{ borderColor: primaryColor, '--tw-ring-color': primaryColor }} />
+              <input type="time" min={minTime} value={time} onChange={(event) => setTime(event.target.value)} className="w-full rounded-lg border p-2 text-sm outline-none focus:ring-2 focus:ring-opacity-50" style={{ borderColor: primaryColor, '--tw-ring-color': primaryColor }} />
             </div>
           </div>
 
@@ -317,13 +447,27 @@ function ManualBookingModal({ isOpen, onClose, salaoId, initialDateTime, initial
             <label className="mb-1 block text-xs font-medium text-gray-500">Servico*</label>
             <select value={serviceId} onChange={handleServiceChange} className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm outline-none" required>
               <option value="">Selecione um servico...</option>
-              {services.map((service) => (
+              {activeServices.map((service) => (
                 <option key={service.id} value={service.id}>
                   {service.nome_servico} ({service.duracao_minutos} min)
                 </option>
               ))}
             </select>
           </div>
+
+          {professionals.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Profissional</label>
+              <select value={professionalId} onChange={(event) => setProfessionalId(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-white p-2 text-sm outline-none">
+                <option value="">Agenda geral</option>
+                {eligibleProfessionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <button type="submit" disabled={loading} className="mt-2 w-full rounded-xl py-3 font-bold text-white shadow-md transition-opacity hover:opacity-90" style={{ backgroundColor: primaryColor }}>
             {loading ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Salvar Agendamento'}
@@ -340,6 +484,7 @@ export default function CalendarioPage() {
 
   const [events, setEvents] = useState([]);
   const [services, setServices] = useState([]);
+  const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -351,10 +496,15 @@ export default function CalendarioPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [currentView, setCurrentView] = useState(window.innerWidth < 768 ? 'timeGridDay' : 'timeGridWeek');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const calendarRef = useRef(null);
   const isInitialLoad = useRef(true);
   const knownAppointmentIds = useRef(new Set());
+  const calendarScheduleSettings = useMemo(
+    () => buildCalendarScheduleSettings(salonDetails?.horario_trabalho_detalhado, new Date(nowTick)),
+    [salonDetails?.horario_trabalho_detalhado, nowTick],
+  );
 
   const loadAppointments = useCallback(async ({ silent = false } = {}) => {
     if (!salaoId || !auth.currentUser) {
@@ -420,40 +570,76 @@ export default function CalendarioPage() {
   }, [loadAppointments]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
-    async function loadServices() {
+    async function loadCalendarResources() {
       if (!salaoId || !auth.currentUser) return;
       try {
         const clinic = await fetchClinic(salaoId);
-        if (!cancelled) setServices(Array.isArray(clinic.servicos) ? clinic.servicos : []);
+        if (!cancelled) {
+          setServices(Array.isArray(clinic.servicos) ? clinic.servicos.filter((service) => service?.active !== false) : []);
+          setProfessionals(Array.isArray(clinic.profissionais) ? clinic.profissionais.filter((professional) => professional?.active !== false) : []);
+        }
       } catch (err) {
         if (!cancelled) {
           setServices([]);
+          setProfessionals([]);
           toast.error('Nao foi possivel carregar os servicos.');
         }
       }
     }
-    loadServices();
+    loadCalendarResources();
     return () => { cancelled = true; };
   }, [salaoId]);
 
-  const getCalendarApi = () => calendarRef.current?.getApi();
-  const handleTodayClick = () => { getCalendarApi()?.today(); setCurrentDate(new Date()); };
+  const getCalendarApi = useCallback(() => calendarRef.current?.getApi(), []);
+  const scrollCalendarToCurrentTime = useCallback(() => {
+    const api = getCalendarApi();
+    if (!api || !String(api.view.type || '').startsWith('timeGrid')) return;
+
+    const now = new Date();
+    if (now < api.view.activeStart || now >= api.view.activeEnd) return;
+
+    const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+    api.scrollToTime(timeFromMinutes(Math.max(0, nowMinutes - CALENDAR_FOLLOW_OFFSET_MINUTES)));
+  }, [getCalendarApi]);
+
+  useEffect(() => {
+    const initialScroll = window.setTimeout(scrollCalendarToCurrentTime, 250);
+    const timer = window.setInterval(scrollCalendarToCurrentTime, 60000);
+    return () => {
+      window.clearTimeout(initialScroll);
+      window.clearInterval(timer);
+    };
+  }, [scrollCalendarToCurrentTime, currentView, currentDate]);
+
+  const handleTodayClick = () => {
+    getCalendarApi()?.today();
+    setCurrentDate(new Date());
+    window.setTimeout(scrollCalendarToCurrentTime, 80);
+  };
   const handlePrevClick = () => getCalendarApi()?.prev();
   const handleNextClick = () => getCalendarApi()?.next();
   const handleViewChange = (newView) => {
     getCalendarApi()?.changeView(newView);
     setCurrentView(newView);
+    window.setTimeout(scrollCalendarToCurrentTime, 80);
   };
   const handleDateSelect = (date) => {
     if (!date) return;
     getCalendarApi()?.gotoDate(date);
     setCurrentDate(date);
+    window.setTimeout(scrollCalendarToCurrentTime, 80);
   };
   const handleDatesSet = (dateInfo) => {
     setCalendarTitle(dateInfo.view.title);
     setCurrentDate(dateInfo.view.currentStart);
     setCurrentView(dateInfo.view.type);
+    window.setTimeout(scrollCalendarToCurrentTime, 80);
   };
 
   const handleEventClick = (clickInfo) => {
@@ -481,7 +667,7 @@ export default function CalendarioPage() {
       calendarRef.current?.getApi().unselect();
       return;
     }
-    if (isBefore(selectInfo.start, new Date())) {
+    if (isPastDateTime(selectInfo.start)) {
       toast.error('Horario passado nao permitido.');
       calendarRef.current?.getApi().unselect();
       return;
@@ -495,7 +681,7 @@ export default function CalendarioPage() {
 
   const handleEventDrop = useCallback(async (dropInfo) => {
     const { event } = dropInfo;
-    if (isBefore(event.start, new Date())) {
+    if (isPastDateTime(event.start)) {
       toast.error('Nao e possivel reagendar para o passado.');
       dropInfo.revert();
       return;
@@ -535,7 +721,7 @@ export default function CalendarioPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-gray-50 font-sans">
+    <div className="flex h-[calc(100vh-8rem)] min-h-[620px] flex-col overflow-hidden bg-gray-50 font-sans sm:h-[calc(100vh-5rem)]">
       <CalendarHeader
         onToday={handleTodayClick}
         onPrev={handlePrevClick}
@@ -549,23 +735,30 @@ export default function CalendarioPage() {
         primaryColor={primaryColor}
       />
 
-      <div className="flex-1 overflow-hidden p-4 sm:p-6">
-        <div className="relative h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-6">
+        <div className="relative h-full min-h-[500px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <HoralisFullCalendar
             calendarRef={calendarRef}
             events={events}
             editable
             eventDrop={handleEventDrop}
+            eventAllow={(dropInfo) => !isPastDateTime(dropInfo.start)}
             eventClick={handleEventClick}
             dateClick={handleDateClick}
             select={handleTimeSelect}
             selectable
+            selectAllow={(selectInfo) => !isPastDateTime(selectInfo.start)}
             selectMirror
             selectOverlap={false}
             longPressDelay={250}
             eventDurationEditable={false}
             initialView={currentView}
             datesSet={handleDatesSet}
+            businessHours={calendarScheduleSettings.businessHours}
+            slotMinTime={calendarScheduleSettings.slotMinTime}
+            slotMaxTime={calendarScheduleSettings.slotMaxTime}
+            scrollTime={calendarScheduleSettings.scrollTime}
+            scrollTimeReset={false}
             primaryColor={primaryColor}
           />
         </div>
@@ -573,11 +766,11 @@ export default function CalendarioPage() {
 
       <button
         onClick={() => {
-          setInitialSlot(null);
+          setInitialSlot(roundToNextQuarter());
           setInitialDuration(30);
           setIsManualModalOpen(true);
         }}
-        className="fixed bottom-8 right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-all duration-300 hover:scale-110 hover:rotate-90"
+        className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-all duration-300 hover:scale-110 hover:rotate-90 sm:bottom-8 sm:right-8"
         style={{ backgroundColor: primaryColor }}
         title="Novo Agendamento"
       >
@@ -606,6 +799,7 @@ export default function CalendarioPage() {
         initialDuration={initialDuration}
         onSaveSuccess={handleManualSaveSuccess}
         services={services}
+        professionals={professionals}
         primaryColor={primaryColor}
       />
     </div>

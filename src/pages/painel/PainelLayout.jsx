@@ -52,8 +52,8 @@ function SalonProvider({ children }) {
 }
 
 const navigation = [
-    { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2, tourBaseClass: 'tour-dashboard' },
     { name: 'Calendário', href: 'calendario', icon: Calendar, tourBaseClass: 'tour-calendario' },
+    { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2, tourBaseClass: 'tour-dashboard' },
     { name: 'Meus Serviços', href: 'servicos', icon: Scissors, tourBaseClass: 'tour-servicos' },
     { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon, tourBaseClass: 'tour-equipe' },
     { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays, tourBaseClass: 'tour-agendamentos' },
@@ -136,8 +136,8 @@ function PainelLayoutComponent() {
         const suffix = isMobile ? '-mobile' : '-desktop';
         return [
             { target: 'body', content: <div className="text-center"><h3 className="font-bold text-lg text-cyan-700 mb-2">Bem-vindo ao Horalis! 🎉</h3><p>Vamos fazer um tour rápido para você dominar seu novo painel.</p></div>, placement: 'center', disableBeacon: true },
-            { target: `.tour-dashboard${suffix}`, content: 'Visão geral do seu dia: faturamento e clientes.' },
             { target: `.tour-calendario${suffix}`, content: 'Sua agenda principal. Gerencie todos os horários aqui.' },
+            { target: `.tour-dashboard${suffix}`, content: 'Visão geral do seu dia: faturamento e clientes.' },
             { target: `.tour-servicos${suffix}`, content: 'Cadastre seus serviços e preços.' },
             { target: `.tour-equipe${suffix}`, content: 'Adicione profissionais e seus horários.' },
             { target: `.tour-clientes${suffix}`, content: 'Histórico e CRM dos seus clientes.' },

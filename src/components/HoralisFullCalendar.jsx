@@ -58,6 +58,11 @@ function HoralisFullCalendar({
 
                 /* --- GRADE DE HORÁRIOS --- */
                 .fc-timegrid-slot { height: 3.5rem !important; }
+                .fc-timegrid-body,
+                .fc-timegrid-slots,
+                .fc-timegrid-cols {
+                    min-width: 100%;
+                }
                 .fc-timegrid-slot-label-cushion {
                     font-size: 11px;
                     color: #9CA3AF;
@@ -126,6 +131,21 @@ function HoralisFullCalendar({
                     line-height: 1.2;
                     white-space: normal; /* Quebra de linha */
                 }
+
+                @media (max-width: 767px) {
+                    .fc-timegrid-slot { height: 3rem !important; }
+                    .fc-col-header-cell { padding: 8px 0; }
+                    .fc-col-header-cell-cushion {
+                        font-size: 10px;
+                        line-height: 1.2;
+                    }
+                    .fc-event-main { padding: 3px 4px !important; }
+                    .horalis-event-time { font-size: 9px !important; }
+                    .horalis-event-title {
+                        font-size: 10px !important;
+                        line-height: 1.15;
+                    }
+                }
             `}</style>
 
             <FullCalendar
@@ -144,6 +164,7 @@ function HoralisFullCalendar({
                 nowIndicator={true}
                 slotMinTime="07:00"
                 slotMaxTime="23:00"
+                stickyHeaderDates={true}
 
                 // Renderizador Customizado
                 eventContent={renderEventContent}

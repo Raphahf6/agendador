@@ -17,9 +17,19 @@ import {
 } from '../_lib/horalis.js';
 
 const SAO_PAULO_OFFSET = '-03:00';
+const SAO_PAULO_TIME_ZONE = 'America/Sao_Paulo';
 const DEFAULT_AGENT_MODEL = process.env.OPENAI_AGENT_MODEL || 'gpt-5.4-mini';
 const DEFAULT_AGENT_FALLBACK = 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.';
 const DEFAULT_AGENT_HANDOFF = 'Vou chamar uma pessoa da equipe para continuar seu atendimento.';
+const WEEKDAY_BY_NAME = {
+  sunday: 'sunday',
+  monday: 'monday',
+  tuesday: 'tuesday',
+  wednesday: 'wednesday',
+  thursday: 'thursday',
+  friday: 'friday',
+  saturday: 'saturday',
+};
 
 function routeParts(req) {
   const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
@@ -161,6 +171,140 @@ function sameMinute(a, b) {
   const second = new Date(b);
   if (Number.isNaN(first.getTime()) || Number.isNaN(second.getTime())) return false;
   return Math.abs(first.getTime() - second.getTime()) < 60 * 1000;
+}
+
+function httpError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function parseRequiredDate(value, message) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) throw httpError(message);
+  return date;
+}
+
+function normalizeDurationMinutes(value, fallback = 30) {
+  const duration = Number(value || fallback);
+  if (!Number.isFinite(duration) || duration <= 0) throw httpError('Duracao do agendamento invalida.');
+  if (duration < 5 || duration > 720) throw httpError('Duracao do agendamento fora do limite permitido.');
+  return Math.round(duration);
+}
+
+function getSaoPauloParts(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SAO_PAULO_TIME_ZONE,
+    weekday: 'long',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    weekday: WEEKDAY_BY_NAME[String(parts.weekday || '').toLowerCase()],
+    minutes: (Number(parts.hour) * 60) + Number(parts.minute),
+  };
+}
+
+function mergeProfessionalSchedule(clinic, professional) {
+  const schedule = clinic.horario_trabalho_detalhado || defaultSchedule();
+  if (professional?.horario_trabalho && Object.keys(professional.horario_trabalho).length) {
+    return { ...schedule, ...professional.horario_trabalho };
+  }
+  return schedule;
+}
+
+function assertFitsWorkingHours(clinic, professional, start, end) {
+  const startParts = getSaoPauloParts(start);
+  const endParts = getSaoPauloParts(end);
+  if (startParts.date !== endParts.date) throw httpError('Agendamentos devem comecar e terminar no mesmo dia.');
+
+  const schedule = mergeProfessionalSchedule(clinic, professional);
+  const day = schedule[startParts.weekday];
+  if (!day?.isOpen) throw httpError('O estabelecimento esta fechado neste dia.');
+
+  const open = minutesFromHHMM(day.openTime);
+  const close = minutesFromHHMM(day.closeTime);
+  if (startParts.minutes < open || endParts.minutes > close) {
+    throw httpError('Horario fora do expediente configurado.');
+  }
+
+  if (day.hasLunch) {
+    const lunchStart = minutesFromHHMM(day.lunchStart);
+    const lunchEnd = minutesFromHHMM(day.lunchEnd);
+    if (startParts.minutes < lunchEnd && endParts.minutes > lunchStart) {
+      throw httpError('Horario indisponivel durante o intervalo configurado.');
+    }
+  }
+}
+
+function appointmentBlocksProfessional(existingProfessionalId, nextProfessionalId) {
+  if (!nextProfessionalId) return true;
+  if (!existingProfessionalId) return true;
+  return String(existingProfessionalId) === String(nextProfessionalId);
+}
+
+async function assertAppointmentSlotAvailable(clinic, { start, end, professionalId = null, ignoreAppointmentId = null }) {
+  const rows = await select('appointments', {
+    select: 'id,start_time,end_time,professional_id',
+    clinic_id: `eq.${clinic.id}`,
+    start_time: `lt.${end.toISOString()}`,
+    end_time: `gt.${start.toISOString()}`,
+    status: 'neq.cancelado',
+    limit: 1000,
+  });
+
+  const blocked = rows.some((appointment) => {
+    if (ignoreAppointmentId && String(appointment.id) === String(ignoreAppointmentId)) return false;
+    return appointmentBlocksProfessional(appointment.professional_id, professionalId);
+  });
+
+  if (blocked) throw httpError('Ja existe um agendamento neste horario.', 409);
+}
+
+async function loadAppointmentService(clinic, payload) {
+  if (!payload.service_id) return {};
+  if (!isUuid(payload.service_id)) throw httpError('Servico invalido.');
+
+  const rows = await select('services', {
+    select: '*',
+    id: `eq.${payload.service_id}`,
+    clinic_id: `eq.${clinic.id}`,
+    limit: 1,
+  });
+
+  if (!rows.length) throw httpError('Servico nao encontrado.', 404);
+  if (rows[0].active === false) throw httpError('Servico inativo.');
+  return rows[0];
+}
+
+async function loadAppointmentProfessional(clinic, payload, serviceId = null) {
+  if (!payload.professional_id) return null;
+  if (!isUuid(payload.professional_id)) throw httpError('Profissional invalido.');
+
+  const rows = await select('professionals', {
+    select: '*',
+    id: `eq.${payload.professional_id}`,
+    clinic_id: `eq.${clinic.id}`,
+    limit: 1,
+  });
+
+  if (!rows.length) throw httpError('Profissional nao encontrado.', 404);
+  const professional = rows[0];
+  if (professional.active === false) throw httpError('Profissional inativo.');
+  const services = Array.isArray(professional.servicos) ? professional.servicos.map(String) : [];
+  if (serviceId && services.length && !services.includes(String(serviceId))) {
+    throw httpError('Este profissional nao atende o servico selecionado.');
+  }
+  return professional;
 }
 
 function firstName(value) {
@@ -430,20 +574,48 @@ async function upsertCustomer(clinicId, payload) {
   return rows[0];
 }
 
-async function createAppointmentFromPayload(clinic, payload, payment = {}) {
-  const serviceRows = payload.service_id
-    ? await select('services', { select: '*', id: `eq.${payload.service_id}`, clinic_id: `eq.${clinic.id}`, limit: 1 })
-    : [];
-  const service = serviceRows[0] || {};
-  const customer = await upsertCustomer(clinic.id, payload);
-  const start = new Date(payload.start_time);
-  const duration = Number(service.duracao_minutos || payload.duration_minutes || 30);
-  const end = new Date(start.getTime() + duration * 60 * 1000);
+async function assertAppointmentPayloadBookable(clinic, payload) {
+  const customerName = String(payload.customer_name || payload.nome || '').trim();
+  if (!customerName) throw httpError('Nome do cliente e obrigatorio.');
 
+  const service = await loadAppointmentService(clinic, payload);
+  const professional = await loadAppointmentProfessional(clinic, payload, service.id);
+  const start = parseRequiredDate(payload.start_time, 'Data do agendamento invalida.');
+  if (start.getTime() < Date.now()) throw httpError('Nao e possivel agendar no passado.');
+
+  const duration = normalizeDurationMinutes(service.duracao_minutos || payload.duration_minutes || 30);
+  const end = new Date(start.getTime() + duration * 60 * 1000);
+  assertFitsWorkingHours(clinic, professional, start, end);
+  await assertAppointmentSlotAvailable(clinic, {
+    start,
+    end,
+    professionalId: professional?.id || null,
+  });
+}
+
+async function createAppointmentFromPayload(clinic, payload, payment = {}) {
+  const customerName = String(payload.customer_name || payload.nome || '').trim();
+  if (!customerName) throw httpError('Nome do cliente e obrigatorio.');
+
+  const service = await loadAppointmentService(clinic, payload);
+  const professional = await loadAppointmentProfessional(clinic, payload, service.id);
+  const start = parseRequiredDate(payload.start_time, 'Data do agendamento invalida.');
+  if (start.getTime() < Date.now()) throw httpError('Nao e possivel agendar no passado.');
+
+  const duration = normalizeDurationMinutes(service.duracao_minutos || payload.duration_minutes || 30);
+  const end = new Date(start.getTime() + duration * 60 * 1000);
+  assertFitsWorkingHours(clinic, professional, start, end);
+  await assertAppointmentSlotAvailable(clinic, {
+    start,
+    end,
+    professionalId: professional?.id || null,
+  });
+
+  const customer = await upsertCustomer(clinic.id, { ...payload, customer_name: customerName });
   const rows = await insert('appointments', [{
     clinic_id: clinic.id,
     service_id: service.id || null,
-    professional_id: isUuid(payload.professional_id) ? payload.professional_id : null,
+    professional_id: professional?.id || null,
     customer_id: customer.id,
     start_time: start.toISOString(),
     end_time: end.toISOString(),
@@ -451,10 +623,10 @@ async function createAppointmentFromPayload(clinic, payload, payment = {}) {
     service_name: service.nome_servico || payload.service_name,
     service_price: Number(service.preco || payload.service_price || 0),
     duration_minutes: duration,
-    customer_name: payload.customer_name || customer.nome,
+    customer_name: customerName || customer.nome,
     customer_email: payload.customer_email || customer.email,
     customer_phone: payload.customer_phone || customer.whatsapp,
-    professional_name: payload.professional_name || null,
+    professional_name: professional?.nome || payload.professional_name || null,
     payment_status: payment.status || payload.payment_status || 'free',
     payment_id: payment.payment_id || null,
     notes: payload.notes || null,
@@ -481,6 +653,7 @@ async function handleCreateAppointment(req, res, isAdmin = false) {
 async function handleAppointmentPayment(req, res) {
   const payload = await readJson(req);
   const clinic = await getClinicBySlug(payload.salao_id);
+  await assertAppointmentPayloadBookable(clinic, payload);
   const payment = await createMercadoPagoPayment(payload, { description: 'Sinal de agendamento Horalis', external_reference: clinic.slug });
   const appointment = await createAppointmentFromPayload(clinic, {
     ...payload,
@@ -2114,9 +2287,11 @@ async function buildAppointmentUpdateValues(payload, clinic, appointmentId) {
     if (payload[key] !== undefined) values[key] = payload[key];
   }
 
+  if (values.professional_id === '') values.professional_id = null;
+
   if (payload.new_start_time) {
     const rows = await select('appointments', {
-      select: 'start_time,end_time,duration_minutes',
+      select: '*',
       id: `eq.${appointmentId}`,
       clinic_id: `eq.${clinic.id}`,
       limit: 1,
@@ -2128,25 +2303,84 @@ async function buildAppointmentUpdateValues(payload, clinic, appointmentId) {
       throw error;
     }
 
-    const nextStart = new Date(payload.new_start_time);
-    if (Number.isNaN(nextStart.getTime())) {
-      const error = new Error('Data de reagendamento invalida.');
-      error.status = 400;
-      throw error;
-    }
+    const nextStart = parseRequiredDate(payload.new_start_time, 'Data de reagendamento invalida.');
+    if (nextStart.getTime() < Date.now()) throw httpError('Nao e possivel reagendar para o passado.');
 
     const currentStart = new Date(rows[0].start_time);
     const currentEnd = new Date(rows[0].end_time);
     const duration = Number(rows[0].duration_minutes)
       || Math.max(15, Math.round((currentEnd.getTime() - currentStart.getTime()) / 60000))
       || 30;
+    const nextEnd = new Date(nextStart.getTime() + duration * 60000);
+    const professionalId = values.professional_id !== undefined ? values.professional_id : rows[0].professional_id;
+    const professional = await loadAppointmentProfessional(clinic, { professional_id: professionalId }, rows[0].service_id);
+
+    assertFitsWorkingHours(clinic, professional, nextStart, nextEnd);
+    await assertAppointmentSlotAvailable(clinic, {
+      start: nextStart,
+      end: nextEnd,
+      professionalId: professional?.id || null,
+      ignoreAppointmentId: appointmentId,
+    });
 
     values.start_time = nextStart.toISOString();
-    values.end_time = new Date(nextStart.getTime() + duration * 60000).toISOString();
+    values.end_time = nextEnd.toISOString();
     values.duration_minutes = duration;
+    if (values.professional_id !== undefined) values.professional_name = professional?.nome || null;
   }
 
-  if (values.professional_id === '') values.professional_id = null;
+  const touchesSchedule = values.start_time !== undefined
+    || values.end_time !== undefined
+    || values.duration_minutes !== undefined
+    || values.professional_id !== undefined;
+
+  if (touchesSchedule && !payload.new_start_time) {
+    const rows = await select('appointments', {
+      select: '*',
+      id: `eq.${appointmentId}`,
+      clinic_id: `eq.${clinic.id}`,
+      limit: 1,
+    });
+
+    if (!rows.length) {
+      const error = new Error('Agendamento nao encontrado.');
+      error.status = 404;
+      throw error;
+    }
+
+    const current = rows[0];
+    const nextStart = values.start_time !== undefined
+      ? parseRequiredDate(values.start_time, 'Data de agendamento invalida.')
+      : new Date(current.start_time);
+    const currentStart = new Date(current.start_time);
+    const currentEnd = new Date(current.end_time);
+    const fallbackDuration = Number(current.duration_minutes)
+      || Math.max(15, Math.round((currentEnd.getTime() - currentStart.getTime()) / 60000))
+      || 30;
+    const duration = normalizeDurationMinutes(values.duration_minutes || fallbackDuration, fallbackDuration);
+    const nextEnd = values.end_time !== undefined
+      ? parseRequiredDate(values.end_time, 'Data final de agendamento invalida.')
+      : new Date(nextStart.getTime() + duration * 60000);
+    const normalizedDuration = Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000);
+    const professionalId = values.professional_id !== undefined ? values.professional_id : current.professional_id;
+    const professional = await loadAppointmentProfessional(clinic, { professional_id: professionalId }, current.service_id);
+
+    if (nextStart.getTime() < Date.now()) throw httpError('Nao e possivel agendar no passado.');
+    if (nextEnd <= nextStart) throw httpError('Horario final deve ser maior que o inicial.');
+
+    assertFitsWorkingHours(clinic, professional, nextStart, nextEnd);
+    await assertAppointmentSlotAvailable(clinic, {
+      start: nextStart,
+      end: nextEnd,
+      professionalId: professional?.id || null,
+      ignoreAppointmentId: appointmentId,
+    });
+
+    values.start_time = nextStart.toISOString();
+    values.end_time = nextEnd.toISOString();
+    values.duration_minutes = normalizeDurationMinutes(normalizedDuration, duration);
+    if (values.professional_id !== undefined) values.professional_name = professional?.nome || null;
+  }
 
   if (!Object.keys(values).length) {
     const error = new Error('Nenhum campo valido para atualizar.');
