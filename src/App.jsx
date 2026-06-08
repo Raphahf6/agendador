@@ -135,7 +135,7 @@ function App() {
                         </ProtectedPanelRoute>
                     }
                 >
-                    <Route index element={<Navigate to="calendario" replace />} />
+                    <Route index element={<Navigate to="agendamentos" replace />} />
 
                     {/* Remova a rota de setup daqui de dentro! */}
 

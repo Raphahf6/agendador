@@ -237,7 +237,7 @@ export default function SetupPage() {
             await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, { ...currentData, ...salonPayload }, { headers });
 
             toast.success("Configuração inicial concluída!");
-            navigate(`/painel/${salaoId}/visaoGeral`);
+            navigate(`/painel/${salaoId}/agendamentos`);
 
         } catch (error) {
             console.error(error);

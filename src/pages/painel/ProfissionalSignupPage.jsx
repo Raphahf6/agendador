@@ -90,7 +90,7 @@ function ProfissionalSignupPage() {
 
     try {
       await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
-      navigate(`/painel/${response.data.slug}/visaoGeral`, { replace: true });
+      navigate(`/painel/${response.data.slug}/agendamentos`, { replace: true });
     } catch (err) {
       console.error('Conta criada, mas o login automatico falhou:', err);
       navigate('/login?cadastro=sucesso', {

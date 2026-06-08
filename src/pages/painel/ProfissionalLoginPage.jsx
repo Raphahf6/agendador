@@ -67,7 +67,7 @@ function ProfissionalLoginPage() {
                 return;
             }
             
-            const redirectPath = `/painel/${realSalaoId}/visaoGeral`;
+            const redirectPath = `/painel/${realSalaoId}/agendamentos`;
             navigate(redirectPath, { replace: true });
         } catch (apiError) {
             console.error("Erro ao buscar ID do Salão:", apiError);

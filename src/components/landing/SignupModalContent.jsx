@@ -89,7 +89,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
       await signInWithEmailAndPassword(auth, formData.email.trim(), formData.password);
       toast.success('Conta criada. Teste gratis iniciado!');
       closeModal();
-      navigate(`/painel/${response.data.slug}/visaoGeral`, { replace: true });
+      navigate(`/painel/${response.data.slug}/agendamentos`, { replace: true });
     } catch (err) {
       console.error('Conta criada, mas o login automatico falhou:', err);
       toast.success('Conta criada. Entre com seu e-mail e senha.');
