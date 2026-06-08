@@ -857,6 +857,281 @@ function normalizeAgentPlan(plan = {}) {
   };
 }
 
+function normalizeAgentText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasAnyTerm(text, terms) {
+  return terms.some((term) => text.includes(term));
+}
+
+function serviceWords(serviceName) {
+  const stopWords = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'para']);
+  return normalizeAgentText(serviceName)
+    .split(' ')
+    .filter((word) => word.length > 2 && !stopWords.has(word));
+}
+
+function findServiceInMessage(message, services) {
+  const text = normalizeAgentText(message);
+  const ranked = [...services].sort((a, b) => String(b.nome_servico || '').length - String(a.nome_servico || '').length);
+
+  return ranked.find((service) => {
+    const name = normalizeAgentText(service.nome_servico);
+    if (!name) return false;
+    if (text.includes(name)) return true;
+    const words = serviceWords(service.nome_servico);
+    return words.length >= 2 && words.every((word) => text.includes(word));
+  }) || null;
+}
+
+function findProfessionalInMessage(message, professionals) {
+  const text = normalizeAgentText(message);
+  return professionals.find((professional) => {
+    const name = normalizeAgentText(professional.nome);
+    return name && text.includes(name);
+  }) || null;
+}
+
+function saoPauloDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+function saoPauloDateKey(date = new Date()) {
+  const { year, month, day } = saoPauloDateParts(date);
+  return `${year}-${month}-${day}`;
+}
+
+function saoPauloNoon(date = new Date()) {
+  return new Date(`${saoPauloDateKey(date)}T12:00:00${SAO_PAULO_OFFSET}`);
+}
+
+function addDaysDateKey(days) {
+  const base = saoPauloNoon();
+  base.setUTCDate(base.getUTCDate() + days);
+  return saoPauloDateKey(base);
+}
+
+function parseMessageDate(message) {
+  const text = normalizeAgentText(message);
+  if (hasAnyTerm(text, ['depois de amanha', 'depois da amanha'])) return addDaysDateKey(2);
+  if (text.includes('amanha')) return addDaysDateKey(1);
+  if (text.includes('hoje')) return addDaysDateKey(0);
+
+  const explicit = text.match(/\b(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?\b/);
+  if (explicit) {
+    const day = explicit[1].padStart(2, '0');
+    const month = explicit[2].padStart(2, '0');
+    const currentYear = saoPauloDateParts().year;
+    const rawYear = explicit[3] || currentYear;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    return `${year}-${month}-${day}`;
+  }
+
+  const weekdays = [
+    ['domingo', 0],
+    ['segunda', 1],
+    ['terca', 2],
+    ['quarta', 3],
+    ['quinta', 4],
+    ['sexta', 5],
+    ['sabado', 6],
+  ];
+  const match = weekdays.find(([label]) => text.includes(label));
+  if (!match) return null;
+
+  const today = saoPauloNoon();
+  const current = today.getDay();
+  let diff = (match[1] - current + 7) % 7;
+  if (diff === 0) diff = 7;
+  today.setUTCDate(today.getUTCDate() + diff);
+  return saoPauloDateKey(today);
+}
+
+function detectPeriod(message) {
+  const text = normalizeAgentText(message);
+  if (text.includes('manha')) return 'morning';
+  if (text.includes('tarde')) return 'afternoon';
+  if (text.includes('noite')) return 'night';
+  return null;
+}
+
+function saoPauloHour(value) {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    hour12: false,
+  }).format(new Date(value));
+  return Number(hour);
+}
+
+function filterSlotsByPeriod(slots, period) {
+  if (!period) return slots;
+  return slots.filter((slot) => {
+    const hour = saoPauloHour(slot);
+    if (period === 'morning') return hour < 12;
+    if (period === 'afternoon') return hour >= 12 && hour < 18;
+    if (period === 'night') return hour >= 18;
+    return true;
+  });
+}
+
+function isGreetingOnly(message) {
+  const text = normalizeAgentText(message);
+  if (!text) return false;
+  const greetingWords = new Set(['oi', 'ola', 'bom', 'boa', 'dia', 'tarde', 'noite', 'tudo', 'bem', 'td', 'como', 'vai', 'favor']);
+  const words = text.split(' ').filter(Boolean);
+  const extra = words.filter((word) => !greetingWords.has(word));
+  return extra.length === 0 || (text.length <= 35 && extra.length <= 1);
+}
+
+function isShortThanks(message) {
+  const text = normalizeAgentText(message);
+  return text.length <= 40 && hasAnyTerm(text, ['obrigado', 'obrigada', 'valeu', 'agradeco', 'grato']);
+}
+
+function wantsHuman(message) {
+  const text = normalizeAgentText(message);
+  return hasAnyTerm(text, ['humano', 'pessoa', 'atendente', 'recepcao', 'recepcionista', 'falar com alguem', 'chamar alguem']);
+}
+
+function wantsPrice(message) {
+  const text = normalizeAgentText(message);
+  return hasAnyTerm(text, ['preco', 'valor', 'quanto custa', 'custa quanto', 'quanto fica', 'valores']);
+}
+
+function wantsScheduling(message) {
+  const text = normalizeAgentText(message);
+  return hasAnyTerm(text, ['agendar', 'marcar', 'horario', 'horarios', 'agenda', 'disponivel', 'disponibilidade', 'vaga', 'encaixe', 'consulta']);
+}
+
+function periodLabel(period) {
+  if (period === 'morning') return ' de manha';
+  if (period === 'afternoon') return ' a tarde';
+  if (period === 'night') return ' a noite';
+  return '';
+}
+
+function formatCurrencyBRL(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+}
+
+function hybridResult(status, reply, extra = {}) {
+  return {
+    status,
+    reply,
+    routed_by: 'hybrid',
+    actions: [],
+    ...extra,
+  };
+}
+
+async function tryHybridAgentResponse({ message, history, clinic, services, professionals, settings }) {
+  const isFirstTurn = !Array.isArray(history) || history.length === 0;
+  const service = findServiceInMessage(message, services);
+  const professional = findProfessionalInMessage(message, professionals);
+  const date = parseMessageDate(message);
+  const period = detectPeriod(message);
+  const schedulingIntent = wantsScheduling(message);
+
+  if (wantsHuman(message)) {
+    return hybridResult('handoff', settings.handoff_message, {
+      actions: [{ type: 'handoff' }],
+      plan: { action: 'handoff', confidence: 1 },
+    });
+  }
+
+  if (isShortThanks(message)) {
+    return hybridResult('answered', 'Eu que agradeco. Fico a disposicao para te ajudar no agendamento.', {
+      plan: { action: 'answer', confidence: 1 },
+    });
+  }
+
+  if (wantsPrice(message)) {
+    if (!service) {
+      return hybridResult('needs_info', 'Claro. Qual servico voce gostaria de consultar?', {
+        field: 'service_id',
+        plan: { action: 'answer', confidence: 0.95 },
+      });
+    }
+
+    const price = Number(service.preco || 0);
+    const duration = Number(service.duracao_minutos || 30);
+    return hybridResult('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Se quiser, me passa o melhor dia e horario para eu consultar a agenda.`, {
+      service,
+      plan: { action: 'answer', service_id: service.id, confidence: 0.95 },
+    });
+  }
+
+  if (isGreetingOnly(message) || (isFirstTurn && schedulingIntent && !service && !date)) {
+    return hybridResult('answered', settings.opening_message || defaultAgentSettings(clinic).opening_message, {
+      plan: { action: 'answer', confidence: 1 },
+    });
+  }
+
+  if (date && !service && (schedulingIntent || isFirstTurn)) {
+    return hybridResult('needs_info', 'Perfeito. Qual servico voce gostaria de agendar?', {
+      field: 'service_id',
+      plan: { action: 'answer', date, confidence: 0.9 },
+    });
+  }
+
+  if (service && !date && (schedulingIntent || isFirstTurn)) {
+    return hybridResult('needs_info', `Perfeito, para ${service.nome_servico}. ${settings.opening_message || 'Me passa o melhor dia e horario para voce, por favor?'}`, {
+      field: 'date',
+      service,
+      plan: { action: 'answer', service_id: service.id, confidence: 0.9 },
+    });
+  }
+
+  if (service && date && (schedulingIntent || period || isFirstTurn)) {
+    const { slots, professional: selectedProfessional } = await getAvailableSlotsForClinic(clinic, {
+      serviceId: service.id,
+      date,
+      professionalId: professional?.id || null,
+    });
+    const filteredSlots = filterSlotsByPeriod(slots, period);
+    const usableSlots = filteredSlots.length ? filteredSlots : slots;
+
+    return hybridResult('slots_found', usableSlots.length
+      ? `Encontrei estes horarios para ${service.nome_servico}${periodLabel(period)}: ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}. Qual deles fica melhor para voce?`
+      : `Nao encontrei horarios livres para ${service.nome_servico}${periodLabel(period)} nessa data.`, {
+      service,
+      professional: selectedProfessional || professional,
+      slots: usableSlots,
+      actions: [{
+        type: 'hybrid_list_slots',
+        service_id: service.id,
+        date,
+        professional_id: selectedProfessional?.id || professional?.id || null,
+        slots: usableSlots.slice(0, 10),
+      }],
+      plan: {
+        action: 'list_slots',
+        service_id: service.id,
+        professional_id: selectedProfessional?.id || professional?.id || null,
+        date,
+        confidence: 0.95,
+      },
+    });
+  }
+
+  return null;
+}
+
 function buildAgentDecisionInstructions({ clinic, services, professionals, settings }) {
   return [
     buildAgentInstructions({ clinic, services, professionals, settings }),
@@ -1176,6 +1451,7 @@ function buildAgentRuntimeContext({ clinic, services, professionals }) {
       active: professional.active !== false,
     })),
     capabilities: [
+      'respostas_hibridas_sem_ia',
       'consultar_horarios',
       'criar_agendamento',
       'cobrar_sinal_pix',
@@ -1228,6 +1504,30 @@ async function handleAgent(req, res, user, parts) {
     if (!message) return badRequest(res, 'Informe uma mensagem para testar o agente.');
 
     const { settings, services, professionals } = await loadRuntime();
+    const hybrid = await tryHybridAgentResponse({
+      message: message.slice(0, 3000),
+      history: payload.history,
+      clinic,
+      services,
+      professionals,
+      settings,
+    });
+
+    if (hybrid) {
+      return json(res, 200, {
+        reply: hybrid.reply,
+        status: hybrid.status,
+        plan: hybrid.plan || null,
+        actions: hybrid.actions || [],
+        slots: Array.isArray(hybrid.slots) ? hybrid.slots.slice(0, 10) : [],
+        appointment: hybrid.appointment || null,
+        payment: hybrid.payment || null,
+        response_id: null,
+        model: null,
+        routed_by: 'hybrid',
+      });
+    }
+
     const decision = await planAgentAction({
       message: message.slice(0, 3000),
       history: payload.history,
@@ -1251,6 +1551,7 @@ async function handleAgent(req, res, user, parts) {
       payment: result.payment || null,
       response_id: decision.response_id,
       model: settings.model || DEFAULT_AGENT_MODEL,
+      routed_by: 'openai',
     });
   }
 

@@ -118,9 +118,16 @@ function actionLabel(type) {
     create_booking: 'Criou agendamento',
     create_booking_with_signal: 'Criou agendamento com sinal',
     slot_unavailable: 'Horario indisponivel',
+    hybrid_list_slots: 'Consultou horarios sem IA',
     handoff: 'Chamou humano',
   };
   return labels[type] || type || 'Acao';
+}
+
+function routeLabel(route) {
+  if (route === 'hybrid') return 'Hibrido sem IA';
+  if (route === 'openai') return 'OpenAI';
+  return '';
 }
 
 function Section({ icon: Icon, title, children }) {
@@ -169,6 +176,7 @@ export default function AtendimentoAgentPage() {
   const [previewSlots, setPreviewSlots] = useState([]);
   const [previewPayment, setPreviewPayment] = useState(null);
   const [previewAppointment, setPreviewAppointment] = useState(null);
+  const [previewRoute, setPreviewRoute] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +241,7 @@ export default function AtendimentoAgentPage() {
     setPreviewSlots([]);
     setPreviewPayment(null);
     setPreviewAppointment(null);
+    setPreviewRoute('');
   };
 
   const handleSave = async () => {
@@ -280,6 +289,7 @@ export default function AtendimentoAgentPage() {
       setPreviewSlots(Array.isArray(response.data?.slots) ? response.data.slots : []);
       setPreviewPayment(response.data?.payment || null);
       setPreviewAppointment(response.data?.appointment || null);
+      setPreviewRoute(response.data?.routed_by || '');
     } catch (err) {
       setPreviewError(getErrorMessage(err, 'Nao foi possivel testar o agente.'));
     } finally {
@@ -530,6 +540,11 @@ export default function AtendimentoAgentPage() {
                   <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-gray-700">
                     <CheckCircle2 className="h-3.5 w-3.5 text-cyan-600" aria-hidden="true" />
                     {previewStatus}
+                  </div>
+                )}
+                {previewRoute && (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                    {routeLabel(previewRoute)}
                   </div>
                 )}
                 {previewActions.map((action, index) => (
