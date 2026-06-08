@@ -1,265 +1,242 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    Calendar, Search, Filter, User, Clock, CheckCircle, 
-    AlertCircle, XCircle, DollarSign, ChevronDown, Scissors,
-    MessageCircle, ExternalLink 
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  DollarSign,
+  Filter,
+  MessageCircle,
+  Scissors,
+  Search,
+  User,
+  XCircle,
 } from 'lucide-react';
-import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
-import { db, auth } from '@/firebaseConfig';
-import { useSalon } from './PainelLayout';
-import { format, isToday, isTomorrow } from 'date-fns';
+import { format, isToday, isTomorrow, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
 import HourglassLoading from '@/components/HourglassLoading';
-import axios from 'axios';
+import { apiGet, fetchAppointments } from '@/lib/horalisApi';
+import { useSalon } from './PainelLayout';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+function getStatusConfig(status) {
+  switch (status) {
+    case 'confirmado':
+    case 'approved':
+      return { color: 'bg-green-100 text-green-700', label: 'Confirmado', icon: CheckCircle };
+    case 'pending_payment':
+    case 'pending':
+      return { color: 'bg-yellow-100 text-yellow-700', label: 'Pendente', icon: AlertCircle };
+    case 'cancelado':
+    case 'cancelled':
+      return { color: 'bg-red-100 text-red-700', label: 'Cancelado', icon: XCircle };
+    default:
+      return { color: 'bg-gray-100 text-gray-600', label: status || 'Indefinido', icon: Clock };
+  }
+}
 
-// --- Helper de Cores e Status ---
-const getStatusConfig = (status) => {
-    switch (status) {
-        case 'confirmado':
-        case 'approved':
-            return { color: 'bg-green-100 text-green-700', label: 'Confirmado', icon: CheckCircle };
-        case 'pending_payment':
-        case 'pending':
-            return { color: 'bg-yellow-100 text-yellow-700', label: 'Pendente', icon: AlertCircle };
-        case 'cancelado':
-        case 'cancelled':
-            return { color: 'bg-red-100 text-red-700', label: 'Cancelado', icon: XCircle };
-        default:
-            return { color: 'bg-gray-100 text-gray-600', label: status, icon: Clock };
+function AgendamentoCard({ data, nomeSalao }) {
+  const statusConfig = getStatusConfig(data.status);
+  const StatusIcon = statusConfig.icon;
+  const dateObj = data.startDate || new Date();
+  let dateLabel = format(dateObj, "dd 'de' MMMM", { locale: ptBR });
+  if (isToday(dateObj)) dateLabel = 'Hoje';
+  else if (isTomorrow(dateObj)) dateLabel = 'Amanha';
+  const timeLabel = format(dateObj, 'HH:mm');
+
+  const handleWhatsAppClick = () => {
+    if (!data.customerPhone) {
+      window.alert('Cliente sem telefone cadastrado.');
+      return;
     }
-};
 
-// --- Componente Card de Agendamento ---
-const AgendamentoCard = ({ data, nomeSalao }) => {
-    const statusConfig = getStatusConfig(data.status);
-    const StatusIcon = statusConfig.icon;
-    
-    const dateObj = data.startTime ? data.startTime.toDate() : new Date();
-    let dateLabel = format(dateObj, "dd 'de' MMMM", { locale: ptBR });
-    if (isToday(dateObj)) dateLabel = "Hoje";
-    else if (isTomorrow(dateObj)) dateLabel = "Amanhã";
+    const cleanNumber = String(data.customerPhone).replace(/\D/g, '');
+    const ddi = cleanNumber.startsWith('55') ? '' : '55';
+    const message = `Ola ${data.customerName}!%0A%0AAqui e do *${nomeSalao}*! Passando para lembrar do seu agendamento de *${data.serviceName}* conosco.%0A%0AData: ${dateLabel.toLowerCase()}%0AHorario: ${timeLabel}%0A%0APodemos confirmar sua presenca?`;
+    window.open(`https://wa.me/${ddi}${cleanNumber}?text=${message}`, '_blank');
+  };
 
-    const timeLabel = format(dateObj, "HH:mm");
+  return (
+    <div className="group relative flex flex-col items-start gap-4 overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md sm:flex-row sm:items-center">
+      <div className={`absolute bottom-0 left-0 top-0 w-1.5 ${statusConfig.color.replace('bg-', 'bg-opacity-50 bg-')}`} />
 
-    // --- LÓGICA DO WHATSAPP ---
-    const handleWhatsAppClick = () => {
-        if (!data.customerPhone) return alert("Cliente sem telefone cadastrado.");
-        
-        // Limpa o número (remove parênteses, espaços e traços)
-        const cleanNumber = data.customerPhone.replace(/\D/g, '');
-        const ddi = cleanNumber.startsWith('55') ? '' : '55';
-        
-        // Template da Mensagem
-        const mensagem = `Olá ${data.customerName}! 👋%0A%0AAqui é do *${nomeSalao}*! Passando para lembrar do seu agendamento de *${data.serviceName}* conosco.%0A%0A📅 *Data:* ${dateLabel.toLowerCase()}%0A⏰ *Horário:* ${timeLabel}%0A%0APodemos confirmar sua presença?`;
-        
-        const url = `https://wa.me/${ddi}${cleanNumber}?text=${mensagem}`;
-        window.open(url, '_blank');
-    };
+      <div className="flex min-w-[70px] flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 p-2">
+        <span className="text-lg font-bold text-gray-900">{timeLabel}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{dateLabel}</span>
+      </div>
 
-    return (
-        <div className="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row items-start sm:items-center gap-4 relative overflow-hidden">
-            
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${statusConfig.color.replace('bg-', 'bg-opacity-50 bg-')}`}></div>
-
-            {/* Coluna Horário */}
-            <div className="flex flex-col items-center justify-center min-w-[70px] bg-gray-50 rounded-xl p-2 border border-gray-100">
-                <span className="text-lg font-bold text-gray-900">{timeLabel}</span>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{dateLabel}</span>
-            </div>
-
-            {/* Detalhes Principais */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base font-bold text-gray-900 truncate">{data.customerName}</h3>
-                    {data.paymentStatus === 'paid_signal' && (
-                        <span className="px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-bold rounded-full flex items-center gap-1 border border-green-100">
-                            <DollarSign className="w-3 h-3" /> Sinal Pago
-                        </span>
-                    )}
-                </div>
-                
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-500">
-                    <span className="flex items-center gap-1.5">
-                        <Scissors className="w-4 h-4 text-cyan-600" />
-                        {data.serviceName}
-                    </span>
-                    {data.professionalName && (
-                        <span className="flex items-center gap-1.5">
-                            <User className="w-4 h-4 text-purple-500" />
-                            {data.professionalName}
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            {/* Status e Ações */}
-            <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0 gap-3">
-                <div className="flex flex-col items-end">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold ${statusConfig.color}`}>
-                        <StatusIcon className="w-3.5 h-3.5" /> {statusConfig.label}
-                    </span>
-                    <span className="text-sm font-bold text-gray-900 mt-1">
-                        R$ {data.servicePrice ? Number(data.servicePrice).toFixed(2).replace('.', ',') : '0,00'}
-                    </span>
-                </div>
-
-                {/* BOTÃO WHATSAPP */}
-                <button 
-                    onClick={handleWhatsAppClick}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-                >
-                    <MessageCircle className="w-4 h-4" />
-                    Lembrar Cliente
-                </button>
-            </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <h3 className="truncate text-base font-bold text-gray-900">{data.customerName}</h3>
+          {data.paymentStatus === 'paid_signal' && (
+            <span className="flex items-center gap-1 rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-600">
+              <DollarSign className="h-3 w-3" /> Sinal Pago
+            </span>
+          )}
         </div>
-    );
-};
 
-// --- PÁGINA PRINCIPAL ---
+        <div className="flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:items-center sm:gap-4">
+          <span className="flex items-center gap-1.5">
+            <Scissors className="h-4 w-4 text-cyan-600" />
+            {data.serviceName}
+          </span>
+          {data.professionalName && (
+            <span className="flex items-center gap-1.5">
+              <User className="h-4 w-4 text-purple-500" />
+              {data.professionalName}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 flex w-full flex-row items-center justify-between gap-3 sm:mt-0 sm:w-auto sm:flex-col sm:items-end">
+        <div className="flex flex-col items-end">
+          <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold ${statusConfig.color}`}>
+            <StatusIcon className="h-3.5 w-3.5" /> {statusConfig.label}
+          </span>
+          <span className="mt-1 text-sm font-bold text-gray-900">
+            R$ {Number(data.servicePrice || 0).toFixed(2).replace('.', ',')}
+          </span>
+        </div>
+
+        <button onClick={handleWhatsAppClick} className="flex items-center gap-2 rounded-xl bg-green-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-green-600">
+          <MessageCircle className="h-4 w-4" />
+          Lembrar Cliente
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MeusAgendamentosPage() {
-    const { salaoId, salonDetails } = useSalon();
-    const [agendamentos, setAgendamentos] = useState([]);
-    const [professionals, setProfessionals] = useState([]);
-    const [loading, setLoading] = useState(true);
-    
-    const [filterProfessional, setFilterProfessional] = useState('todos');
-    const [filterStatus, setFilterStatus] = useState('todos');
-    const [searchTerm, setSearchTerm] = useState('');
+  const { salaoId, salonDetails } = useSalon();
+  const [agendamentos, setAgendamentos] = useState([]);
+  const [professionals, setProfessionals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterProfessional, setFilterProfessional] = useState('todos');
+  const [filterStatus, setFilterStatus] = useState('todos');
+  const [searchTerm, setSearchTerm] = useState('');
 
-    useEffect(() => {
-        const fetchPros = async () => {
-            if (!salaoId || !auth.currentUser) return;
-            try {
-                const token = await auth.currentUser.getIdToken();
-                const res = await axios.get(`${API_BASE_URL}/admin/equipe`, { headers: { Authorization: `Bearer ${token}` } });
-                setProfessionals(res.data);
-            } catch (e) { console.error("Erro ao carregar equipe", e); }
-        };
-        fetchPros();
-    }, [salaoId]);
+  useEffect(() => {
+    async function fetchPros() {
+      if (!salaoId) return;
+      try {
+        const response = await apiGet('/admin/equipe');
+        setProfessionals(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Erro ao carregar equipe', err);
+      }
+    }
 
-    useEffect(() => {
-        if (!salaoId) return;
-        setLoading(true);
+    fetchPros();
+  }, [salaoId]);
 
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
+  const loadAppointments = useCallback(async ({ silent = false } = {}) => {
+    if (!salaoId) return;
+    if (!silent) setLoading(true);
 
-        const q = query(
-            collection(db, 'cabeleireiros', salaoId, 'agendamentos'),
-            where("startTime", ">=", startOfToday),
-            orderBy("startTime", "asc"),
-            limit(100)
-        );
+    try {
+      const list = await fetchAppointments(salaoId, {
+        start: startOfDay(new Date()).toISOString(),
+        include_cancelled: true,
+        limit: 100,
+      });
+      setAgendamentos(list);
+    } catch (err) {
+      console.error('Erro ao carregar agendamentos:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [salaoId]);
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setAgendamentos(list);
-            setLoading(false);
-        }, (error) => {
-            console.error("Erro no listener:", error);
-            setLoading(false);
-        });
+  useEffect(() => {
+    loadAppointments();
+    const timer = window.setInterval(() => loadAppointments({ silent: true }), 30000);
+    return () => window.clearInterval(timer);
+  }, [loadAppointments]);
 
-        return () => unsubscribe();
-    }, [salaoId]);
+  const filteredList = useMemo(() => agendamentos.filter((item) => {
+    const search = searchTerm.toLowerCase();
+    const searchMatch = String(item.customerName || '').toLowerCase().includes(search)
+      || String(item.serviceName || '').toLowerCase().includes(search);
+    const proMatch = filterProfessional === 'todos' || item.professionalId === filterProfessional;
 
-    const filteredList = useMemo(() => {
-        return agendamentos.filter(item => {
-            const searchMatch = 
-                item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.serviceName.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            const proMatch = filterProfessional === 'todos' || item.professionalId === filterProfessional;
+    let statusMatch = true;
+    if (filterStatus === 'confirmados') statusMatch = item.status === 'confirmado';
+    if (filterStatus === 'pendentes') statusMatch = item.status === 'pending_payment' || item.status === 'pending';
+    if (filterStatus === 'cancelados') statusMatch = item.status === 'cancelado';
 
-            let statusMatch = true;
-            if (filterStatus === 'confirmados') statusMatch = item.status === 'confirmado';
-            if (filterStatus === 'pendentes') statusMatch = item.status === 'pending_payment';
-            if (filterStatus === 'cancelados') statusMatch = item.status === 'cancelado';
+    return searchMatch && proMatch && statusMatch;
+  }), [agendamentos, searchTerm, filterProfessional, filterStatus]);
 
-            return searchMatch && proMatch && statusMatch;
-        });
-    }, [agendamentos, searchTerm, filterProfessional, filterStatus]);
+  if (loading) return <div className="flex h-96 items-center justify-center"><HourglassLoading message="Buscando agenda..." /></div>;
 
-    if (loading) return <div className="h-96 flex items-center justify-center"><HourglassLoading message="Buscando agenda..." /></div>;
+  return (
+    <div className="mx-auto max-w-5xl pb-20 font-sans">
+      <div className="mb-8">
+        <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900">
+          <div className="rounded-xl border border-gray-100 bg-white p-2 shadow-sm">
+            <Calendar className="h-6 w-6 text-cyan-700" />
+          </div>
+          Meus Agendamentos
+        </h1>
+        <p className="ml-12 mt-1 text-sm text-gray-500">Visualize e gerencie os compromissos futuros da equipe.</p>
+      </div>
 
-    return (
-        <div className="font-sans pb-20 max-w-5xl mx-auto">
-            
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
-                        <Calendar className="w-6 h-6 text-cyan-700" />
-                    </div>
-                    Meus Agendamentos
-                </h1>
-                <p className="text-gray-500 mt-1 ml-12 text-sm">Visualize e gerencie os compromissos futuros da equipe.</p>
-            </div>
-
-            {/* Barra de Filtros */}
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div className="md:col-span-5 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar cliente ou serviço..." 
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-
-                <div className="md:col-span-4 relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <select 
-                        className="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all text-gray-700 font-medium"
-                        value={filterProfessional}
-                        onChange={(e) => setFilterProfessional(e.target.value)}
-                    >
-                        <option value="todos">Todos os Profissionais</option>
-                        {professionals.map(pro => (
-                            <option key={pro.id} value={pro.id}>{pro.nome}</option>
-                        ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-
-                <div className="md:col-span-3 relative">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <select 
-                        className="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all text-gray-700 font-medium"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                        <option value="todos">Todos Status</option>
-                        <option value="confirmados">Confirmados</option>
-                        <option value="pendentes">Pendentes</option>
-                        <option value="cancelados">Cancelados</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-            </div>
-
-            {/* Lista de Agendamentos */}
-            <div className="space-y-3">
-                {filteredList.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-gray-200">
-                        <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500 font-medium">Nenhum agendamento encontrado.</p>
-                    </div>
-                ) : (
-                    filteredList.map(agendamento => (
-                        <AgendamentoCard 
-                            key={agendamento.id} 
-                            data={agendamento} 
-                            nomeSalao={salonDetails?.nome_salao || 'Horalis'} 
-                        />
-                    ))
-                )}
-            </div>
+      <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:grid-cols-12">
+        <div className="relative md:col-span-5">
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar cliente ou servico..."
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm transition-all focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
         </div>
-    );
+
+        <div className="relative md:col-span-4">
+          <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <select
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-8 text-sm font-medium text-gray-700 transition-all focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+            value={filterProfessional}
+            onChange={(event) => setFilterProfessional(event.target.value)}
+          >
+            <option value="todos">Todos os Profissionais</option>
+            {professionals.map((pro) => <option key={pro.id} value={pro.id}>{pro.nome}</option>)}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        </div>
+
+        <div className="relative md:col-span-3">
+          <Filter className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <select
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-8 text-sm font-medium text-gray-700 transition-all focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+            value={filterStatus}
+            onChange={(event) => setFilterStatus(event.target.value)}
+          >
+            <option value="todos">Todos Status</option>
+            <option value="confirmados">Confirmados</option>
+            <option value="pendentes">Pendentes</option>
+            <option value="cancelados">Cancelados</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {filteredList.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-gray-200 bg-white py-16 text-center">
+            <Calendar className="mx-auto mb-3 h-12 w-12 text-gray-300" />
+            <p className="font-medium text-gray-500">Nenhum agendamento encontrado.</p>
+          </div>
+        ) : (
+          filteredList.map((agendamento) => (
+            <AgendamentoCard key={agendamento.id} data={agendamento} nomeSalao={salonDetails?.nome_salao || 'Horalis'} />
+          ))
+        )}
+      </div>
+    </div>
+  );
 }

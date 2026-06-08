@@ -5,7 +5,7 @@ import {
     Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
     BarChart2, CreditCard, Users, Send, Loader2, CirclePercent, Boxes, 
     UsersIcon, CalendarDays, HelpCircle, ExternalLink,
-    Sparkles
+    Sparkles, Bot
 } from 'lucide-react';
 import axios from 'axios';
 import { signOut, onAuthStateChanged } from "firebase/auth";
@@ -59,6 +59,7 @@ const navigation = [
     { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays, tourBaseClass: 'tour-agendamentos' },
     { name: 'Relatório de Comissões', href: 'comissoes', icon: Sparkles, tourBaseClass: 'tour-comissoes' },
     { name: 'Meus Clientes', href: 'clientes', icon: Users, tourBaseClass: 'tour-clientes' },
+    { name: 'Atendimento', href: 'atendimento', icon: Bot, tourBaseClass: 'tour-atendimento' },
     // { name: 'Financeiro', href: 'financeiro', icon: CirclePercent, tourBaseClass: 'tour-financeiro' },
     //{ name: 'Estoque', href: 'estoque', icon: Boxes, tourBaseClass: 'tour-estoque' },
     { name: 'Marketing', href: 'marketing', icon: Send, tourBaseClass: 'tour-marketing' },

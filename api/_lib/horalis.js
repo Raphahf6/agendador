@@ -12,6 +12,7 @@ const HORALIS_TABLES = new Set([
   'expenses',
   'stock_products',
   'integration_accounts',
+  'ai_agent_settings',
 ]);
 
 const TRIAL_DAYS = 7;
@@ -131,8 +132,14 @@ export async function getProfessionals(clinicId, { activeOnly = false } = {}) {
 }
 
 export function clinicToLegacy(clinic, services = [], professionals = []) {
+  const {
+    mp_access_token: mpAccessToken,
+    google_tokens: googleTokens,
+    ...safeClinic
+  } = clinic;
+
   return {
-    ...clinic,
+    ...safeClinic,
     id: clinic.slug,
     clinic_id: clinic.id,
     uuid: clinic.id,
@@ -149,6 +156,9 @@ export function clinicToLegacy(clinic, services = [], professionals = []) {
     subscription_status: clinic.subscription_status,
     trialEndsAt: clinic.trial_ends_at,
     trial_ends_at: clinic.trial_ends_at,
+    mp_connected: Boolean(mpAccessToken),
+    mercado_pago_connected: Boolean(mpAccessToken),
+    google_connected: Boolean(clinic.google_sync_enabled || googleTokens),
   };
 }
 

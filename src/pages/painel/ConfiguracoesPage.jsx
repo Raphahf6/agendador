@@ -5,12 +5,10 @@ import {
     Settings, Loader2, Save, Lock, Mail, AlertTriangle, CheckCircle, 
     ExternalLink, XCircle, Key, DollarSign, CreditCard, RefreshCw 
 } from 'lucide-react';
-import { auth, db } from '@/firebaseConfig';
-import { doc, getDoc } from "firebase/firestore"; 
+import { auth } from '@/firebaseConfig';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import HourglassLoading from '@/components/HourglassLoading';
-import { useSalon } from './PainelLayout'; // Usa o contexto para recarregar dados globais se precisar
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
@@ -31,7 +29,6 @@ export default function ConfiguracoesPage() {
     
     // Estados Gerais
     const [loading, setLoading] = useState(true);
-    const [email, setEmail] = useState('');
     
     // Mercado Pago
     const [isMpConnected, setIsMpConnected] = useState(false);
@@ -54,18 +51,18 @@ export default function ConfiguracoesPage() {
         setLoading(true);
         try {
             const token = await auth.currentUser.getIdToken();
-            const user = auth.currentUser;
-            setEmail(user.email);
 
             // Busca dados do salão
-            const docRef = doc(db, 'cabeleireiros', salaoId);
-            const docSnap = await getDoc(docRef);
+            const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = response.data || {};
 
-            if (docSnap.exists()) {
-                const data = docSnap.data();
+            if (data) {
                 // Mercado Pago
                 setIsMpConnected(!!data.mp_access_token); // Se tem token, está conectado
                 setSinalValor(data.sinal_valor || 0);
+                setIsMpConnected(data.mp_connected === true || data.mercado_pago_connected === true || !!data.mp_access_token);
                 // Google
                 setIsGoogleSyncEnabled(data.google_sync_enabled === true);
             }

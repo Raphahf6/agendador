@@ -17,6 +17,9 @@ import {
 } from '../_lib/horalis.js';
 
 const SAO_PAULO_OFFSET = '-03:00';
+const DEFAULT_AGENT_MODEL = process.env.OPENAI_AGENT_MODEL || 'gpt-5.4-mini';
+const DEFAULT_AGENT_FALLBACK = 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.';
+const DEFAULT_AGENT_HANDOFF = 'Vou chamar uma pessoa da equipe para continuar seu atendimento.';
 
 function routeParts(req) {
   const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
@@ -46,9 +49,101 @@ function defaultSchedule() {
   };
 }
 
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function normalizeStringList(value, maxItems = 12) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split('\n')
+      .map((line) => line.trim());
+
+  return source
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function defaultAgentSettings(clinic) {
+  return {
+    enabled: false,
+    attendant_name: 'Atendente Horalis',
+    persona_summary: `Atendimento da ${clinic?.nome_salao || 'clinica'}.`,
+    tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
+    business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
+    sample_dialogues: [],
+    fallback_message: DEFAULT_AGENT_FALLBACK,
+    handoff_message: DEFAULT_AGENT_HANDOFF,
+    model: DEFAULT_AGENT_MODEL,
+    max_output_tokens: 450,
+  };
+}
+
+function pickAgentSettings(payload = {}, clinic) {
+  const defaults = defaultAgentSettings(clinic);
+  const model = String(payload.model || defaults.model).trim();
+
+  return {
+    enabled: payload.enabled === true,
+    attendant_name: String(payload.attendant_name || defaults.attendant_name).trim().slice(0, 80),
+    persona_summary: String(payload.persona_summary || defaults.persona_summary).trim().slice(0, 2000),
+    tone_instructions: String(payload.tone_instructions || defaults.tone_instructions).trim().slice(0, 2000),
+    business_rules: String(payload.business_rules || defaults.business_rules).trim().slice(0, 4000),
+    sample_dialogues: normalizeStringList(payload.sample_dialogues, 12),
+    fallback_message: String(payload.fallback_message || defaults.fallback_message).trim().slice(0, 800),
+    handoff_message: String(payload.handoff_message || defaults.handoff_message).trim().slice(0, 800),
+    model: model || DEFAULT_AGENT_MODEL,
+    max_output_tokens: clampNumber(payload.max_output_tokens, 120, 1200, defaults.max_output_tokens),
+  };
+}
+
+async function loadAgentSettings(clinic) {
+  const rows = await select('ai_agent_settings', {
+    select: '*',
+    clinic_id: `eq.${clinic.id}`,
+    limit: 1,
+  });
+
+  return rows[0] || {
+    clinic_id: clinic.id,
+    ...defaultAgentSettings(clinic),
+  };
+}
+
 function weekdayKey(dateString) {
   const date = new Date(`${dateString}T12:00:00${SAO_PAULO_OFFSET}`);
   return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
+}
+
+function appointmentToClient(row) {
+  return {
+    ...row,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    customerName: row.customer_name,
+    customerEmail: row.customer_email,
+    customerPhone: row.customer_phone,
+    serviceName: row.service_name,
+    servicePrice: row.service_price,
+    durationMinutes: row.duration_minutes,
+    professionalName: row.professional_name,
+    professionalId: row.professional_id,
+    paymentStatus: row.payment_status,
+  };
+}
+
+function addDateFilters(params, start, end) {
+  const filters = [];
+  if (start) filters.push(`start_time.gte.${start}`);
+  if (end) filters.push(`start_time.lte.${end}`);
+
+  if (filters.length > 1) params.and = `(${filters.join(',')})`;
+  else if (start) params.start_time = `gte.${start}`;
+  else if (end) params.start_time = `lte.${end}`;
 }
 
 async function requireUser(req) {
@@ -532,66 +627,179 @@ async function handleCrm(req, res, user, parts) {
   return notFound(res);
 }
 
-function applyCompatConstraints(rows, constraints = []) {
-  let result = [...rows];
-  const fieldMap = {
-    startTime: 'start_time',
-    endTime: 'end_time',
-    customerName: 'customer_name',
-    professionalId: 'professional_id',
-    serviceName: 'service_name',
+function summarizeSchedule(schedule = {}) {
+  const labels = {
+    monday: 'segunda',
+    tuesday: 'terca',
+    wednesday: 'quarta',
+    thursday: 'quinta',
+    friday: 'sexta',
+    saturday: 'sabado',
+    sunday: 'domingo',
   };
 
-  for (const constraint of constraints) {
-    if (constraint.type === 'where') {
-      const field = fieldMap[constraint.field] || constraint.field;
-      const expected = constraint.value;
-      result = result.filter((row) => {
-        const actual = row[field];
-        if (constraint.op === '==') return actual === expected;
-        if (constraint.op === '>=') return new Date(actual) >= new Date(expected);
-        if (constraint.op === '<=') return new Date(actual) <= new Date(expected);
-        if (constraint.op === '>') return new Date(actual) > new Date(expected);
-        if (constraint.op === '<') return new Date(actual) < new Date(expected);
-        return true;
-      });
-    }
-
-    if (constraint.type === 'orderBy') {
-      const field = fieldMap[constraint.field] || constraint.field;
-      const direction = constraint.direction === 'desc' ? -1 : 1;
-      result.sort((a, b) => String(a[field] || '').localeCompare(String(b[field] || '')) * direction);
-    }
-
-    if (constraint.type === 'limit') {
-      result = result.slice(0, Number(constraint.count || result.length));
-    }
-  }
-
-  return result;
+  return Object.entries(labels).map(([key, label]) => {
+    const day = schedule?.[key];
+    if (!day?.isOpen) return `${label}: fechado`;
+    const lunch = day.hasLunch ? `, intervalo ${day.lunchStart}-${day.lunchEnd}` : '';
+    return `${label}: ${day.openTime}-${day.closeTime}${lunch}`;
+  }).join('\n');
 }
 
-async function handleFirestoreCompat(req, res, user, parts) {
-  const [, , root, slug, child] = parts;
-  if (root !== 'cabeleireiros' || !slug || !child) return notFound(res);
+function buildAgentInstructions({ clinic, services, professionals, settings }) {
+  const serviceLines = services
+    .slice(0, 30)
+    .map((service) => `- ${service.nome_servico}: ${service.duracao_minutos || 30} min, R$ ${Number(service.preco || 0).toFixed(2)}${service.descricao ? `, ${service.descricao}` : ''}`)
+    .join('\n') || '- Nenhum servico cadastrado';
 
-  const { clinic } = await requireClinicMember(user, slug);
-  const constraintsRaw = getQuery(req).get('constraints');
-  const constraints = constraintsRaw ? JSON.parse(constraintsRaw) : [];
+  const professionalLines = professionals
+    .slice(0, 20)
+    .map((professional) => `- ${professional.nome}${professional.cargo ? ` (${professional.cargo})` : ''}`)
+    .join('\n') || '- Nenhum profissional cadastrado';
 
-  if (child === 'agendamentos') {
-    const rows = await select('appointments', {
-      select: '*',
-      clinic_id: `eq.${clinic.id}`,
-      status: 'neq.cancelado',
-      order: 'start_time.asc',
-    });
-    return json(res, 200, applyCompatConstraints(rows, constraints));
+  const samples = normalizeStringList(settings.sample_dialogues)
+    .map((sample) => `- ${sample}`)
+    .join('\n') || '- Sem exemplos cadastrados';
+
+  return [
+    `Voce e ${settings.attendant_name}, agente de atendimento da ${clinic.nome_salao}.`,
+    'Responda sempre em portugues do Brasil.',
+    'Sua missao e atender com linguagem humana, objetiva e fiel ao estilo configurado pela clinica.',
+    'Nao invente disponibilidade, preco, profissional, regra, pagamento ou procedimento que nao esteja no contexto.',
+    'Quando o cliente pedir para marcar, remarcar, cancelar ou confirmar horario, colete os dados necessarios e diga que vai consultar a agenda antes de confirmar.',
+    'Se faltar informacao, faca uma pergunta curta por vez.',
+    'Se a pergunta sair do escopo da clinica ou houver incerteza, use a mensagem de fallback ou encaminhe para humano.',
+    '',
+    `Personalidade:\n${settings.persona_summary}`,
+    '',
+    `Tom e estilo:\n${settings.tone_instructions}`,
+    '',
+    `Regras do negocio:\n${settings.business_rules}`,
+    '',
+    `Fallback:\n${settings.fallback_message}`,
+    '',
+    `Handoff humano:\n${settings.handoff_message}`,
+    '',
+    `Exemplos do atendente:\n${samples}`,
+    '',
+    `Servicos cadastrados:\n${serviceLines}`,
+    '',
+    `Equipe cadastrada:\n${professionalLines}`,
+    '',
+    `Horarios da clinica:\n${summarizeSchedule(clinic.horario_trabalho_detalhado || defaultSchedule())}`,
+  ].join('\n');
+}
+
+function extractOpenAIText(data) {
+  if (typeof data?.output_text === 'string') return data.output_text.trim();
+
+  const chunks = [];
+  for (const item of data?.output || []) {
+    for (const content of item?.content || []) {
+      if (typeof content?.text === 'string') chunks.push(content.text);
+      if (typeof content?.output_text === 'string') chunks.push(content.output_text);
+    }
   }
 
-  if (child === 'servicos') {
-    const rows = await getServices(clinic.id);
-    return json(res, 200, applyCompatConstraints(rows, constraints));
+  return chunks.join('\n').trim();
+}
+
+async function createOpenAIResponse({ instructions, input, model, maxOutputTokens, metadata }) {
+  if (!process.env.OPENAI_API_KEY) {
+    const error = new Error('Configure OPENAI_API_KEY na Vercel para usar o agente.');
+    error.status = 501;
+    throw error;
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      instructions,
+      input,
+      max_output_tokens: maxOutputTokens,
+      metadata,
+    }),
+  });
+
+  const raw = await response.text();
+  let data = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { error: { message: raw.slice(0, 500) } };
+    }
+  }
+
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || data?.message || 'Erro ao chamar OpenAI.');
+    error.status = response.status;
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    text: extractOpenAIText(data) || DEFAULT_AGENT_FALLBACK,
+  };
+}
+
+async function handleAgent(req, res, user, parts) {
+  const slug = parts[2];
+  const action = parts[3];
+  if (!slug) return notFound(res);
+
+  const { clinic, role } = await requireClinicMember(user, slug);
+  const canManage = role === 'owner' || role === 'admin' || clinic.owner_id === user.id;
+
+  if (action === 'settings' && req.method === 'GET') {
+    const settings = await loadAgentSettings(clinic);
+    return json(res, 200, settings);
+  }
+
+  if (action === 'settings' && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
+    if (!canManage) return forbidden(res, 'Somente administradores podem configurar o agente.');
+    const payload = await readJson(req);
+    const values = {
+      clinic_id: clinic.id,
+      ...pickAgentSettings(payload, clinic),
+    };
+    const rows = await insert('ai_agent_settings', [values], { upsert: true, onConflict: 'clinic_id' });
+    return json(res, 200, rows[0]);
+  }
+
+  if (action === 'preview' && req.method === 'POST') {
+    const payload = await readJson(req);
+    const message = String(payload.message || '').trim();
+    if (!message) return badRequest(res, 'Informe uma mensagem para testar o agente.');
+
+    const [settings, services, professionals] = await Promise.all([
+      loadAgentSettings(clinic),
+      getServices(clinic.id, { activeOnly: true }),
+      getProfessionals(clinic.id, { activeOnly: true }),
+    ]);
+
+    const response = await createOpenAIResponse({
+      instructions: buildAgentInstructions({ clinic, services, professionals, settings }),
+      input: message.slice(0, 3000),
+      model: settings.model || DEFAULT_AGENT_MODEL,
+      maxOutputTokens: settings.max_output_tokens || 450,
+      metadata: {
+        product: 'horalis',
+        clinic_id: clinic.id,
+        route: 'agent-preview',
+      },
+    });
+
+    return json(res, 200, {
+      reply: response.text,
+      response_id: response.id,
+      model: settings.model || DEFAULT_AGENT_MODEL,
+    });
   }
 
   return notFound(res);
@@ -610,6 +818,105 @@ async function handleAddNote(req, res, user) {
   return json(res, 201, rows[0]);
 }
 
+async function buildAppointmentUpdateValues(payload, clinic, appointmentId) {
+  const allowed = [
+    'start_time',
+    'end_time',
+    'status',
+    'service_name',
+    'service_price',
+    'duration_minutes',
+    'customer_name',
+    'customer_email',
+    'customer_phone',
+    'professional_id',
+    'professional_name',
+    'payment_status',
+    'notes',
+  ];
+  const values = {};
+
+  for (const key of allowed) {
+    if (payload[key] !== undefined) values[key] = payload[key];
+  }
+
+  if (payload.new_start_time) {
+    const rows = await select('appointments', {
+      select: 'start_time,end_time,duration_minutes',
+      id: `eq.${appointmentId}`,
+      clinic_id: `eq.${clinic.id}`,
+      limit: 1,
+    });
+
+    if (!rows.length) {
+      const error = new Error('Agendamento nao encontrado.');
+      error.status = 404;
+      throw error;
+    }
+
+    const nextStart = new Date(payload.new_start_time);
+    if (Number.isNaN(nextStart.getTime())) {
+      const error = new Error('Data de reagendamento invalida.');
+      error.status = 400;
+      throw error;
+    }
+
+    const currentStart = new Date(rows[0].start_time);
+    const currentEnd = new Date(rows[0].end_time);
+    const duration = Number(rows[0].duration_minutes)
+      || Math.max(15, Math.round((currentEnd.getTime() - currentStart.getTime()) / 60000))
+      || 30;
+
+    values.start_time = nextStart.toISOString();
+    values.end_time = new Date(nextStart.getTime() + duration * 60000).toISOString();
+    values.duration_minutes = duration;
+  }
+
+  if (values.professional_id === '') values.professional_id = null;
+
+  if (!Object.keys(values).length) {
+    const error = new Error('Nenhum campo valido para atualizar.');
+    error.status = 400;
+    throw error;
+  }
+
+  return values;
+}
+
+async function handleCalendarAppointments(req, res, user, parts) {
+  const slug = parts[2];
+  if (!slug) return notFound(res);
+
+  const { clinic } = await requireClinicMember(user, slug);
+  const query = getQuery(req);
+  const params = {
+    select: '*',
+    clinic_id: `eq.${clinic.id}`,
+    order: query.get('order') || 'start_time.asc',
+  };
+
+  addDateFilters(params, query.get('start'), query.get('end'));
+
+  const status = query.get('status');
+  if (status) {
+    params.status = status === 'not_cancelled' ? 'neq.cancelado' : `eq.${status}`;
+  } else if (query.get('include_cancelled') !== 'true') {
+    params.status = 'neq.cancelado';
+  }
+
+  const professionalId = query.get('professional_id');
+  if (professionalId && isUuid(professionalId)) params.professional_id = `eq.${professionalId}`;
+
+  const customerId = query.get('customer_id');
+  if (customerId && isUuid(customerId)) params.customer_id = `eq.${customerId}`;
+
+  const limitValue = Number(query.get('limit') || 500);
+  params.limit = Math.min(1000, Math.max(1, Number.isFinite(limitValue) ? limitValue : 500));
+
+  const rows = await select('appointments', params);
+  return json(res, 200, rows.map(appointmentToClient));
+}
+
 async function handleCalendarMutation(req, res, user, parts) {
   const slug = parts[2];
   const appointmentId = parts[4];
@@ -617,7 +924,9 @@ async function handleCalendarMutation(req, res, user, parts) {
 
   if (req.method === 'PATCH') {
     const payload = await readJson(req);
-    const rows = await patch('appointments', { id: `eq.${appointmentId}`, clinic_id: `eq.${clinic.id}` }, payload);
+    const values = await buildAppointmentUpdateValues(payload, clinic, appointmentId);
+    const rows = await patch('appointments', { id: `eq.${appointmentId}`, clinic_id: `eq.${clinic.id}` }, values);
+    if (!rows.length) return notFound(res, 'Agendamento nao encontrado.');
     return json(res, 200, rows[0]);
   }
 
@@ -712,7 +1021,7 @@ async function dispatch(req, res) {
     return json(res, 200, { salao_id: clinic.slug, slug: clinic.slug });
   }
 
-  if (parts[1] === 'firestore-compat') return handleFirestoreCompat(req, res, user, parts);
+  if (parts[1] === 'agent') return handleAgent(req, res, user, parts);
   if (parts[1] === 'clientes' && parts[2] === 'adicionar-nota' && req.method === 'POST') return handleAddNote(req, res, user);
   if (parts[1] === 'clientes' && parts[2] === 'enviar-promocional') return json(res, 202, { ok: true });
   if (parts[1] === 'clientes' && parts[2] && parts[3] === 'google-sync' && req.method === 'PATCH') return handleIntegrationRoutes(req, res, user, parts);
@@ -722,6 +1031,7 @@ async function dispatch(req, res) {
   }
 
   if (parts[1] === 'calendario' && parts[2] === 'agendar' && req.method === 'POST') return handleCreateAppointment(req, res, true);
+  if (parts[1] === 'calendario' && parts[2] && parts[3] === 'agendamentos' && !parts[4] && req.method === 'GET') return handleCalendarAppointments(req, res, user, parts);
   if (parts[1] === 'calendario' && parts[2] && parts[3] === 'agendamentos' && parts[4]) return handleCalendarMutation(req, res, user, parts);
   if (parts[1] === 'equipe') return handleTeam(req, res, user, parts[2]);
   if (parts[1] === 'estoque' && parts[2] === 'produtos') return handleStock(req, res, user, parts);
@@ -745,6 +1055,7 @@ export default async function handler(req, res) {
     if (error.status === 401) return unauthorized(res, error.message);
     if (error.status === 403) return forbidden(res, error.message);
     if (error.status === 404) return notFound(res, error.message);
+    if (error.status >= 400 && error.status < 600) return json(res, error.status, { detail: error.message });
     return serverError(res, error);
   }
 }

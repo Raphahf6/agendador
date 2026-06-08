@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { auth, db } from '@/firebaseConfig';
-import { doc, getDoc } from "firebase/firestore";
-import { format, differenceInDays, isAfter, parseISO } from 'date-fns';
-import { de, ptBR } from 'date-fns/locale';
+import { auth } from '@/firebaseConfig';
+import { differenceInDays, isAfter, parseISO } from 'date-fns';
 import { 
     Loader2, AlertTriangle, CheckCircle, CreditCard, Star, 
     Calendar, Link2, Bell, Users, Clock, Check,

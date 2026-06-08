@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Routes, Route, useParams, Navigate, Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
+import { onAuthStateChanged } from "firebase/auth";
 import { auth } from './firebaseConfig';
 import { Toaster } from 'react-hot-toast';
 // Axios é necessário para a requisição, mas não é usado diretamente neste arquivo pai
@@ -39,12 +39,11 @@ import ProfissionalSignupPage from './pages/painel/ProfissionalSignupPage';
 import HorariosPage from './pages/painel/HorariosPage';
 import AssinaturaPage from './pages/painel/AssinaturaPage';
 import ClientesPage from './pages/painel/ClientesPage';
+import AtendimentoAgentPage from './pages/painel/AtendimentoAgentPage';
 // --- FIM DOS NOVOS IMPORTS ---
 import HourglassLoading from './components/HourglassLoading';
 import FullScreenLoading from './components/FullScreenLoading';
 
-// --- Imports do Mercado Pago ---
-import { initMercadoPago } from '@mercadopago/sdk-react';
 import { SalonMicrosite } from './components/SalonMicrosite';
 import FinanceiroPage from './pages/painel/FinanceiroPage';
 import EstoquePage from './pages/painel/EstoquePage';
@@ -56,9 +55,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
 // --- Rota Protegida (Helper) ---
 function ProtectedPanelRoute({ children, user, location }) {
-    const { salaoId } = useParams();
-    const navigate = useNavigate();
-
     // 1. Auth ainda carregando? Mostra loading.
     if (user === undefined) {
         return (
@@ -146,6 +142,7 @@ function App() {
                     <Route path="visaoGeral" element={<VisaoGeralPage />} />
                     <Route path="calendario" element={<CalendarioPage />} />
                     <Route path="clientes" element={<ClientesPage />} />
+                    <Route path="atendimento" element={<AtendimentoAgentPage />} />
                     <Route path="clientes/:clienteId" element={<ClienteDetailPage />} />
                     <Route path="servicos" element={<ServicosPage />} />
                     <Route path="horarios" element={<HorariosPage />} />

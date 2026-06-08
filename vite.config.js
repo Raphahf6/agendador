@@ -29,7 +29,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         'firebase/auth': fileURLToPath(new URL('./src/lib/supabaseAuthCompat.js', import.meta.url)),
-        'firebase/firestore': fileURLToPath(new URL('./src/lib/supabaseFirestoreCompat.js', import.meta.url)),
       },
     },
     plugins: [
