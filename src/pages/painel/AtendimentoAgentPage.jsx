@@ -27,6 +27,8 @@ const DEFAULT_SETTINGS = {
   persona_summary: '',
   tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
   business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
+  opening_message: 'Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?',
+  conversation_example: '',
   sample_dialogues: [],
   fallback_message: 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.',
   handoff_message: 'Vou chamar uma pessoa da equipe para continuar seu atendimento.',
@@ -410,6 +412,31 @@ export default function AtendimentoAgentPage() {
             </div>
           </Section>
 
+          <Section icon={MessageSquareText} title="Fluxo">
+            <div className="grid gap-4">
+              <div>
+                <label className={labelClass}>Mensagem inicial</label>
+                <textarea
+                  className={`${fieldClass} min-h-24 resize-y`}
+                  value={settings.opening_message}
+                  onChange={(event) => updateField('opening_message', event.target.value)}
+                  maxLength={800}
+                  placeholder="Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Exemplo completo de atendimento</label>
+                <textarea
+                  className={`${fieldClass} min-h-64 resize-y font-mono text-xs leading-relaxed`}
+                  value={settings.conversation_example}
+                  onChange={(event) => updateField('conversation_example', event.target.value)}
+                  maxLength={8000}
+                  placeholder={`Atendente: Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?\nCliente: Pode ser sexta a tarde.\nAtendente: Perfeito. Qual servico voce gostaria de fazer?\nCliente: Limpeza de pele.\nAtendente: Vou consultar a agenda e ja te passo as melhores opcoes.`}
+                />
+              </div>
+            </div>
+          </Section>
+
           <Section icon={ShieldCheck} title="Regras">
             <div className="grid gap-4">
               <div>
@@ -444,13 +471,13 @@ export default function AtendimentoAgentPage() {
             </div>
           </Section>
 
-          <Section icon={MessageSquareText} title="Exemplos">
-            <label className={labelClass}>Uma fala por linha</label>
+          <Section icon={MessageSquareText} title="Frases curtas">
+            <label className={labelClass}>Uma referencia por linha</label>
             <textarea
               className={`${fieldClass} min-h-40 resize-y`}
               value={samplesText}
               onChange={(event) => setSamplesText(event.target.value)}
-              placeholder="Oi, tudo bem? Me passa seu nome e o melhor horario que eu vejo aqui pra voce."
+              placeholder="Perfeito, vou consultar a agenda e ja te passo as melhores opcoes."
             />
           </Section>
         </div>

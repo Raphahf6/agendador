@@ -75,6 +75,8 @@ function defaultAgentSettings(clinic) {
     persona_summary: `Atendimento da ${clinic?.nome_salao || 'clinica'}.`,
     tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
     business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
+    opening_message: 'Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?',
+    conversation_example: '',
     sample_dialogues: [],
     fallback_message: DEFAULT_AGENT_FALLBACK,
     handoff_message: DEFAULT_AGENT_HANDOFF,
@@ -93,6 +95,8 @@ function pickAgentSettings(payload = {}, clinic) {
     persona_summary: String(payload.persona_summary || defaults.persona_summary).trim().slice(0, 2000),
     tone_instructions: String(payload.tone_instructions || defaults.tone_instructions).trim().slice(0, 2000),
     business_rules: String(payload.business_rules || defaults.business_rules).trim().slice(0, 4000),
+    opening_message: String(payload.opening_message || defaults.opening_message).trim().slice(0, 800),
+    conversation_example: String(payload.conversation_example || defaults.conversation_example).trim().slice(0, 8000),
     sample_dialogues: normalizeStringList(payload.sample_dialogues, 12),
     fallback_message: String(payload.fallback_message || defaults.fallback_message).trim().slice(0, 800),
     handoff_message: String(payload.handoff_message || defaults.handoff_message).trim().slice(0, 800),
@@ -108,7 +112,7 @@ async function loadAgentSettings(clinic) {
     limit: 1,
   });
 
-  return rows[0] || {
+  return rows[0] ? { ...defaultAgentSettings(clinic), ...rows[0] } : {
     clinic_id: clinic.id,
     ...defaultAgentSettings(clinic),
   };
@@ -712,11 +716,17 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     .map((sample) => `- ${sample}`)
     .join('\n') || '- Sem exemplos cadastrados';
 
+  const openingMessage = String(settings.opening_message || '').trim() || '- Sem mensagem inicial configurada';
+  const conversationExample = String(settings.conversation_example || '').trim() || '- Sem exemplo completo cadastrado';
+
   return [
     `Voce e ${settings.attendant_name}, agente de atendimento da ${clinic.nome_salao}.`,
     'Responda sempre em portugues do Brasil.',
     'Sua missao e atender com linguagem humana, objetiva e fiel ao estilo configurado pela clinica.',
     'Nao invente disponibilidade, preco, profissional, regra, pagamento ou procedimento que nao esteja no contexto.',
+    'A mensagem inicial configurada tem prioridade sobre exemplos soltos no primeiro contato.',
+    'Use o exemplo completo como referencia de estilo, ritmo, ordem das perguntas e forma de confirmar dados.',
+    'Nunca copie nomes, telefones, datas ou horarios ficticios do exemplo completo; use apenas dados reais do contexto ou do cliente.',
     'Quando o cliente pedir para marcar, remarcar, cancelar ou confirmar horario, colete os dados necessarios e diga que vai consultar a agenda antes de confirmar.',
     'Se faltar informacao, faca uma pergunta curta por vez.',
     'Se a pergunta sair do escopo da clinica ou houver incerteza, use a mensagem de fallback ou encaminhe para humano.',
@@ -727,11 +737,15 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     '',
     `Regras do negocio:\n${settings.business_rules}`,
     '',
+    `Mensagem inicial fixa:\n${openingMessage}`,
+    '',
+    `Exemplo completo de atendimento para se basear:\n${conversationExample}`,
+    '',
     `Fallback:\n${settings.fallback_message}`,
     '',
     `Handoff humano:\n${settings.handoff_message}`,
     '',
-    `Exemplos do atendente:\n${samples}`,
+    `Frases curtas de referencia:\n${samples}`,
     '',
     `Servicos cadastrados:\n${serviceLines}`,
     '',
@@ -858,6 +872,8 @@ function buildAgentDecisionInstructions({ clinic, services, professionals, setti
     'Regras criticas:',
     '- Nunca use create_booking se o cliente ainda nao confirmou explicitamente o horario.',
     '- Nunca invente IDs. Use apenas service_id e professional_id do contexto.',
+    '- Se for o primeiro contato e o cliente mandou apenas saudacao ou mensagem vaga, use answer com a mensagem inicial configurada como base.',
+    '- Se o cliente ja informou servico, data, horario ou preferencia concreta, nao reinicie o fluxo; continue a partir do dado recebido.',
     '- Se faltar servico, data, horario, nome ou telefone, use answer e pergunte apenas o proximo dado.',
     '- Se o cliente pedir opcoes de horario, use list_slots.',
     '- Se houver duvida, use answer ou handoff.',
@@ -867,12 +883,17 @@ function buildAgentDecisionInstructions({ clinic, services, professionals, setti
   ].join('\n');
 }
 
-function buildAgentContextPayload({ message, history = [], clinic, services, professionals }) {
+function buildAgentContextPayload({ message, history = [], clinic, services, professionals, settings }) {
   return JSON.stringify({
     now: new Date().toISOString(),
     timezone: 'America/Sao_Paulo',
     message,
     history: Array.isArray(history) ? history.slice(-8) : [],
+    conversation_state: {
+      is_first_turn: !Array.isArray(history) || history.length === 0,
+      opening_message: settings.opening_message || '',
+      has_full_example: Boolean(settings.conversation_example),
+    },
     clinic: {
       slug: clinic.slug,
       nome_salao: clinic.nome_salao,
@@ -900,7 +921,7 @@ function buildAgentContextPayload({ message, history = [], clinic, services, pro
 async function planAgentAction({ message, history, clinic, services, professionals, settings }) {
   const response = await createOpenAIResponse({
     instructions: buildAgentDecisionInstructions({ clinic, services, professionals, settings }),
-    input: buildAgentContextPayload({ message, history, clinic, services, professionals }),
+    input: buildAgentContextPayload({ message, history, clinic, services, professionals, settings }),
     model: settings.model || DEFAULT_AGENT_MODEL,
     maxOutputTokens: 650,
     metadata: {
