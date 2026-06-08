@@ -150,6 +150,42 @@ function appointmentToClient(row) {
   };
 }
 
+function appointmentToCustomerHistory(row) {
+  const appointment = appointmentToClient(row);
+  return {
+    id: appointment.id,
+    tipo: 'Agendamento',
+    data_evento: appointment.start_time,
+    dados: {
+      ...appointment,
+      status: appointment.status,
+      serviceName: appointment.serviceName,
+      servicePrice: appointment.servicePrice,
+      durationMinutes: appointment.durationMinutes,
+      professionalName: appointment.professionalName,
+      startTime: appointment.startTime,
+      endTime: appointment.endTime,
+    },
+  };
+}
+
+function customerEventToCustomerHistory(row) {
+  const type = String(row.tipo || '').toLowerCase();
+  return {
+    ...row,
+    tipo: type === 'nota' ? 'NotaManual' : (row.tipo || 'Evento'),
+    data_evento: row.data_evento || row.created_at,
+    dados: row.dados && typeof row.dados === 'object' ? row.dados : {},
+  };
+}
+
+function buildCustomerHistory(appointments = [], events = []) {
+  return [
+    ...appointments.map(appointmentToCustomerHistory),
+    ...events.map(customerEventToCustomerHistory),
+  ].sort((a, b) => new Date(b.data_evento || 0).getTime() - new Date(a.data_evento || 0).getTime());
+}
+
 function addDateFilters(params, start, end) {
   const filters = [];
   if (start) filters.push(`start_time.gte.${start}`);
@@ -849,7 +885,12 @@ async function handleCrm(req, res, user, parts) {
       select('appointments', { select: '*', customer_id: `eq.${id}`, clinic_id: `eq.${clinic.id}`, order: 'start_time.desc' }),
       select('customer_events', { select: '*', customer_id: `eq.${id}`, clinic_id: `eq.${clinic.id}`, order: 'data_evento.desc' }),
     ]);
-    return json(res, 200, { cliente: customers[0], agendamentos: appointments, timeline: events });
+    return json(res, 200, {
+      cliente: customers[0],
+      agendamentos: appointments.map(appointmentToClient),
+      timeline: events.map(customerEventToCustomerHistory),
+      historico_agendamentos: buildCustomerHistory(appointments, events),
+    });
   }
 
   return notFound(res);

@@ -42,6 +42,55 @@ const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 };
 
+const parseTimelineDate = (value) => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : parseISO(String(value));
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizeTimelineType = (value) => {
+    const type = String(value || '').toLowerCase();
+    if (type === 'agendamento' || type === 'appointment') return 'Agendamento';
+    if (type === 'nota' || type === 'notamanual' || type === 'nota_manual') return 'NotaManual';
+    return value || 'Evento';
+};
+
+const appointmentToTimelineItem = (appointment = {}) => ({
+    id: appointment.id,
+    tipo: 'Agendamento',
+    data_evento: appointment.start_time || appointment.startTime || appointment.created_at,
+    dados: {
+        ...appointment,
+        status: appointment.status || '',
+        serviceName: appointment.serviceName || appointment.service_name || 'Servico',
+        servicePrice: appointment.servicePrice ?? appointment.service_price ?? 0,
+        durationMinutes: appointment.durationMinutes ?? appointment.duration_minutes ?? 30,
+        professionalName: appointment.professionalName || appointment.professional_name || '',
+        startTime: appointment.startTime || appointment.start_time || null,
+        endTime: appointment.endTime || appointment.end_time || null,
+    },
+});
+
+const normalizeTimelineItem = (item = {}) => {
+    const looksLikeAppointment = !item.tipo && (item.start_time || item.startTime || item.service_name || item.serviceName);
+    const source = looksLikeAppointment ? appointmentToTimelineItem(item) : item;
+    const dados = source.dados && typeof source.dados === 'object' ? source.dados : {};
+
+    return {
+        ...source,
+        tipo: normalizeTimelineType(source.tipo),
+        data_evento: parseTimelineDate(source.data_evento || source.start_time || source.startTime || source.created_at),
+        dados,
+    };
+};
+
+const getCustomerHistory = (apiData = {}) => {
+    if (Array.isArray(apiData.historico_agendamentos)) return apiData.historico_agendamentos;
+    const appointments = Array.isArray(apiData.agendamentos) ? apiData.agendamentos.map(appointmentToTimelineItem) : [];
+    const timeline = Array.isArray(apiData.timeline) ? apiData.timeline : [];
+    return [...appointments, ...timeline];
+};
+
 // =============================================================================
 // MODAL 1: ENVIAR E-MAIL PROMOCIONAL
 // =============================================================================
@@ -270,14 +319,10 @@ export default function ClienteDetailPage() {
             const token = await auth.currentUser.getIdToken();
             const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}/detalhes-crm/${clienteId}`, { headers: { Authorization: `Bearer ${token}` } });
             const apiData = response.data;
-
-            console.log("Dados brutos do cliente:", apiData); // 🔍 DEBUG: Veja isso no console (F12)
+            if (!apiData?.cliente) throw new Error('Cliente nao encontrado.');
 
             // 1. Mapeia e Ordena a Timeline
-            const mappedTimeline = apiData.historico_agendamentos.map(item => ({
-                ...item,
-                data_evento: item.data_evento ? parseISO(item.data_evento) : null,
-            })).sort((a, b) => {
+            const mappedTimeline = getCustomerHistory(apiData).map(normalizeTimelineItem).sort((a, b) => {
                 const dateA = a.data_evento || new Date(0);
                 const dateB = b.data_evento || new Date(0);
                 return dateB - dateA; // Mais recente primeiro
@@ -341,7 +386,7 @@ export default function ClienteDetailPage() {
                 cliente_id: clienteId, salao_id: salaoId, nota_texto: novaNota.trim(),
             }, { headers: { Authorization: `Bearer ${token}` } });
 
-            const savedNote = { ...response.data, data_evento: parseISO(response.data.data_evento) };
+            const savedNote = normalizeTimelineItem(response.data);
             
             setData(prev => ({ ...prev, timeline: [savedNote, ...prev.timeline] }));
             setNovaNota('');
