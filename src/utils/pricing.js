@@ -4,19 +4,22 @@
  * para exibição, usando valores padrão como fallback.
  */
 
+const DEFAULT_MONTHLY_PRICE_AMOUNT = 29.90;
+
 // Função auxiliar para ler variáveis de ambiente do frontend de forma segura
 const getEnvFloat = (key, fallback) => {
     // 1. Tenta ler via import.meta.env (Padrão Vite/Moderno)
     const viteValue = import.meta.env[key];
     if (viteValue !== undefined) {
-        return parseFloat(viteValue) || fallback;
+        const parsedValue = parseFloat(viteValue);
+        return Number.isFinite(parsedValue) ? parsedValue : fallback;
     }
 
     return fallback;
 };
 
                                        
-// Tenta ler a variável de ambiente, senão usa fallback 19.90
-export const MONTHLY_PRICE_AMOUNT = getEnvFloat('VITE_SETUP_PRICE')
+// Tenta ler a variável de ambiente, senão usa o preço padrão.
+export const MONTHLY_PRICE_AMOUNT = getEnvFloat('VITE_SETUP_PRICE', DEFAULT_MONTHLY_PRICE_AMOUNT);
 // Formatos de exibição
 export const DISPLAY_PRICE_SETUP = `R$ ${MONTHLY_PRICE_AMOUNT.toFixed(2).replace('.', ',')}`;

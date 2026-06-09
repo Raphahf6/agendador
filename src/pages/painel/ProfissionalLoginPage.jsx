@@ -20,6 +20,22 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
+const getLoginErrorMessage = (err) => {
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        return "E-mail ou senha inválidos.";
+    }
+
+    if (err.message?.includes('Configure VITE_SUPABASE')) {
+        return err.message;
+    }
+
+    if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        return "Não foi possível conectar ao Supabase. Verifique sua conexão e as variáveis VITE_SUPABASE_*.";
+    }
+
+    return "Ocorreu um erro ao fazer login.";
+};
+
 // --- Imagem de Fundo (Qualidade Premium) ---
 const heroImageUrl = "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?q=80&w=2000&auto=format&fit=crop";
 
@@ -73,6 +89,7 @@ function ProfissionalLoginPage() {
             console.error("Erro ao buscar ID do Salão:", apiError);
             await auth.signOut();
             setError(apiError.response?.data?.detail || "Erro ao conectar conta.");
+            setLoading(false);
         }
     };
 
@@ -85,11 +102,8 @@ function ProfissionalLoginPage() {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             await getSalaoIdAndRedirect(userCredential.user); 
         } catch (err) {
-            if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-                setError("E-mail ou senha inválidos.");
-            } else {
-                setError("Ocorreu um erro ao fazer login.");
-            }
+            console.error("Erro ao fazer login:", err);
+            setError(getLoginErrorMessage(err));
             setLoading(false);
         }
     };
