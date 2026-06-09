@@ -596,6 +596,35 @@ async function getAvailableSlotsForClinic(clinic, { serviceId, date, professiona
   return { service: services[0], professional, slots };
 }
 
+async function getBestProfessionalSlotsForService(clinic, { service, date, professionals, period }) {
+  const eligibleProfessionals = professionalsForService(service, professionals);
+  if (!eligibleProfessionals.length) {
+    const { slots } = await getAvailableSlotsForClinic(clinic, { serviceId: service.id, date });
+    return { professional: null, slots: periodFilteredSlots(slots, period) };
+  }
+
+  const results = await Promise.all(eligibleProfessionals.map(async (professional) => {
+    try {
+      const { slots } = await getAvailableSlotsForClinic(clinic, {
+        serviceId: service.id,
+        date,
+        professionalId: professional.id,
+      });
+      return {
+        professional,
+        slots: periodFilteredSlots(slots, period),
+      };
+    } catch {
+      return { professional, slots: [] };
+    }
+  }));
+
+  return results
+    .filter((result) => result.slots.length)
+    .sort((a, b) => new Date(a.slots[0]).getTime() - new Date(b.slots[0]).getTime())[0]
+    || { professional: eligibleProfessionals[0] || null, slots: [] };
+}
+
 async function handleAvailableSlots(req, res, slug) {
   const query = getQuery(req);
   const serviceId = query.get('service_id');
@@ -1072,8 +1101,10 @@ function normalizeAgentPlan(plan = {}) {
     reply: String(plan.reply || '').trim(),
     service_id: nullableText(plan.service_id),
     professional_id: isUuid(plan.professional_id) ? plan.professional_id : null,
+    professional_preference: nullableText(plan.professional_preference) === 'any' ? 'any' : null,
     date: nullableText(plan.date)?.slice(0, 10) || null,
     start_time: nullableText(plan.start_time),
+    preferred_time: nullableText(plan.preferred_time),
     customer_name: String(plan.customer_name || '').trim(),
     customer_phone: cleanPhone(plan.customer_phone),
     customer_email: String(plan.customer_email || '').trim(),
@@ -1092,12 +1123,103 @@ function normalizeAgentText(value) {
     .trim();
 }
 
+function normalizeAgentTextWithPunctuation(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s.,;!?-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function termPattern(term) {
+  return escapeRegExp(normalizeAgentText(term)).replace(/\s+/g, '\\s+');
+}
+
+function isNegatedServiceTerm(message, term) {
+  const pattern = termPattern(term);
+  if (!pattern) return false;
+
+  const text = normalizeAgentText(message);
+  const punctuatedText = normalizeAgentTextWithPunctuation(message);
+  const afterTerm = new RegExp(`\\b${pattern}\\b\\s*(?:nao|n)\\b`).test(text);
+  const explicitBeforeTerm = new RegExp(`(?:^|[.!?;]\\s*)nao\\s+(?:quero\\s+|queria\\s+|vou\\s+querer\\s+|preciso\\s+)?${pattern}\\b`).test(punctuatedText);
+  const withoutTerm = new RegExp(`\\b(?:sem|dispenso)\\s+${pattern}\\b`).test(text);
+
+  return afterTerm || explicitBeforeTerm || withoutTerm;
+}
+
+const AGENT_NLU_DICTIONARY = {
+  scheduling: [
+    'agendar', 'agendamento', 'marcar', 'marca pra mim', 'reservar', 'reserva',
+    'encaixe', 'encaixar', 'tem vaga', 'vaga', 'horario', 'horarios',
+    'agenda', 'disponivel', 'disponibilidade', 'consulta', 'atendimento',
+    'quero fazer', 'preciso fazer', 'posso ir',
+  ],
+  price: [
+    'preco', 'valor', 'quanto custa', 'custa quanto', 'quanto fica',
+    'valores', 'tabela', 'orcamento',
+  ],
+  servicesList: [
+    'servicos', 'servico', 'procedimentos', 'procedimento', 'o que voces fazem',
+    'quais opcoes', 'quais sao os servicos', 'lista de servicos',
+  ],
+  openingHours: [
+    'horario de funcionamento', 'abre', 'abrem', 'fecha', 'fecham',
+    'funciona', 'funcionam', 'atende sabado', 'atendem sabado',
+    'atende domingo', 'atendem domingo', 'que horas',
+  ],
+  human: [
+    'humano', 'pessoa', 'atendente', 'recepcao', 'recepcionista',
+    'falar com alguem', 'chamar alguem', 'falar com uma pessoa',
+  ],
+  thanks: ['obrigado', 'obrigada', 'valeu', 'agradeco', 'grato', 'gratidao'],
+  confirmations: [
+    'sim', 'pode confirmar', 'confirmar', 'confirmado', 'fechado',
+    'pode ser', 'isso mesmo', 'esta correto', 'ta certo', 'beleza',
+    'perfeito', 'manda ver',
+  ],
+  rejections: [
+    'nao', 'outro horario', 'trocar horario', 'prefiro outro', 'melhor outro',
+    'nao gostei', 'nao da', 'nao consigo', 'tem outro',
+  ],
+  smallTalk: [
+    'kkkk', 'rs', 'haha', 'bom dia', 'boa tarde', 'boa noite',
+    'tudo bem', 'me ajuda', 'socorro',
+  ],
+  periods: {
+    morning: ['manha', 'cedo', 'de manha', 'pela manha', 'inicio do dia'],
+    afternoon: ['tarde', 'a tarde', 'pela tarde', 'depois do almoco', 'apos o almoco'],
+    night: ['noite', 'a noite', 'pela noite', 'fim do dia', 'final do dia'],
+  },
+  serviceAliases: [
+    { roots: ['corte'], aliases: ['cortar', 'corta', 'aparar', 'degrade', 'cortezinho'] },
+    { roots: ['corte infantil'], aliases: ['corte pra crianca', 'corte para crianca', 'corte infantil', 'crianca', 'infantil'] },
+    { roots: ['barba'], aliases: ['barbear', 'barbinha', 'fazer barba', 'fazer a barba', 'aparar barba'] },
+    { roots: ['sobrancelha'], aliases: ['sobrancelhas', 'design sobrancelha', 'design de sobrancelha'] },
+    { roots: ['unha', 'manicure'], aliases: ['unhas', 'mao', 'maos', 'fazer a mao', 'fazer as unhas', 'manicure'] },
+    { roots: ['pedicure', 'pe'], aliases: ['pes', 'fazer o pe', 'fazer os pes', 'pedicure'] },
+    { roots: ['escova'], aliases: ['escovar', 'brushing', 'modelar cabelo'] },
+    { roots: ['hidratacao'], aliases: ['hidratar', 'hidratacao capilar', 'tratamento capilar'] },
+    { roots: ['progressiva'], aliases: ['alisamento', 'alisar', 'selagem', 'realinhamento'] },
+    { roots: ['coloracao', 'tintura'], aliases: ['pintar', 'pintura', 'tingir', 'tinta', 'colorir'] },
+    { roots: ['limpeza pele'], aliases: ['limpeza de pele', 'facial', 'pele'] },
+    { roots: ['maquiagem'], aliases: ['make', 'maquiar', 'maquiagem'] },
+  ],
+};
+
 function hasAnyTerm(text, terms) {
-  return terms.some((term) => text.includes(term));
+  const normalized = normalizeAgentText(text);
+  return terms.some((term) => normalized.includes(normalizeAgentText(term)));
 }
 
 function serviceWords(serviceName) {
-  const stopWords = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'para']);
+  const stopWords = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'com', 'para', 'o', 'a', 'os', 'as', 'um', 'uma']);
   return normalizeAgentText(serviceName)
     .split(' ')
     .filter((word) => word.length > 2 && !stopWords.has(word));
@@ -1126,6 +1248,22 @@ function ordinalChoiceIndex(message) {
     ['quinta opcao', 4],
     ['opcao 5', 4],
     ['5', 4],
+    ['sexto', 5],
+    ['sexta opcao', 5],
+    ['opcao 6', 5],
+    ['6', 5],
+    ['setimo', 6],
+    ['setima opcao', 6],
+    ['opcao 7', 6],
+    ['7', 6],
+    ['oitavo', 7],
+    ['oitava opcao', 7],
+    ['opcao 8', 7],
+    ['8', 7],
+    ['nono', 8],
+    ['nona opcao', 8],
+    ['opcao 9', 8],
+    ['9', 8],
   ].find(([term]) => {
     const termWords = term.split(' ');
     if (termWords.length === 1) return words.includes(term);
@@ -1139,17 +1277,44 @@ function scoreServiceMatch(message, service) {
   const text = normalizeAgentText(message);
   const name = normalizeAgentText(service.nome_servico);
   if (!text || !name) return 0;
+  const childTerms = ['crianca', 'criancas', 'infantil', 'menino', 'menina', 'filho', 'filha'];
+  if (name.includes('infantil') && !hasAnyTerm(text, childTerms)) return 0;
   if (text.includes(name)) return 100 + name.length;
 
   const words = serviceWords(service.nome_servico);
   if (!words.length) return 0;
 
+  const aliasMatch = AGENT_NLU_DICTIONARY.serviceAliases.find((group) => {
+    const serviceHasRoot = group.roots.some((root) => name.includes(normalizeAgentText(root)));
+    const messageHasAlias = group.aliases.some((alias) => text.includes(normalizeAgentText(alias)));
+    return serviceHasRoot && messageHasAlias;
+  });
+  if (aliasMatch) return 70 + aliasMatch.roots.join('').length;
+
   const matched = words.filter((word) => text.includes(word));
   if (matched.length === words.length && words.length >= 2) return 80 + matched.join('').length;
   if (matched.length >= 2) return 55 + matched.join('').length;
-  if (matched.length === 1) return 25 + matched[0].length;
+  if (matched.length === 1) {
+    const genericWords = new Set(['cabelo', 'pele', 'unha', 'maos', 'pes']);
+    return genericWords.has(matched[0]) ? 18 : 20 + matched[0].length;
+  }
 
   return 0;
+}
+
+function rankServiceMatches(message, services = []) {
+  return services
+    .map((service) => {
+      const name = normalizeAgentText(service.nome_servico);
+      const words = serviceWords(service.nome_servico);
+      const negated = [name, ...words].some((term) => term && isNegatedServiceTerm(message, term));
+      return {
+        service,
+        score: negated ? 0 : scoreServiceMatch(message, service),
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
 }
 
 function findServiceInMessage(message, services, { expected = false } = {}) {
@@ -1160,10 +1325,7 @@ function findServiceInMessage(message, services, { expected = false } = {}) {
     if (selectedIndex !== null && services[selectedIndex]) return services[selectedIndex];
   }
 
-  const ranked = services
-    .map((service) => ({ service, score: scoreServiceMatch(message, service) }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const ranked = rankServiceMatches(message, services);
 
   if (!ranked.length) return null;
   const [best, second] = ranked;
@@ -1173,12 +1335,89 @@ function findServiceInMessage(message, services, { expected = false } = {}) {
   return null;
 }
 
-function findProfessionalInMessage(message, professionals) {
+function ambiguousServiceMatches(message, services = []) {
+  const ranked = rankServiceMatches(message, services);
+  if (ranked.length < 2) return [];
+  const [best, second] = ranked;
+  if (best.score >= 80 && best.score - second.score >= 20) return [];
+  return ranked
+    .filter((item) => best.score - item.score <= 20)
+    .slice(0, 5)
+    .map((item) => item.service);
+}
+
+function findProfessionalInMessage(message, professionals, { expected = false } = {}) {
+  if (expected) {
+    const selectedIndex = ordinalChoiceIndex(message);
+    if (selectedIndex !== null && professionals[selectedIndex]) return professionals[selectedIndex];
+  }
+
   const text = normalizeAgentText(message);
   return professionals.find((professional) => {
     const name = normalizeAgentText(professional.nome);
     return name && text.includes(name);
   }) || null;
+}
+
+function professionalsForService(service, professionals = []) {
+  if (!service) return [];
+  return professionals.filter((professional) => {
+    if (professional.active === false) return false;
+    const services = Array.isArray(professional.servicos) ? professional.servicos.map(String) : [];
+    return !services.length || services.includes(String(service.id));
+  });
+}
+
+function acceptsAnyProfessional(message, { expected = false } = {}) {
+  const text = normalizeAgentText(message);
+  const explicitTerms = [
+    'qualquer profissional',
+    'qualquer um',
+    'qualquer pessoa',
+    'sem preferencia de profissional',
+    'pode ser qualquer profissional',
+    'quem tiver',
+    'primeiro disponivel',
+    'primeira disponibilidade',
+  ];
+  if (hasAnyTerm(text, explicitTerms)) return true;
+  if (!expected) return false;
+
+  return hasAnyTerm(text, [
+    'qualquer',
+    'tanto faz',
+    'sem preferencia',
+    'pode ser qualquer',
+    'quem tiver',
+    'primeiro disponivel',
+    'primeira disponibilidade',
+  ]);
+}
+
+function professionalQuestionReply(professionals = [], intro = 'Voce prefere algum profissional ou pode ser qualquer um?') {
+  const options = professionals
+    .slice(0, 8)
+    .map((professional, index) => `${index + 1}. ${professional.nome}${professional.cargo ? ` - ${professional.cargo}` : ''}`)
+    .join('\n');
+
+  return options
+    ? `${intro}\n\nProfissionais disponiveis:\n${options}\n${Math.min(professionals.length, 8) + 1}. Qualquer profissional`
+    : intro;
+}
+
+function detectProfessionalChoice(message, professionals = [], { expected = false } = {}) {
+  if (acceptsAnyProfessional(message, { expected })) return { professional: null, preference: 'any' };
+
+  if (expected) {
+    const selectedIndex = ordinalChoiceIndex(message);
+    if (selectedIndex === Math.min(professionals.length, 8)) return { professional: null, preference: 'any' };
+  }
+
+  const professional = findProfessionalInMessage(message, professionals, { expected });
+  return {
+    professional,
+    preference: professional ? 'specific' : null,
+  };
 }
 
 function saoPauloDateParts(date = new Date()) {
@@ -1213,6 +1452,17 @@ function parseMessageDate(message) {
   if (text.includes('amanha')) return addDaysDateKey(1);
   if (text.includes('hoje')) return addDaysDateKey(0);
 
+  const dayOnly = text.match(/\bdia\s+(\d{1,2})\b/);
+  if (dayOnly) {
+    const day = Number(dayOnly[1]);
+    if (day >= 1 && day <= 31) {
+      const { year, month } = saoPauloDateParts();
+      const candidate = new Date(`${year}-${month}-${String(day).padStart(2, '0')}T12:00:00${SAO_PAULO_OFFSET}`);
+      if (candidate.getTime() < saoPauloNoon().getTime()) candidate.setUTCMonth(candidate.getUTCMonth() + 1);
+      return saoPauloDateKey(candidate);
+    }
+  }
+
   const explicit = text.match(/\b(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?\b/);
   if (explicit) {
     const day = explicit[1].padStart(2, '0');
@@ -1232,7 +1482,7 @@ function parseMessageDate(message) {
     ['sexta', 5],
     ['sabado', 6],
   ];
-  const match = weekdays.find(([label]) => text.includes(label));
+  const match = weekdays.find(([label]) => text.includes(label) && !text.includes(`${label} opcao`));
   if (!match) return null;
 
   const today = saoPauloNoon();
@@ -1244,10 +1494,15 @@ function parseMessageDate(message) {
 }
 
 function detectPeriod(message) {
-  const words = normalizeAgentText(message).split(' ').filter(Boolean);
-  if (words.includes('manha')) return 'morning';
-  if (words.includes('tarde')) return 'afternoon';
-  if (words.includes('noite')) return 'night';
+  const text = normalizeAgentText(message);
+  const words = text.split(' ').filter(Boolean);
+  const hasPeriod = (terms) => terms.some((term) => {
+    const normalized = normalizeAgentText(term);
+    return normalized.includes(' ') ? text.includes(normalized) : words.includes(normalized);
+  });
+  if (hasPeriod(AGENT_NLU_DICTIONARY.periods.morning)) return 'morning';
+  if (hasPeriod(AGENT_NLU_DICTIONARY.periods.afternoon)) return 'afternoon';
+  if (hasPeriod(AGENT_NLU_DICTIONARY.periods.night)) return 'night';
   return null;
 }
 
@@ -1271,33 +1526,46 @@ function filterSlotsByPeriod(slots, period) {
   });
 }
 
+function periodFilteredSlots(slots, period) {
+  return period ? filterSlotsByPeriod(slots, period) : slots;
+}
+
 function isGreetingOnly(message) {
   const text = normalizeAgentText(message);
   if (!text) return false;
+  if (/\d/.test(text)) return false;
   const greetingWords = new Set(['oi', 'ola', 'bom', 'boa', 'dia', 'tarde', 'noite', 'tudo', 'bem', 'td', 'como', 'vai', 'favor']);
   const words = text.split(' ').filter(Boolean);
   const extra = words.filter((word) => !greetingWords.has(word));
-  return extra.length === 0 || (text.length <= 35 && extra.length <= 1);
+  return extra.length === 0;
 }
 
 function isShortThanks(message) {
   const text = normalizeAgentText(message);
-  return text.length <= 40 && hasAnyTerm(text, ['obrigado', 'obrigada', 'valeu', 'agradeco', 'grato']);
+  return text.length <= 50 && hasAnyTerm(text, AGENT_NLU_DICTIONARY.thanks);
 }
 
 function wantsHuman(message) {
   const text = normalizeAgentText(message);
-  return hasAnyTerm(text, ['humano', 'pessoa', 'atendente', 'recepcao', 'recepcionista', 'falar com alguem', 'chamar alguem']);
+  return hasAnyTerm(text, AGENT_NLU_DICTIONARY.human);
 }
 
 function wantsPrice(message) {
   const text = normalizeAgentText(message);
-  return hasAnyTerm(text, ['preco', 'valor', 'quanto custa', 'custa quanto', 'quanto fica', 'valores']);
+  return hasAnyTerm(text, AGENT_NLU_DICTIONARY.price);
 }
 
 function wantsScheduling(message) {
   const text = normalizeAgentText(message);
-  return hasAnyTerm(text, ['agendar', 'marcar', 'horario', 'horarios', 'agenda', 'disponivel', 'disponibilidade', 'vaga', 'encaixe', 'consulta']);
+  return hasAnyTerm(text, AGENT_NLU_DICTIONARY.scheduling);
+}
+
+function wantsServiceList(message) {
+  return hasAnyTerm(message, AGENT_NLU_DICTIONARY.servicesList);
+}
+
+function wantsOpeningHours(message) {
+  return hasAnyTerm(message, AGENT_NLU_DICTIONARY.openingHours);
 }
 
 function periodLabel(period) {
@@ -1329,6 +1597,21 @@ function dateQuestionReply(service) {
   return `Perfeito, para ${service.nome_servico}. Qual dia ou periodo voce prefere? Pode mandar, por exemplo, "amanha a tarde" ou "sexta de manha".`;
 }
 
+function openingHoursReply(clinic, services) {
+  return [
+    `Nosso horario de funcionamento e:\n${summarizeSchedule(clinic.horario_trabalho_detalhado || defaultSchedule())}`,
+    '',
+    serviceQuestionReply(services, 'Se quiser, ja posso consultar um horario. Qual servico voce gostaria de fazer?'),
+  ].join('\n');
+}
+
+function focusSchedulingReply(services) {
+  return serviceQuestionReply(
+    services,
+    'Consigo te ajudar por aqui a consultar horarios e fazer o agendamento. Qual servico voce gostaria de fazer?',
+  );
+}
+
 function extractPhoneFromMessage(message) {
   const candidates = String(message || '').match(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-.\s]?\d{4}/g) || [];
   const phone = cleanPhone(candidates[0] || '');
@@ -1337,6 +1620,20 @@ function extractPhoneFromMessage(message) {
 
 function extractEmailFromMessage(message) {
   return String(message || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '';
+}
+
+function extractRequestedTime(message) {
+  const text = normalizeAgentText(message);
+  if (text.includes('meio dia')) return '12:00';
+
+  const explicit = text.match(/\b(?:as|a partir das|depois das|antes das)\s+(\d{1,2})(?:h| horas?|:)?\s*(\d{2})?\b/)
+    || text.match(/\b(\d{1,2})(?:h| horas?|:)(\d{2})?\b/);
+  if (!explicit) return null;
+
+  const hour = Number(explicit[1]);
+  const minute = Number(explicit[2] || 0);
+  if (!Number.isFinite(hour) || hour < 6 || hour > 23 || minute < 0 || minute > 59) return null;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function titleName(value) {
@@ -1352,7 +1649,7 @@ function extractNameFromMessage(message, { expected = false } = {}) {
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, ' ')
     .replace(/(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}[-.\s]?\d{4}/g, ' ');
   const normalized = normalizeAgentText(withoutContact);
-  const explicit = normalized.match(/\b(?:meu nome e|me chamo|sou)\s+([a-z\s]{3,80})/);
+  const explicit = normalized.match(/\b(?:meu nome e|me chamo|me chama de|pode me chamar de|sou a|sou o|sou)\s+([a-z\s]{2,80})/);
   if (explicit) return titleName(explicit[1]);
 
   if (!expected) return '';
@@ -1367,12 +1664,13 @@ function extractNameFromMessage(message, { expected = false } = {}) {
 
 function isConfirmation(message) {
   const text = normalizeAgentText(message);
-  return hasAnyTerm(text, ['sim', 'pode confirmar', 'confirmar', 'confirmado', 'fechado', 'pode ser', 'isso mesmo', 'esta correto', 'ta certo']);
+  return hasAnyTerm(text, AGENT_NLU_DICTIONARY.confirmations);
 }
 
 function isRejection(message) {
-  const words = normalizeAgentText(message).split(' ').filter(Boolean);
-  return words.includes('nao') || hasAnyTerm(words.join(' '), ['outro horario', 'trocar horario', 'prefiro outro', 'melhor outro']);
+  const text = normalizeAgentText(message);
+  const words = text.split(' ').filter(Boolean);
+  return words.includes('nao') || hasAnyTerm(text, AGENT_NLU_DICTIONARY.rejections);
 }
 
 function slotTimeParts(slot) {
@@ -1386,9 +1684,27 @@ function slotTimeParts(slot) {
   return { hour: get('hour'), minute: get('minute') };
 }
 
+function sameSlotTime(slot, hhmm) {
+  if (!hhmm) return false;
+  const [hour, minute] = String(hhmm).split(':').map(Number);
+  const parts = slotTimeParts(slot);
+  return parts.hour === hour && parts.minute === minute;
+}
+
+function sortSlotsByPreferredTime(slots = [], preferredTime = null) {
+  if (!preferredTime) return slots;
+  return [...slots].sort((a, b) => {
+    if (sameSlotTime(a, preferredTime)) return -1;
+    if (sameSlotTime(b, preferredTime)) return 1;
+    return new Date(a).getTime() - new Date(b).getTime();
+  });
+}
+
 function extractSlotChoice(message, slots = []) {
   if (!slots.length) return null;
   const text = normalizeAgentText(message);
+  if (hasAnyTerm(text, ['mais cedo', 'o mais cedo', 'primeiro horario', 'menor horario'])) return slots[0];
+  if (hasAnyTerm(text, ['mais tarde', 'o mais tarde', 'ultimo horario', 'maior horario'])) return slots[slots.length - 1];
   const selectedIndex = ordinalChoiceIndex(message);
   if (selectedIndex !== null && slots[selectedIndex]) return slots[selectedIndex];
 
@@ -1406,8 +1722,10 @@ function collectHybridContext(history = [], services = [], professionals = []) {
   const context = {
     service_id: null,
     professional_id: null,
+    professional_preference: null,
     date: null,
     start_time: null,
+    preferred_time: null,
     customer_name: '',
     customer_phone: '',
     customer_email: '',
@@ -1424,8 +1742,10 @@ function collectHybridContext(history = [], services = [], professionals = []) {
       const plan = entry.plan || {};
       if (plan.service_id) context.service_id = plan.service_id;
       if (plan.professional_id) context.professional_id = plan.professional_id;
+      if (plan.professional_preference) context.professional_preference = plan.professional_preference;
       if (plan.date) context.date = plan.date;
       if (plan.start_time) context.start_time = plan.start_time;
+      if (plan.preferred_time) context.preferred_time = plan.preferred_time;
       if (plan.customer_name) context.customer_name = plan.customer_name;
       if (plan.customer_phone) context.customer_phone = plan.customer_phone;
       if (plan.customer_email) context.customer_email = plan.customer_email;
@@ -1436,7 +1756,9 @@ function collectHybridContext(history = [], services = [], professionals = []) {
       for (const action of entry.actions || []) {
         if (action.service_id) context.service_id = action.service_id;
         if (action.professional_id) context.professional_id = action.professional_id;
+        if (action.professional_preference) context.professional_preference = action.professional_preference;
         if (action.date) context.date = action.date;
+        if (action.preferred_time) context.preferred_time = action.preferred_time;
         if (Array.isArray(action.slots) && action.slots.length) context.slots = action.slots;
       }
       continue;
@@ -1445,10 +1767,13 @@ function collectHybridContext(history = [], services = [], professionals = []) {
     if (role === 'user') {
       const service = findServiceInMessage(content, services, { expected: context.field === 'service_id' });
       if (service) context.service_id = service.id;
-      const professional = findProfessionalInMessage(content, professionals);
-      if (professional) context.professional_id = professional.id;
+      const professionalChoice = detectProfessionalChoice(content, professionals, { expected: context.field === 'professional_id' });
+      if (professionalChoice.professional) context.professional_id = professionalChoice.professional.id;
+      if (context.field === 'professional_id' && professionalChoice.preference) context.professional_preference = professionalChoice.preference;
       const date = parseMessageDate(content);
       if (date) context.date = date;
+      const requestedTime = extractRequestedTime(content);
+      if (requestedTime) context.preferred_time = requestedTime;
       const slot = extractSlotChoice(content, context.slots);
       if (slot) context.start_time = slot;
       const phone = extractPhoneFromMessage(content);
@@ -1547,19 +1872,128 @@ function hybridResult(status, reply, extra = {}) {
   };
 }
 
+async function buildSelectedSlotHybridResult({
+  message,
+  context,
+  clinic,
+  service,
+  professionals,
+  startTime,
+  professionalId,
+  professionalPreference,
+  date,
+  preferredTime,
+  customerName,
+  customerPhone,
+  customerEmail,
+  signalValue,
+}) {
+  const bookingDate = date || datePart(startTime);
+  const basePlan = {
+    action: 'confirm_booking',
+    service_id: service.id,
+    professional_id: professionalId,
+    professional_preference: professionalPreference,
+    date: bookingDate,
+    start_time: startTime,
+    preferred_time: preferredTime,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
+    confidence: 0.95,
+  };
+
+  if (context.field === 'confirm_booking' && isRejection(message)) {
+    return hybridResult('needs_info', context.slots.length
+      ? `Sem problemas. Quer escolher outro destes horarios para ${service.nome_servico}? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`
+      : `Sem problemas. Qual outro dia ou horario voce prefere para ${service.nome_servico}?`, {
+      field: context.slots.length ? 'start_time' : 'date',
+      slots: context.slots,
+      plan: { ...basePlan, field: context.slots.length ? 'start_time' : 'date' },
+    });
+  }
+
+  if (!customerName) {
+    return hybridResult('needs_info', `Perfeito, separei ${formatSlot(startTime)} para ${service.nome_servico}. Me passa seu nome completo para eu finalizar, por favor?`, {
+      field: 'customer_name',
+      plan: { ...basePlan, field: 'customer_name' },
+    });
+  }
+
+  if (!customerPhone) {
+    return hybridResult('needs_info', `Obrigado, ${firstName(customerName)}. Me passa seu WhatsApp para eu finalizar o agendamento, por favor?`, {
+      field: 'customer_phone',
+      plan: { ...basePlan, field: 'customer_phone' },
+    });
+  }
+
+  if (signalValue > 0 && !customerEmail) {
+    return hybridResult('needs_info', 'Para gerar o PIX do sinal, me passa tambem seu e-mail.', {
+      field: 'customer_email',
+      plan: { ...basePlan, customer_phone: customerPhone, field: 'customer_email' },
+    });
+  }
+
+  if (!isConfirmation(message) || context.field !== 'confirm_booking') {
+    return hybridResult('needs_confirmation', `Vou confirmar: ${service.nome_servico} em ${formatSlot(startTime)} para ${customerName}. Posso confirmar?`, {
+      field: 'confirm_booking',
+      plan: {
+        ...basePlan,
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
+        field: 'confirm_booking',
+      },
+    });
+  }
+
+  const created = await createHybridAppointment({
+    clinic,
+    service,
+    professionals,
+    startTime,
+    professionalId,
+    customerName,
+    customerPhone,
+    customerEmail,
+  });
+
+  return hybridResult(created.status, created.reply, {
+    appointment: created.appointment,
+    payment: created.payment,
+    actions: created.actions,
+    plan: {
+      ...basePlan,
+      action: 'create_booking',
+      customer_phone: customerPhone,
+      customer_email: customerEmail,
+      confidence: 1,
+    },
+  });
+}
+
 async function tryHybridAgentResponse({ message, history, clinic, services, professionals, settings }) {
   const isFirstTurn = !Array.isArray(history) || history.length === 0;
   const context = collectHybridContext(history, services, professionals);
   const currentService = findServiceInMessage(message, services, { expected: context.field === 'service_id' });
   const service = currentService || services.find((item) => item.id === context.service_id) || null;
-  const currentProfessional = findProfessionalInMessage(message, professionals);
-  const professionalId = currentProfessional?.id || context.professional_id || null;
+  const applicableProfessionals = service ? professionalsForService(service, professionals) : [];
+  const professionalOptions = applicableProfessionals.length ? applicableProfessionals : professionals;
+  const currentProfessionalChoice = detectProfessionalChoice(message, professionalOptions, { expected: context.field === 'professional_id' });
+  let professionalId = currentProfessionalChoice.professional?.id || context.professional_id || null;
+  if (service && professionalId && applicableProfessionals.length && !applicableProfessionals.some((professional) => professional.id === professionalId)) {
+    professionalId = null;
+  }
+  if (!professionalId && applicableProfessionals.length === 1) professionalId = applicableProfessionals[0].id;
+  const professionalPreference = currentProfessionalChoice.preference || context.professional_preference;
+  const needsProfessionalChoice = Boolean(service && applicableProfessionals.length > 1 && !professionalId && professionalPreference !== 'any');
   const currentDate = parseMessageDate(message);
   const date = currentDate || context.date;
   const period = detectPeriod(message);
   const schedulingIntent = wantsScheduling(message);
   const currentSlotChoice = extractSlotChoice(message, context.slots);
   const selectedSlot = currentSlotChoice || context.start_time;
+  const currentPreferredTime = extractRequestedTime(message);
+  const preferredTime = currentPreferredTime || context.preferred_time;
   const currentCustomerName = extractNameFromMessage(message, { expected: context.field === 'customer_name' });
   const customerName = currentCustomerName || context.customer_name;
   const currentCustomerPhone = extractPhoneFromMessage(message);
@@ -1569,17 +2003,20 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   const signalValue = Number(clinic.sinal_valor || 0);
   const answeredPendingField = Boolean(context.field && (
     currentService
+    || currentProfessionalChoice.professional
+    || currentProfessionalChoice.preference
     || currentDate
     || period
     || currentSlotChoice
+    || currentPreferredTime
     || currentCustomerName
     || currentCustomerPhone
     || currentCustomerEmail
     || isConfirmation(message)
     || isRejection(message)
   ));
-  const gaveSchedulingData = Boolean(currentService || currentDate || period || currentSlotChoice);
-  const shouldContinueScheduling = schedulingIntent || isFirstTurn || answeredPendingField || gaveSchedulingData;
+  const gaveSchedulingData = Boolean(currentService || currentProfessionalChoice.professional || currentProfessionalChoice.preference || currentDate || period || currentSlotChoice || currentPreferredTime);
+  const shouldContinueScheduling = schedulingIntent || isFirstTurn || Boolean(context.field) || answeredPendingField || gaveSchedulingData;
 
   if (wantsHuman(message)) {
     return hybridResult('handoff', settings.handoff_message, {
@@ -1594,11 +2031,25 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     });
   }
 
+  if (wantsOpeningHours(message) && !service && !context.service_id) {
+    return hybridResult('answered', openingHoursReply(clinic, services), {
+      field: 'service_id',
+      plan: { action: 'answer', field: 'service_id', confidence: 0.9 },
+    });
+  }
+
+  if (wantsServiceList(message) && !service) {
+    return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Estes sao os servicos disponiveis. Qual voce quer agendar?'), {
+      field: 'service_id',
+      plan: { action: 'answer', field: 'service_id', confidence: 0.9 },
+    });
+  }
+
   if (wantsPrice(message)) {
     if (!service) {
       return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de consultar?'), {
-        field: 'service_id',
-        plan: { action: 'answer', field: 'service_id', confidence: 0.95 },
+        field: 'price_service_id',
+        plan: { action: 'answer', field: 'price_service_id', confidence: 0.95 },
       });
     }
 
@@ -1610,89 +2061,102 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     });
   }
 
+  if (context.field === 'price_service_id') {
+    if (!service) {
+      return hybridResult('needs_info', serviceQuestionReply(services, 'Nao consegui identificar o servico. Qual valor voce quer consultar?'), {
+        field: 'price_service_id',
+        plan: { action: 'answer', field: 'price_service_id', confidence: 0.9 },
+      });
+    }
+
+    const price = Number(service.preco || 0);
+    const duration = Number(service.duracao_minutos || 30);
+    return hybridResult('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Quer que eu consulte horarios para voce?`, {
+      service,
+      field: 'date',
+      plan: { action: 'answer', service_id: service.id, field: 'date', confidence: 0.95 },
+    });
+  }
+
+  const ambiguousServices = !service ? ambiguousServiceMatches(message, services) : [];
+  if (ambiguousServices.length && shouldContinueScheduling) {
+    return hybridResult('needs_info', serviceQuestionReply(ambiguousServices, 'Encontrei algumas opcoes parecidas. Qual delas voce quer?'), {
+      field: 'service_id',
+      plan: { action: 'answer', field: 'service_id', date, preferred_time: preferredTime, confidence: 0.85 },
+    });
+  }
+
+  if (needsProfessionalChoice && shouldContinueScheduling) {
+    const intro = context.field === 'professional_id'
+      ? 'Nao consegui identificar o profissional. Voce prefere alguem da lista ou pode ser qualquer um?'
+      : 'Perfeito. Voce prefere algum profissional ou pode ser qualquer um?';
+    return hybridResult('needs_info', professionalQuestionReply(applicableProfessionals, intro), {
+      field: 'professional_id',
+      service,
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        date,
+        preferred_time: preferredTime,
+        field: 'professional_id',
+        confidence: 0.9,
+      },
+    });
+  }
+
+  if (context.field === 'start_time' && service && isRejection(message)) {
+    return hybridResult('needs_info', `Sem problemas. Quer tentar outro dia ou outro periodo para ${service.nome_servico}?`, {
+      field: 'date',
+      service,
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        professional_id: professionalId,
+        professional_preference: professionalPreference,
+        preferred_time: preferredTime,
+        field: 'date',
+        confidence: 0.9,
+      },
+    });
+  }
+
+  if (context.field === 'start_time' && service && currentPreferredTime && !currentSlotChoice && context.slots.length) {
+    return hybridResult('needs_info', `Nao encontrei ${currentPreferredTime} entre os horarios livres. Pode escolher um destes? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`, {
+      field: 'start_time',
+      service,
+      slots: context.slots,
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        professional_id: professionalId,
+        professional_preference: professionalPreference,
+        date,
+        field: 'start_time',
+        confidence: 0.9,
+      },
+    });
+  }
+
   if (selectedSlot && service) {
-    const bookingDate = date || datePart(selectedSlot);
-    const basePlan = {
-      action: 'confirm_booking',
-      service_id: service.id,
-      professional_id: professionalId,
-      date: bookingDate,
-      start_time: selectedSlot,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      customer_email: customerEmail,
-      confidence: 0.95,
-    };
-
-    if (context.field === 'confirm_booking' && isRejection(message)) {
-      return hybridResult('needs_info', context.slots.length
-        ? `Sem problemas. Quer escolher outro destes horarios para ${service.nome_servico}? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`
-        : `Sem problemas. Qual outro dia ou horario voce prefere para ${service.nome_servico}?`, {
-        field: context.slots.length ? 'start_time' : 'date',
-        slots: context.slots,
-        plan: { ...basePlan, field: context.slots.length ? 'start_time' : 'date' },
-      });
-    }
-
-    if (!customerName) {
-      return hybridResult('needs_info', `Perfeito, separei ${formatSlot(selectedSlot)} para ${service.nome_servico}. Me passa seu nome completo para eu finalizar, por favor?`, {
-        field: 'customer_name',
-        plan: { ...basePlan, field: 'customer_name' },
-      });
-    }
-
-    if (!customerPhone) {
-      return hybridResult('needs_info', `Obrigado, ${firstName(customerName)}. Me passa seu WhatsApp para eu finalizar o agendamento, por favor?`, {
-        field: 'customer_phone',
-        plan: { ...basePlan, field: 'customer_phone' },
-      });
-    }
-
-    if (signalValue > 0 && !customerEmail) {
-      return hybridResult('needs_info', 'Para gerar o PIX do sinal, me passa tambem seu e-mail.', {
-        field: 'customer_email',
-        plan: { ...basePlan, customer_phone: customerPhone, field: 'customer_email' },
-      });
-    }
-
-    if (!isConfirmation(message) || context.field !== 'confirm_booking') {
-      return hybridResult('needs_confirmation', `Vou confirmar: ${service.nome_servico} em ${formatSlot(selectedSlot)} para ${customerName}. Posso confirmar?`, {
-        field: 'confirm_booking',
-        plan: {
-          ...basePlan,
-          customer_phone: customerPhone,
-          customer_email: customerEmail,
-          field: 'confirm_booking',
-        },
-      });
-    }
-
-    const created = await createHybridAppointment({
+    return buildSelectedSlotHybridResult({
+      message,
+      context,
       clinic,
       service,
       professionals,
       startTime: selectedSlot,
       professionalId,
+      professionalPreference,
+      date,
+      preferredTime,
       customerName,
       customerPhone,
       customerEmail,
-    });
-
-    return hybridResult(created.status, created.reply, {
-      appointment: created.appointment,
-      payment: created.payment,
-      actions: created.actions,
-      plan: {
-        ...basePlan,
-        action: 'create_booking',
-        customer_phone: customerPhone,
-        customer_email: customerEmail,
-        confidence: 1,
-      },
+      signalValue,
     });
   }
 
-  if (isGreetingOnly(message) && !currentService && !currentDate && !period && !currentSlotChoice) {
+  if (isGreetingOnly(message) && !service && !currentProfessionalChoice.professional && !currentProfessionalChoice.preference && !currentDate && !period && !currentSlotChoice) {
     return hybridResult('answered', serviceQuestionReply(services, settings.opening_message || DEFAULT_AGENT_OPENING), {
       field: 'service_id',
       plan: { action: 'answer', field: 'service_id', confidence: 1 },
@@ -1716,7 +2180,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   if (date && !service && shouldContinueScheduling) {
     return hybridResult('needs_info', serviceQuestionReply(services, 'Perfeito. Qual servico voce gostaria de agendar?'), {
       field: 'service_id',
-      plan: { action: 'answer', date, field: 'service_id', confidence: 0.9 },
+      plan: { action: 'answer', date, preferred_time: preferredTime, field: 'service_id', confidence: 0.9 },
     });
   }
 
@@ -1724,24 +2188,65 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     return hybridResult('needs_info', dateQuestionReply(service), {
       field: 'date',
       service,
-      plan: { action: 'answer', service_id: service.id, field: 'date', confidence: 0.9 },
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        professional_id: professionalId,
+        professional_preference: professionalPreference,
+        preferred_time: preferredTime,
+        field: 'date',
+        confidence: 0.9,
+      },
     });
   }
 
   if (service && date && shouldContinueScheduling) {
-    const { slots, professional: selectedProfessional } = await getAvailableSlotsForClinic(clinic, {
-      serviceId: service.id,
-      date,
-      professionalId,
-    });
-    const filteredSlots = filterSlotsByPeriod(slots, period);
-    const usableSlots = filteredSlots.length ? filteredSlots : slots;
+    const availability = professionalPreference === 'any' && !professionalId
+      ? await getBestProfessionalSlotsForService(clinic, {
+        service,
+        date,
+        professionals,
+        period,
+      })
+      : await getAvailableSlotsForClinic(clinic, {
+        serviceId: service.id,
+        date,
+        professionalId,
+      });
+    const selectedProfessional = availability.professional || professionals.find((item) => item.id === professionalId) || null;
+    const rawUsableSlots = professionalPreference === 'any' && !professionalId
+      ? availability.slots
+      : periodFilteredSlots(availability.slots, period);
+    const usableSlots = sortSlotsByPreferredTime(rawUsableSlots, preferredTime);
+    const professionalText = selectedProfessional?.nome ? ` com ${selectedProfessional.nome}` : '';
+    const exactPreferredSlot = preferredTime
+      ? usableSlots.find((slot) => sameSlotTime(slot, preferredTime))
+      : null;
+
+    if (exactPreferredSlot) {
+      return buildSelectedSlotHybridResult({
+        message,
+        context,
+        clinic,
+        service,
+        professionals,
+        startTime: exactPreferredSlot,
+        professionalId: selectedProfessional?.id || professionalId,
+        professionalPreference,
+        date,
+        preferredTime,
+        customerName,
+        customerPhone,
+        customerEmail,
+        signalValue,
+      });
+    }
 
     return hybridResult('slots_found', usableSlots.length
-      ? `Encontrei estes horarios para ${service.nome_servico}${periodLabel(period)}: ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}. Qual deles fica melhor para voce?`
-      : `Nao encontrei horarios livres para ${service.nome_servico}${periodLabel(period)} nessa data.`, {
+      ? `Encontrei estes horarios${professionalText} para ${service.nome_servico}${periodLabel(period)}: ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}. Qual deles fica melhor para voce?`
+      : `Nao encontrei horarios livres${professionalText} para ${service.nome_servico}${periodLabel(period)} nessa data.`, {
       service,
-      professional: selectedProfessional || professionals.find((item) => item.id === professionalId) || null,
+      professional: selectedProfessional,
       slots: usableSlots,
       field: usableSlots.length ? 'start_time' : 'date',
       actions: [{
@@ -1749,20 +2254,27 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
         service_id: service.id,
         date,
         professional_id: selectedProfessional?.id || professionalId,
+        professional_preference: professionalPreference,
+        preferred_time: preferredTime,
         slots: usableSlots.slice(0, 10),
       }],
       plan: {
         action: 'list_slots',
         service_id: service.id,
         professional_id: selectedProfessional?.id || professionalId,
+        professional_preference: professionalPreference,
         date,
+        preferred_time: preferredTime,
         field: usableSlots.length ? 'start_time' : 'date',
         confidence: 0.95,
       },
     });
   }
 
-  return null;
+  return hybridResult('needs_info', focusSchedulingReply(services), {
+    field: 'service_id',
+    plan: { action: 'answer', field: 'service_id', confidence: 0.75 },
+  });
 }
 
 function buildAgentDecisionInstructions({ clinic, services, professionals, settings }) {
@@ -1784,13 +2296,15 @@ function buildAgentDecisionInstructions({ clinic, services, professionals, setti
     '- Use a mensagem inicial somente no primeiro contato sem dados concretos. Nunca volte para a mensagem inicial depois que houver servico, data, horario, nome ou telefone no estado da conversa.',
     '- Quando conversation_state.field estiver preenchido, interprete a mensagem atual como resposta a esse campo, mesmo que seja curta como "sim", "1", "amanha" ou um nome.',
     '- Se o cliente ja informou servico, data, horario ou preferencia concreta, nao reinicie o fluxo; continue a partir do dado recebido.',
+    '- Se houver mais de um profissional compativel com o servico e o cliente ainda nao escolheu, pergunte se prefere algum profissional ou se pode ser qualquer um antes de consultar horarios.',
+    '- Se o cliente disser que pode ser qualquer profissional, use professional_preference:"any".',
     '- Se faltar servico, data, horario, nome ou telefone, use answer e pergunte apenas o proximo dado.',
     '- Se for perguntar qual servico, inclua a lista de servicos disponiveis do contexto.',
     '- Se o cliente pedir opcoes de horario, use list_slots.',
     '- Se houver duvida, use answer ou handoff.',
     '',
     'Formato JSON:',
-    '{"action":"answer|list_slots|create_booking|handoff","reply":"mensagem se for answer/handoff","service_id":"uuid ou null","professional_id":"uuid ou null","date":"YYYY-MM-DD ou null","start_time":"ISO ou null","customer_name":"","customer_phone":"","customer_email":"","notes":"","confidence":0.0}',
+    '{"action":"answer|list_slots|create_booking|handoff","reply":"mensagem se for answer/handoff","service_id":"uuid ou null","professional_id":"uuid ou null","professional_preference":"any ou null","date":"YYYY-MM-DD ou null","start_time":"ISO ou null","customer_name":"","customer_phone":"","customer_email":"","notes":"","confidence":0.0}',
   ].join('\n');
 }
 
@@ -1809,8 +2323,10 @@ function buildAgentContextPayload({ message, history = [], clinic, services, pro
       field: derivedState.field,
       service_id: derivedState.service_id,
       professional_id: derivedState.professional_id,
+      professional_preference: derivedState.professional_preference,
       date: derivedState.date,
       start_time: derivedState.start_time,
+      preferred_time: derivedState.preferred_time,
       customer_name: derivedState.customer_name,
       customer_phone: derivedState.customer_phone,
       customer_email: derivedState.customer_email,
@@ -1907,11 +2423,21 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
 
   if (plan.action === 'list_slots') {
     if (!plan.date) return missingFieldResult('date', 'Para qual dia voce gostaria de ver horarios?');
-    const { slots, professional } = await getAvailableSlotsForClinic(clinic, {
-      serviceId: service.id,
-      date: plan.date,
-      professionalId: plan.professional_id,
-    });
+    const availability = plan.professional_preference === 'any' && !plan.professional_id
+      ? await getBestProfessionalSlotsForService(clinic, {
+        service,
+        date: plan.date,
+        professionals,
+        period: null,
+      })
+      : await getAvailableSlotsForClinic(clinic, {
+        serviceId: service.id,
+        date: plan.date,
+        professionalId: plan.professional_id,
+      });
+    const slots = availability.slots;
+    const professional = availability.professional || professionals.find((item) => item.id === plan.professional_id) || null;
+    const professionalText = professional?.nome ? ` com ${professional.nome}` : '';
 
     return {
       status: 'slots_found',
@@ -1920,13 +2446,14 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
       slots,
       field: slots.length ? 'start_time' : 'date',
       reply: slots.length
-        ? `Encontrei estes horarios para ${service.nome_servico}: ${slots.slice(0, 5).map(formatSlot).join(', ')}.`
-        : `Nao encontrei horarios livres para ${service.nome_servico} nessa data.`,
+        ? `Encontrei estes horarios${professionalText} para ${service.nome_servico}: ${slots.slice(0, 5).map(formatSlot).join(', ')}.`
+        : `Nao encontrei horarios livres${professionalText} para ${service.nome_servico} nessa data.`,
       actions: [{
         type: 'list_slots',
         service_id: service.id,
         date: plan.date,
-        professional_id: plan.professional_id,
+        professional_id: professional?.id || plan.professional_id,
+        professional_preference: plan.professional_preference,
         slots: slots.slice(0, 10),
       }],
     };
@@ -2176,8 +2703,10 @@ function buildConversationState(assistantEntry = {}) {
     field: assistantEntry.field || plan.field || null,
     service_id: plan.service_id || null,
     professional_id: plan.professional_id || null,
+    professional_preference: plan.professional_preference || null,
     date: plan.date || null,
     start_time: plan.start_time || null,
+    preferred_time: plan.preferred_time || null,
     customer_name: plan.customer_name || null,
     customer_phone: plan.customer_phone || null,
     customer_email: plan.customer_email || null,

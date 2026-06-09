@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:agent": "node scripts/agent-local-sim.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
