@@ -73,6 +73,10 @@ export default function ConfiguracoesPage() {
                 setIsMpConnected(true);
                 setSearchParams({}); // Limpa URL
             }
+            if (searchParams.get('mp_sync') === 'error') {
+                toast.error("Não foi possível conectar o Mercado Pago.");
+                setSearchParams({});
+            }
             if (searchParams.get('sync') === 'success') { // Google
                 toast.success("Agenda Google sincronizada!");
                 setIsGoogleSyncEnabled(true);
@@ -104,7 +108,8 @@ export default function ConfiguracoesPage() {
                 throw new Error("URL de auth não recebida");
             }
         } catch (err) {
-            toast.error("Erro ao conectar MP.", { id: toastId });
+            const detail = err.response?.data?.detail || "Erro ao conectar Mercado Pago.";
+            toast.error(detail, { id: toastId });
             setLoadingMp(false);
         }
     };

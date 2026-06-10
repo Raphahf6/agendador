@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   AlertTriangle,
   Bot,
@@ -10,6 +11,8 @@ import {
   Loader2,
   MessageSquareText,
   Power,
+  QrCode,
+  RefreshCw,
   Save,
   Send,
   ShieldCheck,
@@ -66,12 +69,15 @@ const PERSONA_PRESETS = [
 
 const TEST_SCENARIOS = [
   'Oi, quero ver horarios disponiveis para amanha.',
-  'Quero confirmar um horario hoje a tarde. Meu nome e Ana e meu WhatsApp e 11999999999.',
+  'Quero confirmar um horario hoje a tarde. Meu nome e Ana e meu WhatsApp e 11987654321.',
   'Preciso marcar com um profissional especifico e pagar o sinal.',
 ];
 
 const fieldClass = 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100';
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500';
+const WHATSAPP_BUSY_STATUSES = new Set(['starting', 'qr', 'authenticated', 'reconnecting', 'restarting']);
+const WHATSAPP_BLOCKED_START_STATUSES = new Set(['ready', ...WHATSAPP_BUSY_STATUSES]);
+const WHATSAPP_DISCONNECTED_STATUSES = new Set(['disconnected', 'offline']);
 
 function normalizeSettings(data = {}) {
   const merged = { ...DEFAULT_SETTINGS, ...data };
@@ -131,6 +137,38 @@ function routeLabel(route) {
   return '';
 }
 
+function whatsappStatusLabel(status) {
+  const labels = {
+    authenticated: 'Autenticando',
+    disconnected: 'Desconectado',
+    error: 'Erro',
+    offline: 'Backend offline',
+    qr: 'Aguardando QR',
+    ready: 'Conectado',
+    reconnecting: 'Reconectando',
+    restarting: 'Reiniciando',
+    starting: 'Iniciando',
+  };
+  return labels[status] || status || 'Desconectado';
+}
+
+function whatsappStatusClass(status) {
+  if (status === 'ready') return 'bg-emerald-50 text-emerald-700';
+  if (WHATSAPP_BUSY_STATUSES.has(status)) return 'bg-amber-50 text-amber-700';
+  if (status === 'error' || status === 'offline') return 'bg-red-50 text-red-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
+function whatsappEmptyStateText(status) {
+  if (status === 'ready') return 'Conectado';
+  if (status === 'offline') return 'Backend offline';
+  if (status === 'error') return 'Falha na conexao';
+  if (status === 'reconnecting' || status === 'restarting') return 'Reconectando';
+  if (status === 'starting' || status === 'authenticated') return 'Iniciando conexao';
+  if (status === 'qr') return 'Aguardando leitura do QR';
+  return 'Aguardando conexao';
+}
+
 function Section({ icon: Icon, title, children }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -182,6 +220,11 @@ export default function AtendimentoAgentPage() {
   const [previewHistory, setPreviewHistory] = useState([]);
   const [previewConversationId, setPreviewConversationId] = useState('');
   const [previewMemoryPersisted, setPreviewMemoryPersisted] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useState('disconnected');
+  const [whatsappQr, setWhatsappQr] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,6 +261,35 @@ export default function AtendimentoAgentPage() {
     if (!salaoId) return;
     setPreviewConversationId(window.localStorage.getItem(`horalis-agent-preview:${salaoId}`) || '');
   }, [salaoId]);
+
+  const loadWhatsappStatus = useCallback(async ({ silent = true } = {}) => {
+    if (!salaoId) return;
+    if (!silent) setWhatsappLoading(true);
+
+    try {
+      const response = await apiGet(`/admin/whatsapp-qr/${salaoId}/status`);
+      const data = response.data || {};
+      setWhatsappStatus(data.status || 'disconnected');
+      setWhatsappQr(data.qr || '');
+      setWhatsappPhone(data.phone || '');
+      setWhatsappError(data.last_error || '');
+    } catch (error) {
+      setWhatsappStatus('offline');
+      setWhatsappQr('');
+      setWhatsappPhone('');
+      setWhatsappError(error?.message || 'Backend WhatsApp indisponivel.');
+    } finally {
+      if (!silent) setWhatsappLoading(false);
+    }
+  }, [salaoId]);
+
+  useEffect(() => {
+    if (!salaoId) return undefined;
+
+    loadWhatsappStatus();
+    const interval = window.setInterval(() => loadWhatsappStatus(), 3000);
+    return () => window.clearInterval(interval);
+  }, [loadWhatsappStatus, salaoId]);
 
   const contextMetrics = useMemo(() => {
     const services = agentContext?.services?.length || 0;
@@ -340,6 +412,48 @@ export default function AtendimentoAgentPage() {
       setPreviewError(getErrorMessage(err, 'Nao foi possivel testar o agente.'));
     } finally {
       setPreviewing(false);
+    }
+  };
+
+  const handleStartWhatsapp = async () => {
+    if (!salaoId) return;
+    setWhatsappLoading(true);
+    setWhatsappError('');
+
+    try {
+      const response = await apiPost(`/admin/whatsapp-qr/${salaoId}/start`, {});
+      const data = response.data || {};
+      setWhatsappStatus(data.status || 'starting');
+      setWhatsappQr(data.qr || '');
+      setWhatsappPhone(data.phone || '');
+      setWhatsappError(data.last_error || '');
+    } catch (error) {
+      const message = getErrorMessage(error, 'Nao foi possivel iniciar o WhatsApp.');
+      setWhatsappError(message);
+      toast.error(message);
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
+  const handleDisconnectWhatsapp = async () => {
+    if (!salaoId) return;
+    setWhatsappLoading(true);
+    setWhatsappError('');
+
+    try {
+      const response = await apiPost(`/admin/whatsapp-qr/${salaoId}/logout`, {});
+      const data = response.data || {};
+      setWhatsappStatus(data.status || 'disconnected');
+      setWhatsappQr('');
+      setWhatsappPhone(data.phone || '');
+      setWhatsappError(data.last_error || '');
+    } catch (error) {
+      const message = getErrorMessage(error, 'Nao foi possivel desconectar o WhatsApp.');
+      setWhatsappError(message);
+      toast.error(message);
+    } finally {
+      setWhatsappLoading(false);
     }
   };
 
@@ -539,6 +653,71 @@ export default function AtendimentoAgentPage() {
         </div>
 
         <aside className="space-y-6">
+          <Section icon={QrCode} title="WhatsApp QR">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${whatsappStatusClass(whatsappStatus)}`}
+                >
+                  {whatsappStatusLabel(whatsappStatus)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadWhatsappStatus({ silent: false })}
+                  disabled={whatsappLoading}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-50 disabled:opacity-60"
+                  title="Atualizar"
+                >
+                  <RefreshCw className={`h-4 w-4 ${whatsappLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                </button>
+              </div>
+
+              {whatsappPhone && (
+                <p className="text-sm font-semibold text-gray-800">+{whatsappPhone}</p>
+              )}
+
+              <div className="flex min-h-72 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-4">
+                {whatsappQr ? (
+                  <div className="rounded-lg bg-white p-3 shadow-sm">
+                    <QRCodeCanvas value={whatsappQr} size={220} level="M" includeMargin />
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <QrCode className="mx-auto h-10 w-10 text-gray-300" aria-hidden="true" />
+                    <p className="mt-2 text-sm font-semibold text-gray-600">
+                      {whatsappEmptyStateText(whatsappStatus)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {whatsappError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {whatsappError}
+                </div>
+              )}
+
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <button
+                  type="button"
+                  onClick={handleStartWhatsapp}
+                  disabled={whatsappLoading || WHATSAPP_BLOCKED_START_STATUSES.has(whatsappStatus)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {whatsappLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                  Conectar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectWhatsapp}
+                  disabled={whatsappLoading || WHATSAPP_DISCONNECTED_STATUSES.has(whatsappStatus)}
+                  className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </Section>
+
           <Section icon={Bot} title="Teste">
             <form onSubmit={handlePreview} className="space-y-4">
               <div className="grid gap-2">
@@ -657,11 +836,16 @@ export default function AtendimentoAgentPage() {
                 <p className="font-bold">Sinal {formatCurrency(previewPayment.amount)}</p>
                 <p>Status: {previewPayment.status}</p>
                 {previewPayment.qr_code && (
-                  <textarea
-                    readOnly
-                    className="h-24 w-full resize-none rounded-lg border border-emerald-200 bg-white p-2 text-xs text-gray-700 outline-none"
-                    value={previewPayment.qr_code}
-                  />
+                  <>
+                    <div className="inline-flex rounded-lg bg-white p-3 shadow-sm">
+                      <QRCodeCanvas value={previewPayment.qr_code} size={160} level="M" includeMargin />
+                    </div>
+                    <textarea
+                      readOnly
+                      className="h-24 w-full resize-none rounded-lg border border-emerald-200 bg-white p-2 text-xs text-gray-700 outline-none"
+                      value={previewPayment.qr_code}
+                    />
+                  </>
                 )}
               </div>
             )}

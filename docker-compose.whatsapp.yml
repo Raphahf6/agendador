@@ -1,0 +1,35 @@
+services:
+  horalis-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env.local
+      - .env.whatsapp.local
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8787
+      WHATSAPP_QR_WORKER_URL: http://whatsapp-qr:8788
+    ports:
+      - "${HORALIS_API_PORT:-8787}:8787"
+    restart: unless-stopped
+
+  whatsapp-qr:
+    build:
+      context: ./workers/whatsapp-qr
+    depends_on:
+      - horalis-api
+    env_file:
+      - .env.local
+      - .env.whatsapp.local
+    environment:
+      HORALIS_API_BASE_URL: http://horalis-api:8787/api/v1
+      WHATSAPP_AUTH_DATA_PATH: /app/.baileys_auth
+    ports:
+      - "${WHATSAPP_QR_PORT:-8788}:8788"
+    volumes:
+      - whatsapp_qr_auth:/app/.baileys_auth
+    restart: unless-stopped
+
+volumes:
+  whatsapp_qr_auth:

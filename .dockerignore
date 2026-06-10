@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+dist
+node_modules
+workers/whatsapp-qr/node_modules
+npm-debug.log*
+Dockerfile.api
+docker-compose*.yml

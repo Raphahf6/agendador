@@ -6,6 +6,46 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const apiPath = path.resolve(__dirname, '../api/v1/[...path].js');
 
+const BRAZIL_DDDS = new Set([
+  '11', '12', '13', '14', '15', '16', '17', '18', '19',
+  '21', '22', '24', '27', '28',
+  '31', '32', '33', '34', '35', '37', '38',
+  '41', '42', '43', '44', '45', '46', '47', '48', '49',
+  '51', '53', '54', '55',
+  '61', '62', '63', '64', '65', '66', '67', '68', '69',
+  '71', '73', '74', '75', '77', '79',
+  '81', '82', '83', '84', '85', '86', '87', '88', '89',
+  '91', '92', '93', '94', '95', '96', '97', '98', '99',
+]);
+
+function cleanPhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function normalizeWhatsAppPhone(value) {
+  let digits = cleanPhone(value);
+  if (!digits) return '';
+
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (!digits.startsWith('55') && (digits.length === 11 || digits.length === 12) && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  if (!digits.startsWith('55')) digits = `55${digits}`;
+
+  if (!/^55\d{10,11}$/.test(digits)) return '';
+
+  const national = digits.slice(2);
+  const ddd = national.slice(0, 2);
+  const subscriber = national.slice(2);
+
+  if (!BRAZIL_DDDS.has(ddd)) return '';
+  if (/^(\d)\1+$/.test(national) || /^(\d)\1+$/.test(subscriber)) return '';
+  if (subscriber.length === 9 && subscriber[0] !== '9') return '';
+  if (subscriber.length === 8 && !/^[2-9]/.test(subscriber)) return '';
+
+  return digits;
+}
+
 function loadAgentRuntime() {
   let source = fs.readFileSync(apiPath, 'utf8');
   source = source.replace(/import[\s\S]*?from '\.\.\/_lib\/horalis\.js';\n/, '');
@@ -32,7 +72,8 @@ function loadAgentRuntime() {
     Headers,
     Buffer,
     process: { env: {} },
-    cleanPhone: (value) => String(value || '').replace(/\D/g, ''),
+    cleanPhone,
+    normalizeWhatsAppPhone,
     isUuid: (value) => /^[0-9a-z-]{3,}$/i.test(String(value || '')),
   };
 
@@ -134,7 +175,12 @@ function appendHistory(history, message, result) {
 }
 
 async function runScenario(runtime, scenario) {
-  const history = [];
+  const history = Array.isArray(scenario.initialHistory)
+    ? scenario.initialHistory.map((entry) => ({ ...entry }))
+    : [];
+  const scenarioClinic = scenario.clinic
+    ? { ...clinic, ...scenario.clinic }
+    : clinic;
   const outputs = [];
   const errors = [];
 
@@ -142,7 +188,7 @@ async function runScenario(runtime, scenario) {
     const result = await runtime.tryHybridAgentResponse({
       message,
       history,
-      clinic,
+      clinic: scenarioClinic,
       services,
       professionals,
       settings,
@@ -181,8 +227,14 @@ async function runScenario(runtime, scenario) {
     if (check.serviceId && output.plan?.service_id !== check.serviceId) {
       errors.push(`turn ${check.turn} service ${output.plan?.service_id}, expected ${check.serviceId}`);
     }
+    if (check.customerPhone && output.plan?.customer_phone !== check.customerPhone) {
+      errors.push(`turn ${check.turn} customer phone ${output.plan?.customer_phone}, expected ${check.customerPhone}`);
+    }
     if (check.anyStatus && !check.anyStatus.includes(output.status)) {
       errors.push(`turn ${check.turn} status ${output.status}, expected one of ${check.anyStatus.join(', ')}`);
+    }
+    if (check.paymentStatus && output.payment?.status !== check.paymentStatus) {
+      errors.push(`turn ${check.turn} payment status ${output.payment?.status}, expected ${check.paymentStatus}`);
     }
   }
 
@@ -197,13 +249,34 @@ async function runScenario(runtime, scenario) {
 const scenarios = [
   {
     name: 'fluxo completo com qualquer profissional',
-    messages: ['oi', 'corte de cabelo', 'qualquer um', 'amanha a tarde', 'primeira opcao', 'Ana Lima', '11999999999', 'sim'],
+    messages: ['oi', 'corte de cabelo', 'qualquer um', 'amanha a tarde', 'primeira opcao', 'Ana Lima', '11987654321', 'sim'],
     checks: [
       { turn: 0, field: 'service_id' },
       { turn: 1, field: 'professional_id' },
       { turn: 2, field: 'date' },
       { turn: 3, status: 'slots_found', field: 'start_time' },
       { turn: 7, status: 'booking_created' },
+    ],
+  },
+  {
+    name: 'cliente reconhecido pelo whatsapp pula nome e telefone',
+    initialHistory: [{
+      role: 'assistant',
+      content: 'Cliente reconhecido: Ana Lima.',
+      plan: {
+        action: 'answer',
+        customer_name: 'Ana Lima',
+        customer_phone: '5511987654321',
+        customer_email: 'ana@teste.com',
+        confidence: 1,
+      },
+    }],
+    messages: ['oi', 'barba', 'sexta tarde', 'primeira', 'sim'],
+    checks: [
+      { turn: 0, field: 'service_id', contains: 'Ana' },
+      { turn: 2, status: 'slots_found' },
+      { turn: 3, field: 'confirm_booking', customerPhone: '5511987654321' },
+      { turn: 4, status: 'booking_created' },
     ],
   },
   {
@@ -477,6 +550,14 @@ const scenarios = [
     ],
   },
   {
+    name: 'onda3 com sinal gera pix e nao confirma antes de pagar',
+    clinic: { sinal_valor: 25 },
+    messages: ['barba sexta tarde', 'primeira', 'Ana Lima', '11987654321', 'ana@teste.com', 'sim'],
+    checks: [
+      { turn: 5, status: 'payment_created', paymentStatus: 'pending', contains: 'Pix copia e cola' },
+    ],
+  },
+  {
     name: 'onda2 cliente troca servico antes de escolher horario',
     messages: ['corte de cabelo amanha', 'na verdade barba', 'primeira', 'Andre', '11920202020', 'sim'],
     checks: [
@@ -544,7 +625,30 @@ const scenarios = [
     name: 'onda2 cliente manda telefone com simbolos',
     messages: ['barba sexta tarde', 'primeira', 'Lucas Moura', '(11) 94040-4040', 'sim'],
     checks: [
-      { turn: 4, status: 'booking_created' },
+      { turn: 4, status: 'booking_created', customerPhone: '5511940404040' },
+    ],
+  },
+  {
+    name: 'onda2 telefone com codigo do pais ja normalizado',
+    messages: ['barba sexta tarde', 'primeira', 'Carla Dias', '+55 (21) 98765-4321'],
+    checks: [
+      { turn: 3, field: 'confirm_booking', customerPhone: '5521987654321' },
+    ],
+  },
+  {
+    name: 'onda2 telefone invalido pede novamente',
+    messages: ['barba sexta tarde', 'primeira', 'Renata Lima', '12345', '11960606060'],
+    checks: [
+      { turn: 3, field: 'customer_phone' },
+      { turn: 4, field: 'confirm_booking', customerPhone: '5511960606060' },
+    ],
+  },
+  {
+    name: 'onda2 telefone sem ddd orienta exemplo',
+    messages: ['barba sexta tarde', 'primeira', 'Renata Lima', '988776655', '11960606060'],
+    checks: [
+      { turn: 3, field: 'customer_phone', contains: 'DDD' },
+      { turn: 4, field: 'confirm_booking', customerPhone: '5511960606060' },
     ],
   },
   {
@@ -596,7 +700,7 @@ const scenarios = [
     name: 'onda2 cliente manda tudo junto nome telefone',
     messages: ['quero barba sexta 15h sou Pedro 11950505050', 'sim'],
     checks: [
-      { turn: 0, anyStatus: ['needs_confirmation', 'slots_found'], serviceId: 'svc-barba' },
+      { turn: 0, anyStatus: ['needs_confirmation', 'slots_found'], serviceId: 'svc-barba', customerPhone: '5511950505050' },
       { turn: 1, anyStatus: ['booking_created', 'needs_confirmation'] },
     ],
   },
@@ -633,6 +737,91 @@ const scenarios = [
       { turn: 3, status: 'slots_found' },
     ],
   },
+  {
+    name: 'onda3 cliente pede link de agendamento',
+    messages: ['me manda o link de agendamento'],
+    checks: [
+      { turn: 0, status: 'answered', contains: 'https://horalis.app/agendar/salao-teste' },
+    ],
+  },
+  {
+    name: 'onda3 horario 9 horas nao vira nona opcao',
+    initialHistory: [{
+      role: 'assistant',
+      content: 'Encontrei estes horarios para corte de cabelo: 09:00, 10:00, 11:00, 12:00, 12:30, 13:00, 13:15, 13:20, 13:30.',
+      status: 'slots_found',
+      field: 'start_time',
+      slots: [
+        '2099-01-02T12:00:00.000Z',
+        '2099-01-02T13:00:00.000Z',
+        '2099-01-02T14:00:00.000Z',
+        '2099-01-02T15:00:00.000Z',
+        '2099-01-02T15:30:00.000Z',
+        '2099-01-02T16:00:00.000Z',
+        '2099-01-02T16:15:00.000Z',
+        '2099-01-02T16:20:00.000Z',
+        '2099-01-02T16:30:00.000Z',
+      ],
+      plan: {
+        action: 'list_slots',
+        service_id: 'svc-corte',
+        professional_preference: 'any',
+        date: '2099-01-02',
+        field: 'start_time',
+      },
+    }],
+    messages: ['9 horas'],
+    checks: [
+      { turn: 0, field: 'customer_name', contains: '09:00' },
+    ],
+  },
+  {
+    name: 'onda3 saudacao depois de agendamento nao reconfirma',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Vou confirmar: Barba em sexta 15:00 para Ana Lima. Posso confirmar?',
+        status: 'needs_confirmation',
+        field: 'confirm_booking',
+        plan: {
+          action: 'confirm_booking',
+          service_id: 'svc-barba',
+          professional_id: 'pro-joao',
+          date: '2099-01-02',
+          start_time: '2099-01-02T18:00:00.000Z',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+          field: 'confirm_booking',
+        },
+      },
+      { role: 'user', content: 'sim' },
+      {
+        role: 'assistant',
+        content: 'Prontinho, Ana. Seu horario ficou confirmado para 02/01, 15:00.',
+        status: 'booking_created',
+        plan: {
+          action: 'create_booking',
+          service_id: 'svc-barba',
+          professional_id: 'pro-joao',
+          date: '2099-01-02',
+          start_time: '2099-01-02T18:00:00.000Z',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+        },
+        appointment: {
+          id: 'appt-confirmed',
+          serviceName: 'Barba',
+          professionalName: 'Joao',
+          startTime: '2099-01-02T18:00:00.000Z',
+          status: 'confirmado',
+        },
+      },
+    ],
+    messages: ['oi'],
+    checks: [
+      { turn: 0, status: 'answered', contains: 'ja esta confirmado' },
+    ],
+  },
 ];
 
 const runtime = loadAgentRuntime();
@@ -652,6 +841,49 @@ for (const scenario of scenarios) {
     for (const error of result.errors) console.error(`  - ${error}`);
     console.error(JSON.stringify(result.summary, null, 2));
   }
+}
+
+try {
+  checkedTurns += 1;
+  const floating = runtime.parseRequiredDate('2099-01-02T09:00:00', 'data invalida').toISOString();
+  const parts = runtime.slotTimeParts(floating);
+  if (parts.hour === 9 && parts.minute === 0) {
+    console.log('PASS horario flutuante 09:00 preserva fuso de Sao Paulo');
+  } else {
+    failedTurns += 1;
+    failedScenarios += 1;
+    console.error(`FAIL horario flutuante 09:00 preserva fuso de Sao Paulo: ${parts.hour}:${parts.minute}`);
+  }
+} catch (error) {
+  failedTurns += 1;
+  failedScenarios += 1;
+  console.error(`FAIL horario flutuante 09:00 preserva fuso de Sao Paulo: ${error.message}`);
+}
+
+try {
+  checkedTurns += 1;
+  const lidPhone = runtime.firstNormalizedPayloadPhone({
+    external_id: '123312906739842@lid',
+    from: '123312906739842@lid',
+    metadata: {
+      whatsapp_chat_id: '123312906739842@lid',
+      whatsapp_from: '123312906739842@lid',
+    },
+  });
+  const realPhone = runtime.firstNormalizedPayloadPhone({
+    from: '5511987654321@s.whatsapp.net',
+  });
+  if (!lidPhone && realPhone === '5511987654321') {
+    console.log('PASS whatsapp lid nao vira telefone e numero real continua valido');
+  } else {
+    failedTurns += 1;
+    failedScenarios += 1;
+    console.error(`FAIL whatsapp lid nao vira telefone: lid=${lidPhone || '(vazio)'} real=${realPhone || '(vazio)'}`);
+  }
+} catch (error) {
+  failedTurns += 1;
+  failedScenarios += 1;
+  console.error(`FAIL whatsapp lid nao vira telefone: ${error.message}`);
 }
 
 const passedTurns = checkedTurns - failedTurns;
