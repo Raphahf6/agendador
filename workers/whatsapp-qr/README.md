@@ -49,6 +49,56 @@ Continue rodando o frontend com `npm run dev`. Abra o painel em `Agente de Atend
 
 Depois do primeiro QR lido, a sessao fica salva no volume `whatsapp_qr_auth`. Ao reiniciar o Docker, o worker restaura automaticamente as sessoes salvas, sem precisar clicar em conectar novamente no painel.
 
+## Rodando em producao com Vercel
+
+Em producao, a Vercel roda o site e a API principal. O Docker deve rodar apenas o worker do WhatsApp em uma URL HTTPS propria, por exemplo:
+
+```text
+https://whatsapp.horalis.app
+```
+
+Fluxo:
+
+```text
+Painel Horalis -> /api/v1/admin/whatsapp-qr/:slug/:acao na Vercel
+Vercel -> WHATSAPP_QR_WORKER_URL com X-Horalis-Channel-Key
+Worker Docker -> https://horalis.app/api/v1/channels/whatsapp_qr/:slug/message
+```
+
+No DNS, crie um registro `A` para `whatsapp.horalis.app` apontando para o IP publico do servidor onde o Docker vai rodar.
+
+No servidor, copie os arquivos do projeto e crie o env:
+
+```bash
+cp .env.whatsapp.prod.example .env.whatsapp.prod
+```
+
+Edite `.env.whatsapp.prod`:
+
+```env
+WHATSAPP_QR_DOMAIN=whatsapp.horalis.app
+HORALIS_API_BASE_URL=https://horalis.app/api/v1
+HORALIS_CHANNEL_API_KEY=mesma_chave_configurada_na_vercel
+WHATSAPP_SESSION_NAME=horalis-prod
+WHATSAPP_IGNORE_GROUPS=true
+WHATSAPP_REPLY_DELAY_MS=350
+```
+
+Suba o worker com HTTPS automatico pelo Caddy:
+
+```bash
+docker compose -f docker-compose.whatsapp.prod.yml up -d --build
+```
+
+Na Vercel, configure:
+
+```env
+WHATSAPP_QR_WORKER_URL=https://whatsapp.horalis.app
+HORALIS_CHANNEL_API_KEY=mesma_chave_do_worker
+```
+
+Depois faca um redeploy da Vercel para a API carregar a nova variavel. Nao exponha a porta `8788` diretamente para a internet sem o proxy HTTPS. As rotas de sessao tambem exigem `HORALIS_CHANNEL_API_KEY`.
+
 ## Resetar sessao
 
 ```bash

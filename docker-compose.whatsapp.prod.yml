@@ -1,0 +1,37 @@
+services:
+  whatsapp-qr:
+    build:
+      context: ./workers/whatsapp-qr
+    env_file:
+      - path: .env.whatsapp.prod
+        required: false
+    environment:
+      HORALIS_API_BASE_URL: ${HORALIS_API_BASE_URL:-https://horalis.app/api/v1}
+      WHATSAPP_AUTH_DATA_PATH: /app/.baileys_auth
+      WHATSAPP_QR_HOST: 0.0.0.0
+      WHATSAPP_QR_PORT: 8788
+    expose:
+      - "8788"
+    volumes:
+      - whatsapp_qr_auth:/app/.baileys_auth
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    depends_on:
+      - whatsapp-qr
+    environment:
+      WHATSAPP_QR_DOMAIN: ${WHATSAPP_QR_DOMAIN:-whatsapp.horalis.app}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./workers/whatsapp-qr/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  whatsapp_qr_auth:
+  caddy_data:
+  caddy_config:

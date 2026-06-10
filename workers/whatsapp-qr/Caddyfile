@@ -1,0 +1,11 @@
+{$WHATSAPP_QR_DOMAIN} {
+  encode zstd gzip
+
+  header {
+    -Server
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+  }
+
+  reverse_proxy whatsapp-qr:8788
+}
