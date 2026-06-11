@@ -3787,10 +3787,22 @@ async function handleChannelAgent(req, res, parts) {
 }
 
 const DEFAULT_PRODUCTION_WHATSAPP_QR_WORKER_URL = 'https://horalis-whatsapp-qr.onrender.com';
+const UNREADY_WHATSAPP_QR_WORKER_HOSTS = new Set(['whatsapp.horalis.app']);
 
 function whatsappQrWorkerUrl() {
-  const raw = process.env.WHATSAPP_QR_WORKER_URL || process.env.WHATSAPP_QR_API_URL || (process.env.VERCEL === '1' ? DEFAULT_PRODUCTION_WHATSAPP_QR_WORKER_URL : '');
-  if (raw) return String(raw).replace(/\/+$/, '');
+  const configured = process.env.WHATSAPP_QR_WORKER_URL || process.env.WHATSAPP_QR_API_URL || '';
+  const normalized = configured ? String(configured).replace(/\/+$/, '') : '';
+
+  if (normalized) {
+    try {
+      const host = new URL(normalized).hostname.toLowerCase();
+      if (process.env.VERCEL !== '1' || !UNREADY_WHATSAPP_QR_WORKER_HOSTS.has(host)) return normalized;
+    } catch {
+      return normalized;
+    }
+  }
+
+  if (process.env.VERCEL === '1') return DEFAULT_PRODUCTION_WHATSAPP_QR_WORKER_URL;
   return 'http://localhost:8788';
 }
 
