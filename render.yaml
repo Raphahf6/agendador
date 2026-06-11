@@ -1,0 +1,41 @@
+services:
+  - type: web
+    runtime: docker
+    name: horalis-whatsapp-qr
+    repo: https://github.com/Raphahf6/agendador
+    branch: main
+    region: ohio
+    plan: starter
+    dockerfilePath: ./workers/whatsapp-qr/Dockerfile
+    dockerContext: ./workers/whatsapp-qr
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    domains:
+      - whatsapp.horalis.app
+    disk:
+      name: whatsapp-auth
+      mountPath: /app/.baileys_auth
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HORALIS_API_BASE_URL
+        value: https://horalis.app/api/v1
+      - key: HORALIS_CHANNEL_API_KEY
+        sync: false
+      - key: WHATSAPP_AUTH_DATA_PATH
+        value: /app/.baileys_auth
+      - key: WHATSAPP_QR_HOST
+        value: 0.0.0.0
+      - key: WHATSAPP_SESSION_NAME
+        value: horalis-prod
+      - key: WHATSAPP_IGNORE_GROUPS
+        value: "true"
+      - key: WHATSAPP_REPLY_DELAY_MS
+        value: "350"
+      - key: WHATSAPP_CONNECT_TIMEOUT_MS
+        value: "60000"
+      - key: WHATSAPP_QR_TIMEOUT_MS
+        value: "60000"
+      - key: WHATSAPP_LOG_LEVEL
+        value: info

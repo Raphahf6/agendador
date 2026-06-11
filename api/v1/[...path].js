@@ -71,6 +71,19 @@ function requiredEnv(keys) {
   return keys.filter((key) => !process.env[key]);
 }
 
+function listFromEnv(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPlatformAdmin(user) {
+  const allowedEmails = listFromEnv(process.env.HORALIS_PLATFORM_ADMIN_EMAILS);
+  if (!allowedEmails.length) return false;
+  return allowedEmails.includes(String(user?.email || '').toLowerCase());
+}
+
 function mercadoPagoOAuthStateSecret() {
   return process.env.MERCADO_PAGO_STATE_SECRET
     || process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -526,6 +539,38 @@ function publicMercadoPagoMetadata(metadata = {}) {
   return safeMetadata;
 }
 
+function normalizePlatformFeePercent(value) {
+  const percent = Number(value || 0);
+  if (!Number.isFinite(percent)) return 0;
+  return Math.min(Math.max(percent, 0), 100);
+}
+
+function roundCurrency(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function mercadoPagoApplicationFee(transactionAmount, metadata = {}) {
+  const percent = normalizePlatformFeePercent(
+    metadata.platform_fee_percent
+    ?? metadata.application_fee_percent
+    ?? metadata.mercado_pago_fee_percent
+    ?? metadata.taxa_fee_percent,
+  );
+  const amount = Number(transactionAmount || 0);
+
+  if (!Number.isFinite(amount) || amount <= 0 || percent <= 0) {
+    return { percent, amount: 0 };
+  }
+
+  const fee = roundCurrency(amount * (percent / 100));
+  if (fee < 0.01) return { percent, amount: 0 };
+
+  return {
+    percent,
+    amount: Math.min(fee, roundCurrency(amount)),
+  };
+}
+
 async function createMercadoPagoPayment(payload, metadata = {}) {
   const token = mercadoPagoAccessToken(metadata);
   if (!token) {
@@ -547,8 +592,16 @@ async function createMercadoPagoPayment(payload, metadata = {}) {
   }
 
   const safeMetadata = publicMercadoPagoMetadata(metadata);
+  const transactionAmount = Number(payload.transaction_amount || 0);
+  const platformFee = mercadoPagoApplicationFee(transactionAmount, safeMetadata);
+  const paymentMetadata = { ...safeMetadata };
+  if (platformFee.amount > 0) {
+    paymentMetadata.platform_fee_percent = platformFee.percent;
+    paymentMetadata.platform_fee_amount = platformFee.amount;
+  }
+
   const body = {
-    transaction_amount: Number(payload.transaction_amount || 0),
+    transaction_amount: transactionAmount,
     payment_method_id: payload.payment_method_id,
     token: payload.token,
     issuer_id: payload.issuer_id,
@@ -557,8 +610,9 @@ async function createMercadoPagoPayment(payload, metadata = {}) {
     external_reference: safeMetadata.external_reference,
     notification_url: safeMetadata.notification_url || process.env.MERCADO_PAGO_WEBHOOK_URL || `${publicBaseUrl()}/api/v1/webhooks/mercadopago`,
     payer: payload.payer,
-    metadata: safeMetadata,
+    metadata: paymentMetadata,
   };
+  if (platformFee.amount > 0) body.application_fee = platformFee.amount;
 
   Object.keys(body).forEach((key) => body[key] === undefined && delete body[key]);
 
@@ -998,6 +1052,7 @@ async function handleAppointmentPayment(req, res) {
     description: 'Sinal de agendamento Horalis',
     external_reference: clinic.slug,
     mercado_pago_access_token: clinic.mp_access_token,
+    platform_fee_percent: clinic.platform_fee_percent,
   });
   const appointment = await createAppointmentFromPayload(clinic, {
     ...payload,
@@ -1029,7 +1084,7 @@ async function handleAdminClinic(req, res, user, slug) {
 
   if (req.method === 'PUT' || req.method === 'PATCH') {
     const payload = await readJson(req);
-    const fields = pickClinicFields(payload);
+    const fields = pickClinicFields(payload, { allowPlatformFields: isPlatformAdmin(user) });
     if (Object.keys(fields).length) await patch('clinics', { id: `eq.${clinic.id}` }, fields);
     if (Array.isArray(payload.servicos)) await syncServices(clinic.id, payload.servicos);
     const bundle = await getClinicBundle(slug);
@@ -2225,6 +2280,7 @@ async function createHybridAppointment({ clinic, service, professionals, startTi
       description: `Sinal de agendamento - ${service.nome_servico}`,
       external_reference: clinic.slug,
       mercado_pago_access_token: clinic.mp_access_token,
+      platform_fee_percent: clinic.platform_fee_percent,
       idempotency_key: `hybrid-${clinic.id}-${service.id}-${new Date(startTime).getTime()}-${cleanPhone(customerPhone)}`,
     });
 
@@ -2984,6 +3040,7 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
         description: `Sinal de agendamento - ${service.nome_servico}`,
         external_reference: clinic.slug,
         mercado_pago_access_token: clinic.mp_access_token,
+        platform_fee_percent: clinic.platform_fee_percent,
         idempotency_key: `agent-${clinic.id}-${service.id}-${new Date(selectedSlot).getTime()}-${cleanPhone(plan.customer_phone)}`,
       });
 

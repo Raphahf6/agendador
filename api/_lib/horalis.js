@@ -219,7 +219,7 @@ export function isSubscriptionAvailable(clinic) {
   return new Date(clinic.trial_ends_at).getTime() > Date.now();
 }
 
-export function pickClinicFields(payload) {
+export function pickClinicFields(payload, options = {}) {
   const mapping = {
     nome_salao: 'nome_salao',
     tagline: 'tagline',
@@ -250,12 +250,23 @@ export function pickClinicFields(payload) {
     is_public: 'is_public',
   };
 
+  if (options.allowPlatformFields) {
+    mapping.platform_fee_percent = 'platform_fee_percent';
+    mapping.platformFeePercent = 'platform_fee_percent';
+    mapping.mercado_pago_fee_percent = 'platform_fee_percent';
+    mapping.taxa_fee_percent = 'platform_fee_percent';
+  }
+
   const result = {};
   for (const [inputKey, column] of Object.entries(mapping)) {
     if (payload[inputKey] !== undefined) result[column] = payload[inputKey];
   }
 
   if (result.telefone) result.telefone = normalizeBrazilPhone(result.telefone);
+  if (result.platform_fee_percent !== undefined) {
+    const fee = Number(result.platform_fee_percent || 0);
+    result.platform_fee_percent = Number.isFinite(fee) ? Math.min(Math.max(fee, 0), 100) : 0;
+  }
   return result;
 }
 

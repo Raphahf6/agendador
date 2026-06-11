@@ -1,15 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { 
     Users, Plus, Trash2, UserCircle, Briefcase, Loader2, X, Save, 
-    Clock, Check, ChevronDown, Scissors, Percent 
+    Check, Percent, UploadCloud, Image as ImageIcon, Link as LinkIcon
 } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 import toast from 'react-hot-toast';
+import { getSupabaseClient } from '@/lib/supabaseClient';
+import { getErrorMessage } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const MEDIA_BUCKET = 'horalis-media';
+const MAX_IMAGE_SIZE_MB = 6;
 
 const DIAS_DA_SEMANA = [
     { name: "Segunda", key: "monday" }, { name: "Terça", key: "tuesday" },
@@ -21,8 +25,9 @@ const DIAS_DA_SEMANA = [
 const DEFAULT_DAY_SCHEDULE = { isOpen: true, openTime: '09:00', closeTime: '18:00', hasLunch: true, lunchStart: '12:00', lunchEnd: '13:00' };
 
 // --- Modal de Profissional ---
-const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServices, primaryColor }) => {
+const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServices, primaryColor, clinicStorageId }) => {
     const [tab, setTab] = useState('dados');
+    const photoInputRef = useRef(null);
     const [formData, setFormData] = useState({
         nome: '', cargo: '', foto_url: '',
         horario_trabalho: {},
@@ -33,6 +38,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
         comissao: '' // ✨ Novo Campo de Comissão
     });
     const [loading, setLoading] = useState(false);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -49,6 +55,50 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
             setTab('dados');
         }
     }, [isOpen, initialData]);
+
+    const uploadProfessionalPhoto = async (file) => {
+        if (!clinicStorageId) throw new Error('ID interno da clinica indisponivel. Recarregue a pagina e tente novamente.');
+        if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
+        if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`A imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
+
+        const supabase = getSupabaseClient();
+        const extension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        const randomId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const filePath = `${clinicStorageId}/professionals/${randomId}.${extension}`;
+
+        const { data, error: uploadError } = await supabase.storage
+            .from(MEDIA_BUCKET)
+            .upload(filePath, file, {
+                cacheControl: '31536000',
+                contentType: file.type,
+                upsert: false,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(data.path);
+        if (!publicData?.publicUrl) throw new Error('Upload concluido, mas nao foi possivel gerar a URL publica.');
+
+        return publicData.publicUrl;
+    };
+
+    const handlePhotoUpload = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        setUploadingPhoto(true);
+        const toastId = toast.loading('Enviando foto...');
+        try {
+            const publicUrl = await uploadProfessionalPhoto(file);
+            setFormData(prev => ({ ...prev, foto_url: publicUrl }));
+            toast.success('Foto enviada!', { id: toastId });
+        } catch (err) {
+            toast.error(getErrorMessage(err, 'Falha ao enviar foto.'), { id: toastId });
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -187,8 +237,53 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Link da Foto (URL)</label>
-                                    <input value={formData.foto_url} onChange={e => setFormData({ ...formData, foto_url: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="https://imagem.com/foto.jpg" />
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Foto do Profissional</label>
+                                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                                        <div className="flex items-center gap-4">
+                                            {formData.foto_url ? (
+                                                <img src={formData.foto_url} alt={formData.nome || 'Profissional'} className="w-20 h-20 rounded-2xl object-cover border-2 border-white shadow-sm bg-white" />
+                                            ) : (
+                                                <div className="w-20 h-20 rounded-2xl bg-white border border-dashed border-gray-200 flex items-center justify-center text-gray-300">
+                                                    <ImageIcon className="w-8 h-8" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-gray-800">Use uma imagem quadrada ou retrato, em JPG, PNG ou WebP.</p>
+                                                <p className="text-xs text-gray-400 mt-1">Limite de {MAX_IMAGE_SIZE_MB}MB.</p>
+                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => photoInputRef.current?.click()}
+                                                        disabled={uploadingPhoto}
+                                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-cyan-100 text-cyan-800 font-bold text-xs hover:bg-cyan-200 disabled:opacity-60"
+                                                    >
+                                                        {uploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                                                        {uploadingPhoto ? 'Enviando' : 'Enviar foto'}
+                                                    </button>
+                                                    {formData.foto_url && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, foto_url: '' })}
+                                                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white text-red-600 font-bold text-xs border border-red-100 hover:bg-red-50"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                            Remover
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="relative mt-4">
+                                            <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                            <input
+                                                value={formData.foto_url}
+                                                onChange={e => setFormData({ ...formData, foto_url: e.target.value })}
+                                                className="w-full pl-9 pr-3 py-2.5 bg-white rounded-xl border border-gray-100 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all text-sm"
+                                                placeholder="Ou cole uma URL de imagem"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -304,6 +399,7 @@ const ProfessionalCard = ({ pro, onEdit, onDelete }) => (
 export default function EquipePage() {
     const { salaoId, salonDetails } = useSalon();
     const primaryColor = salonDetails?.cor_primaria || '#0E7490';
+    const clinicStorageId = salonDetails?.clinic_id || salonDetails?.uuid || salonDetails?.clinicId || null;
     const [professionals, setProfessionals] = useState([]);
     const [services, setServices] = useState([]); 
     const [loading, setLoading] = useState(true);
@@ -404,6 +500,7 @@ export default function EquipePage() {
                 initialData={editingPro}
                 availableServices={services}
                 primaryColor={primaryColor}
+                clinicStorageId={clinicStorageId}
             />
         </div>
     );

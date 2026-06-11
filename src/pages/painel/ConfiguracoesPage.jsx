@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { 
     Settings, Loader2, Save, Lock, Mail, AlertTriangle, CheckCircle, 
-    ExternalLink, XCircle, Key, DollarSign, CreditCard, RefreshCw 
+    ExternalLink, XCircle, Key, DollarSign, CreditCard, RefreshCw, Percent
 } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import axios from 'axios';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import HourglassLoading from '@/components/HourglassLoading';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const CAN_MANAGE_PLATFORM_FEE = import.meta.env.VITE_ENABLE_PLATFORM_FEE_CONFIG === 'true';
 
 // --- Estilos Premium ---
 const CARD_CLASS = "bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 mb-6";
@@ -33,6 +34,7 @@ export default function ConfiguracoesPage() {
     // Mercado Pago
     const [isMpConnected, setIsMpConnected] = useState(false);
     const [sinalValor, setSinalValor] = useState(0);
+    const [platformFeePercent, setPlatformFeePercent] = useState(0);
     const [loadingMp, setLoadingMp] = useState(false);
 
     // Google Calendar
@@ -62,6 +64,7 @@ export default function ConfiguracoesPage() {
                 // Mercado Pago
                 setIsMpConnected(!!data.mp_access_token); // Se tem token, está conectado
                 setSinalValor(data.sinal_valor || 0);
+                setPlatformFeePercent(data.platform_fee_percent || 0);
                 setIsMpConnected(data.mp_connected === true || data.mercado_pago_connected === true || !!data.mp_access_token);
                 // Google
                 setIsGoogleSyncEnabled(data.google_sync_enabled === true);
@@ -133,6 +136,8 @@ export default function ConfiguracoesPage() {
         setLoadingMp(true);
         try {
             const token = await auth.currentUser.getIdToken();
+            const signalAmount = Math.max(Number.parseFloat(sinalValor || 0) || 0, 0);
+            const feePercent = Math.min(Math.max(Number.parseFloat(platformFeePercent || 0) || 0, 0), 100);
             // Atualiza apenas o valor do sinal
             // Podemos usar a rota genérica de update do cliente ou uma específica se tiver
             // Vamos usar a de update cliente que é mais segura/genérica se a de pagamento específica não existir ou for complexa
@@ -140,15 +145,17 @@ export default function ConfiguracoesPage() {
             
             // Update via rota geral de cliente (mais garantido com o código atual)
             const currentRes = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, { headers: { Authorization: `Bearer ${token}` } });
-            await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
+            const payload = {
                 ...currentRes.data,
                 id: salaoId,
-                sinal_valor: parseFloat(sinalValor)
-            }, { headers: { Authorization: `Bearer ${token}` } });
+                sinal_valor: signalAmount
+            };
+            if (CAN_MANAGE_PLATFORM_FEE) payload.platform_fee_percent = feePercent;
+            await axios.put(`${API_BASE_URL}/admin/clientes/${salaoId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
 
-            toast.success("Valor do sinal atualizado!");
+            toast.success("Configurações de pagamento atualizadas!");
         } catch (err) {
-            toast.error("Erro ao salvar valor.");
+            toast.error("Erro ao salvar pagamento.");
         } finally { setLoadingMp(false); }
     };
 
@@ -245,8 +252,9 @@ export default function ConfiguracoesPage() {
                             </button>
                         </div>
 
-                        <div className="flex items-end gap-4">
-                            <div className="flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-end">
+                            <div className={`grid grid-cols-1 ${CAN_MANAGE_PLATFORM_FEE ? 'sm:grid-cols-2' : ''} gap-4`}>
+                              <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Valor do Sinal (R$)</label>
                                 <div className="relative">
                                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -258,13 +266,32 @@ export default function ConfiguracoesPage() {
                                     />
                                 </div>
                                 <p className="text-xs text-gray-400 mt-1">Deixe 0 para não cobrar sinal.</p>
+                              </div>
+                              {CAN_MANAGE_PLATFORM_FEE && (
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Taxa Horalis (%)</label>
+                                    <div className="relative">
+                                        <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            step="0.01"
+                                            value={platformFeePercent}
+                                            onChange={e => setPlatformFeePercent(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-cyan-500 outline-none font-bold text-gray-900"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">Percentual retido em cada transação OAuth.</p>
+                                </div>
+                              )}
                             </div>
                             <button 
                                 onClick={handleSaveSinal} 
                                 disabled={loadingMp}
                                 className={`px-6 py-2.5 rounded-lg font-bold text-white text-sm transition-all ${BTN_PRIMARY} disabled:opacity-50`}
                             >
-                                {loadingMp ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Atualizar Valor'}
+                                {loadingMp ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Atualizar'}
                             </button>
                         </div>
                     </div>
