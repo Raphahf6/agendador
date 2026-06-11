@@ -9,6 +9,7 @@ import { Payment } from '@mercadopago/sdk-react';
 import { cleanDigits, getErrorMessage } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const SCHEDULING_NOTICE = 'O horario escolhido organiza sua vez na agenda. A equipe faz o possivel para iniciar no horario, mas pode haver pequena tolerancia por causa dos atendimentos anteriores.';
 
 const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
@@ -398,6 +399,10 @@ function AppointmentScheduler({
                 {selectedSlot && (
                     <div className="mb-8 space-y-4 animate-in fade-in duration-300 bg-gray-50/50 p-5 rounded-xl border border-gray-100">
                         <h3 className="text-gray-700 font-bold text-sm mb-3 border-b border-gray-200 pb-2">3. Seus Dados</h3>
+                        <div className="flex gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                            <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                            <span>{SCHEDULING_NOTICE}</span>
+                        </div>
                         <div className="space-y-4">
                             <div className="relative"><Icon icon={User} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="text" placeholder="Nome Completo" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerName} onChange={e => setCustomerName(e.target.value)} disabled={isBooking} /></div>
                             <div className="relative"><Icon icon={Mail} className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><input type="email" placeholder="E-mail" className="pl-9 pr-3 py-2.5 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1" style={{ '--tw-ring-color': primary, '--tw-border-color': primary }} value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} disabled={isBooking} /></div>

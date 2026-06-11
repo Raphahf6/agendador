@@ -718,6 +718,7 @@ function pixSignalReply(startTime, amount, payment) {
     `Pre-reservei seu horario para ${formatSlot(startTime)}.`,
     `Para confirmar, pague o sinal de ${formatCurrencyBRL(amount)} via PIX.`,
     'Assim que o pagamento for aprovado, eu confirmo o agendamento por aqui.',
+    appointmentTimingNotice(),
     copyCode,
     ticketUrl,
   ].filter(Boolean).join('\n');
@@ -797,6 +798,142 @@ function isMercadoPagoPaymentNotification(req, payload = {}) {
   return !type || type === 'payment';
 }
 
+function paymentApprovedWhatsappReply(appointment = {}) {
+  const serviceName = appointment.serviceName || appointment.service_name || 'seu servico';
+  const startTime = appointment.startTime || appointment.start_time;
+  const professionalName = appointment.professionalName || appointment.professional_name || '';
+  const professional = professionalName ? ` com ${professionalName}` : '';
+  const when = startTime ? ` para ${formatSlot(startTime)}` : '';
+
+  return [
+    `Pagamento confirmado. Seu agendamento de ${serviceName}${when}${professional} esta confirmado.`,
+    appointmentTimingNotice(),
+  ].join('\n\n');
+}
+
+function wasPaymentConfirmationSent(conversation = {}, appointment = {}) {
+  const state = conversation.state && typeof conversation.state === 'object' ? conversation.state : {};
+  return String(state.payment_confirmation_sent_for || '') === String(appointment.id || '');
+}
+
+async function findAppointmentWhatsAppConversation(appointment = {}) {
+  if (!appointment?.clinic_id) return null;
+
+  if (appointment.id) {
+    try {
+      const rows = await select('ai_agent_conversations', {
+        select: '*',
+        clinic_id: `eq.${appointment.clinic_id}`,
+        channel: 'eq.whatsapp_qr',
+        'state->>appointment_id': `eq.${appointment.id}`,
+        limit: 1,
+      });
+      if (rows.length) return rows[0];
+    } catch (error) {
+      console.warn('Nao foi possivel localizar conversa por appointment_id:', error?.message || error);
+    }
+  }
+
+  if (appointment.customer_phone) {
+    const rows = await select('ai_agent_conversations', {
+      select: '*',
+      clinic_id: `eq.${appointment.clinic_id}`,
+      channel: 'eq.whatsapp_qr',
+      customer_phone: `eq.${appointment.customer_phone}`,
+      order: 'updated_at.desc',
+      limit: 1,
+    });
+    if (rows.length) return rows[0];
+  }
+
+  return null;
+}
+
+async function sendWhatsappQrText(slug, { to, text }) {
+  const channelKey = process.env.HORALIS_CHANNEL_API_KEY;
+  if (!channelKey) throw httpError('Configure HORALIS_CHANNEL_API_KEY para enviar mensagens WhatsApp.', 501);
+
+  const response = await fetch(`${whatsappQrWorkerUrl()}/sessions/${encodeURIComponent(slug)}/send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Horalis-Channel-Key': channelKey,
+    },
+    body: JSON.stringify({ to, text }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw httpError(data.detail || `Worker WhatsApp respondeu ${response.status}.`, response.status);
+  }
+  return data;
+}
+
+async function notifyWhatsAppPaymentApproved(appointment = {}) {
+  const status = String(appointment.payment_status || '').toLowerCase();
+  if (status !== 'approved' && appointment.status !== 'confirmado') {
+    return { sent: false, skipped: 'payment_not_approved' };
+  }
+
+  const conversation = await findAppointmentWhatsAppConversation(appointment);
+  if (!conversation?.external_id) return { sent: false, skipped: 'conversation_not_found' };
+  if (wasPaymentConfirmationSent(conversation, appointment)) return { sent: false, skipped: 'already_sent' };
+
+  const clinicRows = await select('clinics', {
+    select: 'slug',
+    id: `eq.${appointment.clinic_id}`,
+    limit: 1,
+  });
+  const slug = clinicRows[0]?.slug;
+  if (!slug) return { sent: false, skipped: 'clinic_not_found' };
+
+  const clientAppointment = appointmentToClient(appointment);
+  const reply = paymentApprovedWhatsappReply(clientAppointment);
+  const sendResult = await sendWhatsappQrText(slug, {
+    to: conversation.external_id,
+    text: reply,
+  });
+
+  const previousState = conversation.state && typeof conversation.state === 'object' ? conversation.state : {};
+  await insert('ai_agent_messages', [{
+    conversation_id: conversation.id,
+    clinic_id: conversation.clinic_id,
+    role: 'assistant',
+    content: reply,
+    metadata: {
+      status: 'booking_created',
+      routed_by: 'webhook',
+      event: 'payment_approved',
+      appointment: clientAppointment,
+      payment: {
+        status: appointment.payment_status,
+        payment_id: appointment.payment_id,
+      },
+      whatsapp_send: sendResult,
+    },
+  }]);
+  await patch('ai_agent_conversations', {
+    id: `eq.${conversation.id}`,
+    clinic_id: `eq.${conversation.clinic_id}`,
+  }, {
+    state: {
+      ...previousState,
+      status: 'booking_created',
+      appointment_id: appointment.id,
+      payment_status: 'approved',
+      payment_confirmation_sent_for: appointment.id,
+      payment_confirmation_sent_at: new Date().toISOString(),
+    },
+  });
+
+  return {
+    sent: true,
+    conversation_id: conversation.id,
+    to: conversation.external_id,
+    message_id: sendResult.message_id || null,
+  };
+}
+
 async function handleMercadoPagoWebhook(req, res) {
   const payload = await readJson(req).catch(() => ({}));
   if (!isMercadoPagoPaymentNotification(req, payload)) return json(res, 200, { ok: true, ignored: true });
@@ -812,11 +949,25 @@ async function handleMercadoPagoWebhook(req, res) {
   if (!rows.length) return json(res, 200, { ok: true, ignored: true, payment_id: paymentId });
 
   const synced = await syncAppointmentPaymentStatus(rows[0]);
+  let whatsappNotification = { sent: false, skipped: 'not_attempted' };
+  if (synced.payment_status === 'approved' || synced.status === 'confirmado') {
+    try {
+      whatsappNotification = await notifyWhatsAppPaymentApproved(synced);
+    } catch (error) {
+      console.error('Falha ao notificar pagamento aprovado no WhatsApp:', error?.message || error);
+      whatsappNotification = {
+        sent: false,
+        error: error?.message || 'Erro ao enviar WhatsApp.',
+      };
+    }
+  }
+
   return json(res, 200, {
     ok: true,
     payment_id: paymentId,
     status: synced.payment_status,
     appointment_status: synced.status,
+    whatsapp_notification: whatsappNotification,
   });
 }
 
@@ -1306,6 +1457,7 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     'Use o exemplo completo como referencia de estilo, ritmo, ordem das perguntas e forma de confirmar dados.',
     'Nunca copie nomes, telefones, datas ou horarios ficticios do exemplo completo; use apenas dados reais do contexto ou do cliente.',
     'Quando o cliente pedir para marcar, remarcar, cancelar ou confirmar horario, colete os dados necessarios e diga que vai consultar a agenda antes de confirmar.',
+    `Ao pre-reservar ou confirmar um horario, inclua esta orientacao sem soar defensivo: "${appointmentTimingNotice()}"`,
     `Se o cliente pedir o link de agendamento, envie este link: ${bookingLinkForClinic(clinic)}. Diga tambem que voce pode continuar ajudando por aqui.`,
     'Sempre que perguntar qual servico o cliente deseja, liste os servicos cadastrados em linhas curtas.',
     'Se faltar informacao, faca uma pergunta curta por vez.',
@@ -1926,6 +2078,10 @@ function formatCurrencyBRL(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 }
 
+function appointmentTimingNotice() {
+  return 'Observacao: o horario escolhido organiza sua vez na agenda. A equipe faz o possivel para iniciar no horario, mas pode haver pequena tolerancia por causa do tempo dos atendimentos anteriores.';
+}
+
 function formatServiceOptions(services, maxItems = 8) {
   const list = services.slice(0, maxItems).map((service, index) => {
     const price = Number(service.preco || 0);
@@ -1986,10 +2142,10 @@ function postBookingGreetingReply(context) {
   const professional = professionalName ? ` com ${professionalName}` : '';
 
   if (status === 'pending_payment') {
-    return `Oi${who}! Vi aqui sua pre-reserva de ${serviceName}${when}${professional}. Para concluir, falta finalizar o sinal. Se quiser marcar outro horario, remarcar ou falar com a equipe, me avisa.`;
+    return `Oi${who}! Vi aqui sua pre-reserva de ${serviceName}${when}${professional}. Para concluir, falta finalizar o sinal. ${appointmentTimingNotice()} Se quiser marcar outro horario, remarcar ou falar com a equipe, me avisa.`;
   }
 
-  return `Oi${who}! Seu agendamento de ${serviceName}${when}${professional} ja esta confirmado. Se quiser marcar outro servico, remarcar ou falar com a equipe, me avisa.`;
+  return `Oi${who}! Seu agendamento de ${serviceName}${when}${professional} ja esta confirmado. ${appointmentTimingNotice()} Se quiser marcar outro servico, remarcar ou falar com a equipe, me avisa.`;
 }
 
 function appointmentPaymentStatus(appointment = {}) {
@@ -2012,7 +2168,7 @@ async function checkPendingAppointmentPayment(context) {
   const startTime = clientAppointment.startTime || clientAppointment.start_time;
 
   if (status === 'approved' || clientAppointment.status === 'confirmado') {
-    return hybridResult('booking_created', `Pagamento confirmado. Seu agendamento de ${serviceName}${startTime ? ` para ${formatSlot(startTime)}` : ''} esta confirmado.`, {
+    return hybridResult('booking_created', `Pagamento confirmado. Seu agendamento de ${serviceName}${startTime ? ` para ${formatSlot(startTime)}` : ''} esta confirmado. ${appointmentTimingNotice()}`, {
       appointment: clientAppointment,
       plan: { action: 'answer', confidence: 1 },
       actions: [{
@@ -2314,7 +2470,7 @@ async function createHybridAppointment({ clinic, service, professionals, startTi
       type: 'create_booking',
       appointment_id: appointment.id,
     }],
-    reply: `Prontinho, ${firstName(customerName)}. Seu horario ficou confirmado para ${formatSlot(startTime)}.`,
+    reply: `Prontinho, ${firstName(customerName)}. Seu horario ficou confirmado para ${formatSlot(startTime)}. ${appointmentTimingNotice()}`,
   };
 }
 
@@ -3069,7 +3225,7 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
     return {
       status: 'booking_created',
       appointment: appointmentToClient(appointment),
-      reply: `Agendamento confirmado para ${formatSlot(selectedSlot)}.`,
+      reply: `Agendamento confirmado para ${formatSlot(selectedSlot)}. ${appointmentTimingNotice()}`,
       actions: [{
         type: 'create_booking',
         appointment_id: appointment.id,

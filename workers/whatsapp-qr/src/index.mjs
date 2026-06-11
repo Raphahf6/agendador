@@ -61,7 +61,7 @@ function json(res, status, data) {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Horalis-Channel-Key',
   });
   res.end(JSON.stringify(data));
 }
@@ -189,6 +189,16 @@ function isStatusJid(jid) {
   return String(jid || '') === 'status@broadcast';
 }
 
+function normalizeOutboundJid(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.includes('@')) return raw;
+
+  const digits = cleanPhone(raw);
+  if (digits.length >= 10 && digits.length <= 13) return `${digits}@s.whatsapp.net`;
+  return '';
+}
+
 function messageText(message = {}) {
   const content = message.message || {};
   return String(
@@ -223,6 +233,34 @@ async function sendPaymentQrImage(session, remoteJid, result, quotedMessage) {
     image: buffer,
     caption: 'QR Code Pix do sinal.',
   }, { quoted: quotedMessage });
+}
+
+async function sendOutboundText(session, payload = {}) {
+  if (!session?.sock || session.status !== 'ready') {
+    const error = new Error('Sessao WhatsApp nao esta pronta para envio.');
+    error.status = 409;
+    throw error;
+  }
+
+  const to = normalizeOutboundJid(payload.to || payload.chat_id || payload.remote_jid || payload.phone);
+  const text = String(payload.text || payload.message || '').trim();
+  if (!to) {
+    const error = new Error('Destino WhatsApp invalido.');
+    error.status = 400;
+    throw error;
+  }
+  if (!text) {
+    const error = new Error('Mensagem vazia.');
+    error.status = 400;
+    throw error;
+  }
+
+  const result = await session.sock.sendMessage(to, { text });
+  return {
+    ok: true,
+    to,
+    message_id: result?.key?.id || null,
+  };
 }
 
 function baileysStatusCode(error) {
@@ -581,6 +619,15 @@ async function handleRequest(req, res) {
         phone: null,
         last_error: null,
       });
+    }
+
+    if (action === 'send' && req.method === 'POST') {
+      const session = sessions.get(sanitizeSlug(slug));
+      if (!session) return json(res, 404, { detail: 'Sessao WhatsApp nao encontrada.' });
+
+      const payload = await readJson(req);
+      const result = await sendOutboundText(session, payload);
+      return json(res, 200, result);
     }
   }
 
