@@ -3786,10 +3786,11 @@ async function handleChannelAgent(req, res, parts) {
   }));
 }
 
+const DEFAULT_PRODUCTION_WHATSAPP_QR_WORKER_URL = 'https://horalis-whatsapp-qr.onrender.com';
+
 function whatsappQrWorkerUrl() {
-  const raw = process.env.WHATSAPP_QR_WORKER_URL || process.env.WHATSAPP_QR_API_URL;
+  const raw = process.env.WHATSAPP_QR_WORKER_URL || process.env.WHATSAPP_QR_API_URL || (process.env.VERCEL === '1' ? DEFAULT_PRODUCTION_WHATSAPP_QR_WORKER_URL : '');
   if (raw) return String(raw).replace(/\/+$/, '');
-  if (process.env.VERCEL === '1') throw httpError('Configure WHATSAPP_QR_WORKER_URL na Vercel.', 501);
   return 'http://localhost:8788';
 }
 
