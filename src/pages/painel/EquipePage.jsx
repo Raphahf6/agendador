@@ -9,6 +9,7 @@ import { useSalon } from './PainelLayout';
 import HourglassLoading from '@/components/HourglassLoading';
 import toast from 'react-hot-toast';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import { compressImageForUpload } from '@/utils/imageCompression';
 import { getErrorMessage } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -61,16 +62,17 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
         if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
         if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`A imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
 
+        const optimized = await compressImageForUpload(file, { maxWidth: 900, maxHeight: 900, quality: 0.84 });
+        const uploadFile = optimized.file;
         const supabase = getSupabaseClient();
-        const extension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
         const randomId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const filePath = `${clinicStorageId}/professionals/${randomId}.${extension}`;
+        const filePath = `${clinicStorageId}/professionals/${randomId}.webp`;
 
         const { data, error: uploadError } = await supabase.storage
             .from(MEDIA_BUCKET)
-            .upload(filePath, file, {
+            .upload(filePath, uploadFile, {
                 cacheControl: '31536000',
-                contentType: file.type,
+                contentType: uploadFile.type,
                 upsert: false,
             });
 
@@ -250,7 +252,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                                             )}
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-semibold text-gray-800">Use uma imagem quadrada ou retrato, em JPG, PNG ou WebP.</p>
-                                                <p className="text-xs text-gray-400 mt-1">Limite de {MAX_IMAGE_SIZE_MB}MB.</p>
+                                                <p className="text-xs text-gray-400 mt-1">Limite de {MAX_IMAGE_SIZE_MB}MB. Salvamos comprimida em WebP.</p>
                                                 <div className="flex flex-wrap gap-2 mt-3">
                                                     <button
                                                         type="button"

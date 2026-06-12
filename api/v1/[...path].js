@@ -3142,12 +3142,15 @@ async function executeAgentPlan(plan, { clinic, services, professionals, setting
       professionalId: plan.professional_id,
     });
 
-    const selectedSlot = slots.find((slot) => sameMinute(slot, plan.start_time));
     const requestedTime = extractRequestedTime(message);
-    if (requestedTime && selectedSlot && !sameSlotTime(selectedSlot, requestedTime)) {
+    const selectedSlot = requestedTime
+      ? slots.find((slot) => sameSlotTime(slot, requestedTime))
+      : slots.find((slot) => sameMinute(slot, plan.start_time));
+
+    if (requestedTime && !selectedSlot) {
       return missingFieldResult(
         'start_time',
-        `Voce pediu ${requestedTime}, mas eu nao vou confirmar outro horario sem sua autorizacao. Quer que eu consulte os horarios disponiveis nesse periodo?`,
+        `Voce pediu ${requestedTime}, mas eu nao vou confirmar outro horario sem sua autorizacao. Pode escolher um destes horarios disponiveis? ${slots.slice(0, 5).map(formatSlot).join(', ')}`,
       );
     }
 
@@ -3638,6 +3641,24 @@ async function runAgentMessage(clinic, payload = {}) {
   }
 
   const { settings, services, professionals } = await loadAgentRuntime(clinic);
+  if (payload.require_enabled === true && settings.enabled !== true) {
+    return {
+      reply: '',
+      status: 'disabled',
+      plan: null,
+      actions: [{ type: 'agent_disabled' }],
+      field: null,
+      slots: [],
+      appointment: null,
+      payment: null,
+      response_id: null,
+      model: null,
+      routed_by: 'disabled',
+      conversation_id: payload.conversation_id || null,
+      memory_persisted: false,
+    };
+  }
+
   const memory = await prepareAgentMemory(clinic, payload);
   const limitedMessage = message.slice(0, 3000);
   const hybrid = await tryHybridAgentResponse({
@@ -3783,6 +3804,7 @@ async function handleChannelAgent(req, res, parts) {
   return json(res, 200, await runAgentMessage(clinic, {
     ...payload,
     channel: payload.channel || provider,
+    require_enabled: true,
   }));
 }
 

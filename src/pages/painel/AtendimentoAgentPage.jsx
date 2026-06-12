@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle2,
   CreditCard,
+  FileText,
   Loader2,
   MessageSquareText,
   Power,
@@ -17,6 +18,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  UploadCloud,
   Users,
   Wand2,
 } from 'lucide-react';
@@ -78,6 +80,7 @@ const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide tex
 const WHATSAPP_BUSY_STATUSES = new Set(['starting', 'qr', 'authenticated', 'reconnecting', 'restarting']);
 const WHATSAPP_BLOCKED_START_STATUSES = new Set(['ready', ...WHATSAPP_BUSY_STATUSES]);
 const WHATSAPP_DISCONNECTED_STATUSES = new Set(['disconnected', 'offline']);
+const PERSONA_DOCUMENT_MAX_SIZE_MB = 4;
 
 function normalizeSettings(data = {}) {
   const merged = { ...DEFAULT_SETTINGS, ...data };
@@ -99,6 +102,70 @@ function textToSamples(value) {
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 12);
+}
+
+function cleanImportedPersonaText(value) {
+  return String(value || '')
+    .replace(/\u0000/g, ' ')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function decodePdfLiteral(value) {
+  return String(value || '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\t/g, ' ')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\\\/g, '\\');
+}
+
+async function extractTextFromPdf(file) {
+  const buffer = await file.arrayBuffer();
+  const raw = new TextDecoder('latin1').decode(buffer);
+  const chunks = [];
+  for (const match of raw.matchAll(/\(([^()]|\\\(|\\\)|\\\\|\\n|\\r|\\t){2,}\)\s*Tj/g)) {
+    chunks.push(decodePdfLiteral(match[0].replace(/\)\s*Tj$/, '').slice(1)));
+  }
+  for (const match of raw.matchAll(/\[((?:\s*\(([^()]|\\\(|\\\)|\\\\|\\n|\\r|\\t)*\)\s*)+)\]\s*TJ/g)) {
+    for (const item of match[1].matchAll(/\(([^()]|\\\(|\\\)|\\\\|\\n|\\r|\\t)*\)/g)) {
+      chunks.push(decodePdfLiteral(item[0].slice(1, -1)));
+    }
+  }
+
+  const extracted = cleanImportedPersonaText(chunks.join(' '));
+  if (extracted.length >= 80) return extracted;
+
+  const printable = cleanImportedPersonaText((raw.match(/[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 ,.;:!?'"()/-]{20,}/g) || []).join('\n'));
+  if (printable.length >= 80) return printable;
+
+  throw new Error('Nao consegui extrair texto desse PDF. Se ele for escaneado/imagem, cole o texto ou envie um TXT/MD.');
+}
+
+async function readPersonaDocument(file) {
+  if (!file) return '';
+  if (file.size > PERSONA_DOCUMENT_MAX_SIZE_MB * 1024 * 1024) {
+    throw new Error(`O documento deve ter ate ${PERSONA_DOCUMENT_MAX_SIZE_MB}MB.`);
+  }
+
+  const name = String(file.name || '').toLowerCase();
+  if (file.type === 'application/pdf' || name.endsWith('.pdf')) return extractTextFromPdf(file);
+  if (file.type.startsWith('text/') || /\.(txt|md|markdown|csv|json)$/i.test(name)) return cleanImportedPersonaText(await file.text());
+  throw new Error('Envie um documento TXT, MD ou PDF com texto selecionavel.');
+}
+
+function appendLimited(current, addition, maxLength) {
+  const base = String(current || '').trim();
+  const extra = String(addition || '').trim();
+  const next = [base, extra].filter(Boolean).join('\n\n');
+  return next.slice(0, maxLength);
+}
+
+function importedPersonaSnippet(fileName, text, max = 1800) {
+  return `Referencia importada de ${fileName}:\n${text.slice(0, max)}`;
 }
 
 function formatCurrency(value) {
@@ -199,6 +266,7 @@ export default function AtendimentoAgentPage() {
   const { salaoId, salonDetails } = useSalon();
   const navigate = useNavigate();
   const primaryColor = salonDetails?.cor_primaria || '#0E7490';
+  const personaDocumentInputRef = useRef(null);
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [samplesText, setSamplesText] = useState('');
@@ -225,6 +293,7 @@ export default function AtendimentoAgentPage() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [whatsappError, setWhatsappError] = useState('');
   const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const [importingPersona, setImportingPersona] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,6 +382,45 @@ export default function AtendimentoAgentPage() {
       persona_summary: preset.persona,
       tone_instructions: preset.tone,
     }));
+  };
+
+  const handlePersonaDocumentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setImportingPersona(true);
+    const toastId = toast.loading('Lendo documento...');
+    try {
+      const text = await readPersonaDocument(file);
+      const reference = importedPersonaSnippet(file.name, text);
+      setSettings((current) => ({
+        ...current,
+        persona_summary: appendLimited(current.persona_summary, reference, 2000),
+        tone_instructions: appendLimited(
+          current.tone_instructions,
+          'Use o documento importado como referencia de vocabulario, jeito de falar, nivel de formalidade e postura do atendente.',
+          2000,
+        ),
+        business_rules: appendLimited(
+          current.business_rules,
+          `Base de conhecimento importada de ${file.name}:\n${text.slice(0, 2600)}`,
+          4000,
+        ),
+        conversation_example: appendLimited(
+          current.conversation_example,
+          /(?:cliente|atendente|recepcao|recepção)\s*:/i.test(text)
+            ? `Exemplo/importacao de atendimento de ${file.name}:\n${text.slice(0, 3500)}`
+            : '',
+          8000,
+        ),
+      }));
+      toast.success('Documento importado para a persona.', { id: toastId });
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Nao foi possivel importar o documento.'), { id: toastId });
+    } finally {
+      setImportingPersona(false);
+    }
   };
 
   const clearPreviewResult = () => {
@@ -417,6 +525,10 @@ export default function AtendimentoAgentPage() {
 
   const handleStartWhatsapp = async () => {
     if (!salaoId) return;
+    if (!settings.enabled) {
+      toast.error('Ative e salve o agente antes de conectar o WhatsApp.');
+      return;
+    }
     setWhatsappLoading(true);
     setWhatsappError('');
 
@@ -561,6 +673,35 @@ export default function AtendimentoAgentPage() {
                   </button>
                 ))}
               </div>
+              <div className="rounded-lg border border-dashed border-cyan-200 bg-cyan-50/40 p-4">
+                <input
+                  ref={personaDocumentInputRef}
+                  type="file"
+                  accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"
+                  className="hidden"
+                  onChange={handlePersonaDocumentUpload}
+                />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white text-cyan-700 shadow-sm">
+                      <FileText className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Importar persona por documento</p>
+                      <p className="mt-1 text-xs text-gray-500">TXT, MD ou PDF com texto selecionavel. O conteudo entra como referencia de atendimento.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => personaDocumentInputRef.current?.click()}
+                    disabled={importingPersona}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-bold text-cyan-800 ring-1 ring-cyan-200 transition hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {importingPersona ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" aria-hidden="true" />}
+                    {importingPersona ? 'Lendo' : 'Enviar documento'}
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className={labelClass}>Personalidade</label>
                 <textarea
@@ -700,11 +841,11 @@ export default function AtendimentoAgentPage() {
                 <button
                   type="button"
                   onClick={handleStartWhatsapp}
-                  disabled={whatsappLoading || WHATSAPP_BLOCKED_START_STATUSES.has(whatsappStatus)}
+                  disabled={!settings.enabled || whatsappLoading || WHATSAPP_BLOCKED_START_STATUSES.has(whatsappStatus)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {whatsappLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
-                  Conectar
+                  {settings.enabled ? 'Conectar' : 'Ative o agente'}
                 </button>
                 <button
                   type="button"

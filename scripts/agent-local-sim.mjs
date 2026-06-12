@@ -81,6 +81,16 @@ function loadAgentRuntime() {
   vm.runInContext(source, sandbox);
   vm.runInContext(`
     getAvailableSlotsForClinic = async function(_clinic, args) {
+      if (args.date === '2099-01-09') {
+        return {
+          slots: [
+            args.date + 'T12:30:00.000Z',
+            args.date + 'T14:30:00.000Z',
+          ],
+          professional: null,
+        };
+      }
+
       const slotsByProfessional = {
         'pro-maria': [args.date + 'T17:00:00.000Z', args.date + 'T18:00:00.000Z'],
         'pro-joao': [args.date + 'T18:00:00.000Z', args.date + 'T19:00:00.000Z'],
@@ -858,6 +868,36 @@ try {
   failedTurns += 1;
   failedScenarios += 1;
   console.error(`FAIL horario flutuante 09:00 preserva fuso de Sao Paulo: ${error.message}`);
+}
+
+try {
+  checkedTurns += 1;
+  const result = await runtime.executeAgentPlan({
+    action: 'create_booking',
+    service_id: 'svc-corte',
+    date: '2099-01-09',
+    start_time: '2099-01-09T14:30:00.000Z',
+    customer_name: 'Ana Lima',
+    customer_phone: '5511987654321',
+  }, {
+    clinic,
+    services,
+    professionals,
+    settings,
+    message: 'pode agendar as 09:30',
+  });
+  const parts = runtime.slotTimeParts(result.appointment?.startTime || result.appointment?.start_time);
+  if (result.status === 'booking_created' && parts.hour === 9 && parts.minute === 30) {
+    console.log('PASS horario explicito 09:30 vence ISO deslocado da IA');
+  } else {
+    failedTurns += 1;
+    failedScenarios += 1;
+    console.error(`FAIL horario explicito 09:30 vence ISO deslocado da IA: status=${result.status} horario=${parts.hour}:${parts.minute}`);
+  }
+} catch (error) {
+  failedTurns += 1;
+  failedScenarios += 1;
+  console.error(`FAIL horario explicito 09:30 vence ISO deslocado da IA: ${error.message}`);
 }
 
 try {

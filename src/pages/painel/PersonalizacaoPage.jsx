@@ -10,6 +10,7 @@ import { useSalon } from './PainelLayout';
 import BookingPagePreview from '@/components/BookingPagePreview'; 
 import toast from 'react-hot-toast';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import { compressImageForUpload } from '@/utils/imageCompression';
 import { getErrorMessage, normalizePhotos } from '@/utils/horalisRuntime';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
@@ -132,16 +133,19 @@ export default function PersonalizacaoPage() {
         if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
         if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`Cada imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
 
+        const optimized = await compressImageForUpload(file, folder === 'branding'
+            ? { maxWidth: 900, maxHeight: 900, quality: 0.84 }
+            : { maxWidth: 1600, maxHeight: 1200, quality: 0.82 });
+        const uploadFile = optimized.file;
         const supabase = getSupabaseClient();
-        const extension = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
         const randomId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const filePath = `${clinicStorageId}/${folder}/${randomId}.${extension}`;
+        const filePath = `${clinicStorageId}/${folder}/${randomId}.webp`;
 
         const { data, error: uploadError } = await supabase.storage
             .from(MEDIA_BUCKET)
-            .upload(filePath, file, {
+            .upload(filePath, uploadFile, {
                 cacheControl: '31536000',
-                contentType: file.type,
+                contentType: uploadFile.type,
                 upsert: false,
             });
 
@@ -155,6 +159,10 @@ export default function PersonalizacaoPage() {
             path: data.path,
             bucket: MEDIA_BUCKET,
             alt: file.name.replace(/\.[^.]+$/, ''),
+            width: optimized.width,
+            height: optimized.height,
+            original_size: optimized.originalSize,
+            compressed_size: optimized.compressedSize,
         };
     };
 
@@ -341,7 +349,7 @@ export default function PersonalizacaoPage() {
                                     )}
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-800">Envie uma imagem quadrada para aparecer no topo do microsite.</p>
-                                        <p className="text-xs text-gray-400 mt-1">PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB.</p>
+                                        <p className="text-xs text-gray-400 mt-1">PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB. Salvamos comprimido em WebP.</p>
                                     </div>
                                     <button
                                         type="button"
@@ -433,7 +441,7 @@ export default function PersonalizacaoPage() {
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm font-bold text-gray-900">Suba fotos para o banner e carrossel do microsite.</p>
-                                <p className="text-xs text-gray-500 mt-1">Selecione uma ou varias imagens. PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB cada.</p>
+                                <p className="text-xs text-gray-500 mt-1">Selecione uma ou varias imagens. PNG, JPG ou WebP ate {MAX_IMAGE_SIZE_MB}MB cada. Salvamos comprimidas em WebP.</p>
                             </div>
                             <button
                                 type="button"
