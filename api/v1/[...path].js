@@ -22,10 +22,12 @@ import {
 const SAO_PAULO_OFFSET = '-03:00';
 const SAO_PAULO_TIME_ZONE = 'America/Sao_Paulo';
 const DEFAULT_AGENT_MODEL = process.env.OPENAI_AGENT_MODEL || 'gpt-5.4-mini';
+const DEFAULT_AGENT_ATTENDANT_NAME = process.env.OPENAI_AGENT_ATTENDANT_NAME || 'Lia';
 const DEFAULT_AGENT_FALLBACK = 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.';
 const DEFAULT_AGENT_HANDOFF = 'Vou chamar uma pessoa da equipe para continuar seu atendimento.';
 const DEFAULT_AGENT_OPENING = 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?';
 const DEFAULT_PUBLIC_BASE_URL = 'https://horalis.app';
+const LEGACY_AGENT_ATTENDANT_NAME = 'Atendente Horalis';
 const LEGACY_AGENT_OPENING = 'Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?';
 const WEEKDAY_BY_NAME = {
   sunday: 'sunday',
@@ -190,7 +192,7 @@ function normalizeStringList(value, maxItems = 12) {
 function defaultAgentSettings(clinic) {
   return {
     enabled: false,
-    attendant_name: 'Atendente Horalis',
+    attendant_name: DEFAULT_AGENT_ATTENDANT_NAME,
     persona_summary: `Atendimento da ${clinic?.nome_salao || 'clinica'}.`,
     tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
     business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
@@ -226,8 +228,12 @@ function pickAgentSettings(payload = {}, clinic) {
 
 function normalizeAgentSettingsForRuntime(settings = {}) {
   const opening = String(settings.opening_message || '').trim();
+  const attendantName = String(settings.attendant_name || '').trim();
   return {
     ...settings,
+    attendant_name: !attendantName || attendantName === LEGACY_AGENT_ATTENDANT_NAME
+      ? DEFAULT_AGENT_ATTENDANT_NAME
+      : attendantName,
     opening_message: !opening || opening === LEGACY_AGENT_OPENING ? DEFAULT_AGENT_OPENING : opening,
   };
 }
@@ -255,6 +261,7 @@ function appointmentToClient(row) {
     ...row,
     startTime: row.start_time,
     endTime: row.end_time,
+    serviceId: row.service_id,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
@@ -1452,6 +1459,8 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     `Voce e ${settings.attendant_name}, agente de atendimento da ${clinic.nome_salao}.`,
     'Responda sempre em portugues do Brasil.',
     'Sua missao e atender com linguagem humana, objetiva e fiel ao estilo configurado pela clinica.',
+    'No primeiro contato natural, apresente-se pelo nome configurado e diga que e do atendimento da clinica.',
+    'Depois da primeira apresentacao, nao repita seu nome sem necessidade; siga conduzindo o agendamento.',
     'Nao invente disponibilidade, preco, profissional, regra, pagamento ou procedimento que nao esteja no contexto.',
     'A mensagem inicial configurada tem prioridade sobre exemplos soltos no primeiro contato.',
     'Use o exemplo completo como referencia de estilo, ritmo, ordem das perguntas e forma de confirmar dados.',
@@ -1659,6 +1668,23 @@ const AGENT_NLU_DICTIONARY = {
     'fiz o pix', 'enviei o pix', 'pix feito', 'pix pago',
     'pagamento feito', 'pagamento realizado', 'confirma o pagamento',
     've se caiu', 've se chegou', 'caiu ai', 'caiu aí',
+  ],
+  appointmentLookup: [
+    'meus agendamentos', 'meus horarios', 'meus horários', 'meu agendamento',
+    'meu horario', 'meu horário', 'tenho horario', 'tenho horário',
+    'tenho agendamento', 'consultar agendamento', 'ver agendamento',
+    'qual meu horario', 'qual meu horário', 'quando esta marcado',
+    'quando está marcado', 'confere meu horario', 'confere meu horário',
+  ],
+  cancelAppointment: [
+    'cancelar agendamento', 'cancelar meu agendamento', 'cancelar meu horario',
+    'cancelar meu horário', 'desmarcar', 'desmarca', 'nao vou conseguir ir',
+    'não vou conseguir ir', 'preciso cancelar', 'quero cancelar',
+  ],
+  rescheduleAppointment: [
+    'remarcar', 'reagendar', 'trocar meu horario', 'trocar meu horário',
+    'mudar horario', 'mudar horário', 'alterar horario', 'alterar horário',
+    'trocar agendamento', 'mudar agendamento',
   ],
   openingHours: [
     'horario de funcionamento', 'abre', 'abrem', 'fecha', 'fecham',
@@ -2063,6 +2089,18 @@ function wantsPaymentConfirmation(message) {
   return hasAnyTerm(message, AGENT_NLU_DICTIONARY.paymentConfirmation);
 }
 
+function wantsAppointmentLookup(message) {
+  return hasAnyTerm(message, AGENT_NLU_DICTIONARY.appointmentLookup);
+}
+
+function wantsCancelAppointment(message) {
+  return hasAnyTerm(message, AGENT_NLU_DICTIONARY.cancelAppointment);
+}
+
+function wantsRescheduleAppointment(message) {
+  return hasAnyTerm(message, AGENT_NLU_DICTIONARY.rescheduleAppointment);
+}
+
 function wantsOpeningHours(message) {
   return hasAnyTerm(message, AGENT_NLU_DICTIONARY.openingHours);
 }
@@ -2096,6 +2134,52 @@ function serviceQuestionReply(services, intro = 'Qual servico voce gostaria de a
   return options ? `${intro}\n\nServicos disponiveis:\n${options}` : intro;
 }
 
+function isGenericAttendantName(value) {
+  const name = normalizeAgentText(value);
+  return !name || [
+    'atendente',
+    'atendente horalis',
+    'assistente',
+    'bot',
+    'robo',
+    'recepcao',
+  ].includes(name);
+}
+
+function attendantNameForSettings(settings = {}) {
+  const name = String(settings.attendant_name || '').trim();
+  return isGenericAttendantName(name) ? '' : name;
+}
+
+function replyAlreadyIntroducesAttendant(reply, settings = {}, clinic = {}) {
+  const text = normalizeAgentText(reply);
+  const name = normalizeAgentText(attendantNameForSettings(settings));
+  const clinicName = normalizeAgentText(clinic.nome_salao || '');
+  if (name && text.includes(name)) return true;
+  return Boolean(clinicName && text.includes(clinicName) && hasAnyTerm(text, ['sou', 'aqui e', 'atendimento']));
+}
+
+function stripOpeningGreeting(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^(oi|ola|olá)[,!\s.]*/i, '')
+    .replace(/^(tudo bem\??|bom dia[,!\s.]*|boa tarde[,!\s.]*|boa noite[,!\s.]*)/i, '')
+    .trim();
+}
+
+function attendantIntroduction({ settings = {}, clinic = {}, context = {} }) {
+  const greeting = context.customer_name ? `Oi, ${firstName(context.customer_name)}!` : 'Oi!';
+  const attendantName = attendantNameForSettings(settings);
+  if (attendantName) return `${greeting} Eu sou ${attendantName}, do atendimento da ${clinic.nome_salao}.`;
+  return `${greeting} Sou do atendimento da ${clinic.nome_salao}.`;
+}
+
+function addAttendantIntro(reply, { isFirstTurn = false, settings = {}, clinic = {}, context = {} } = {}) {
+  const text = String(reply || '').trim();
+  if (!isFirstTurn || !text || replyAlreadyIntroducesAttendant(text, settings, clinic)) return text;
+  return `${attendantIntroduction({ settings, clinic, context })} ${stripOpeningGreeting(text)}`;
+}
+
 function dateQuestionReply(service) {
   return `Perfeito, para ${service.nome_servico}. Qual dia ou periodo voce prefere? Pode mandar, por exemplo, "amanha a tarde" ou "sexta de manha".`;
 }
@@ -2123,11 +2207,33 @@ function bookingLinkReply(clinic) {
   return `Claro. Voce tambem pode agendar pelo link: ${bookingLinkForClinic(clinic)}\nSe preferir, eu consigo continuar o agendamento por aqui tambem.`;
 }
 
-function openingMessageForContext(context, services, settings) {
-  const intro = context.customer_name
-    ? `Oi, ${firstName(context.customer_name)}! Posso te ajudar a agendar. Qual servico voce gostaria de fazer?`
-    : (settings.opening_message || DEFAULT_AGENT_OPENING);
-  return serviceQuestionReply(services, intro);
+function attendantOptionsReply(clinic, settings, context) {
+  const configuredOpening = String(settings.opening_message || '').trim();
+  const openingBody = configuredOpening && !replyAlreadyIntroducesAttendant(configuredOpening, settings, clinic)
+    ? stripOpeningGreeting(configuredOpening)
+    : '';
+  const intro = replyAlreadyIntroducesAttendant(configuredOpening, settings, clinic)
+    ? configuredOpening
+    : attendantIntroduction({ settings, clinic, context });
+  const linkLine = clinic.is_public === false
+    ? '4. Continuar o atendimento por aqui'
+    : `4. Agendar pelo link: ${bookingLinkForClinic(clinic)}`;
+
+  return [
+    `${intro}${openingBody ? ` ${openingBody}` : ''}`,
+    '',
+    'Posso te ajudar com:',
+    '1. Agendar por aqui',
+    '2. Consultar horarios disponiveis',
+    '3. Ver, remarcar ou cancelar seus agendamentos',
+    linkLine,
+    '',
+    'Me fala qual opcao voce prefere.',
+  ].join('\n');
+}
+
+function openingMessageForContext(context, _services, settings, clinic) {
+  return attendantOptionsReply(clinic, settings, context);
 }
 
 function postBookingGreetingReply(context) {
@@ -2150,6 +2256,184 @@ function postBookingGreetingReply(context) {
 
 function appointmentPaymentStatus(appointment = {}) {
   return String(appointment.paymentStatus || appointment.payment_status || '').toLowerCase();
+}
+
+function appointmentStartValue(appointment = {}) {
+  return appointment.startTime || appointment.start_time || '';
+}
+
+function appointmentServiceName(appointment = {}) {
+  return appointment.serviceName || appointment.service_name || 'servico';
+}
+
+function appointmentProfessionalName(appointment = {}) {
+  return appointment.professionalName || appointment.professional_name || '';
+}
+
+function isCancelledAppointment(appointment = {}) {
+  return String(appointment.status || '').toLowerCase() === 'cancelado';
+}
+
+function upcomingAppointments(appointments = []) {
+  const now = Date.now();
+  return [...appointments]
+    .filter((appointment) => appointment && !isCancelledAppointment(appointment))
+    .filter((appointment) => {
+      const start = new Date(appointmentStartValue(appointment)).getTime();
+      return Number.isFinite(start) && start >= now - 60 * 60 * 1000;
+    })
+    .sort((a, b) => new Date(appointmentStartValue(a)).getTime() - new Date(appointmentStartValue(b)).getTime());
+}
+
+function uniqueAppointments(appointments = []) {
+  const seen = new Set();
+  return appointments.filter((appointment) => {
+    const id = String(appointment?.id || '');
+    const key = id || `${appointmentStartValue(appointment)}:${appointmentServiceName(appointment)}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function formatAppointmentLine(appointment = {}, index = 0) {
+  const professionalName = appointmentProfessionalName(appointment);
+  const professional = professionalName ? ` com ${professionalName}` : '';
+  const payment = appointmentPaymentStatus(appointment);
+  const paymentText = payment && payment !== 'free' ? ` - pagamento ${payment}` : '';
+  return `${index + 1}. ${appointmentServiceName(appointment)} em ${formatSlot(appointmentStartValue(appointment))}${professional}${paymentText}`;
+}
+
+function appointmentsListReply(appointments = [], { emptyAction = 'agendar' } = {}) {
+  const upcoming = upcomingAppointments(appointments).slice(0, 5);
+  if (!upcoming.length) {
+    return emptyAction === 'cancelar'
+      ? 'Nao encontrei agendamentos futuros ativos para esse WhatsApp. Posso te ajudar a agendar um novo horario ou chamar a equipe.'
+      : 'Nao encontrei agendamentos futuros para esse WhatsApp. Posso te ajudar a agendar por aqui ou te mandar o link de agendamento.';
+  }
+
+  return [
+    'Encontrei estes agendamentos futuros:',
+    upcoming.map(formatAppointmentLine).join('\n'),
+    '',
+    'Voce quer remarcar, cancelar ou fazer outro agendamento?',
+  ].join('\n');
+}
+
+function lookupPhoneReply(intent = 'list_appointments') {
+  if (intent === 'cancel_appointment') {
+    return 'Consigo cancelar para voce. Me passa o WhatsApp usado no agendamento com DDD, por favor? Exemplo: 11987654321.';
+  }
+  if (intent === 'reschedule_appointment') {
+    return 'Consigo te ajudar a remarcar. Me passa o WhatsApp usado no agendamento com DDD, por favor? Exemplo: 11987654321.';
+  }
+  return 'Consigo consultar. Me passa o WhatsApp usado no agendamento com DDD, por favor? Exemplo: 11987654321.';
+}
+
+async function loadCustomerAppointmentsForAgent(clinic, { customerPhone, knownAppointments = [] } = {}) {
+  const normalizedPhone = normalizeWhatsAppPhone(customerPhone);
+  const known = upcomingAppointments(knownAppointments);
+  if (known.length) return known.slice(0, 5);
+  if (!normalizedPhone) return [];
+
+  const customers = await select('customers', {
+    select: '*',
+    clinic_id: `eq.${clinic.id}`,
+    whatsapp: `eq.${normalizedPhone}`,
+    limit: 1,
+  });
+  const customer = customers[0] || null;
+  const params = {
+    select: '*',
+    clinic_id: `eq.${clinic.id}`,
+    status: 'neq.cancelado',
+    start_time: `gte.${new Date(Date.now() - 60 * 60 * 1000).toISOString()}`,
+    order: 'start_time.asc',
+    limit: 5,
+  };
+
+  const byCustomer = customer
+    ? await select('appointments', { ...params, customer_id: `eq.${customer.id}` })
+    : [];
+  const byPhone = await select('appointments', { ...params, customer_phone: `eq.${normalizedPhone}` });
+  return upcomingAppointments(uniqueAppointments([
+    ...known,
+    ...byCustomer.map(appointmentToClient),
+    ...byPhone.map(appointmentToClient),
+  ])).slice(0, 5);
+}
+
+function chooseAppointmentFromMessage(message, appointments = []) {
+  const upcoming = upcomingAppointments(appointments);
+  if (!upcoming.length) return null;
+
+  const selectedIndex = ordinalChoiceIndex(message);
+  if (selectedIndex !== null && upcoming[selectedIndex]) return upcoming[selectedIndex];
+
+  const requestedTime = extractRequestedTime(message);
+  const requestedDate = parseMessageDate(message);
+  if (requestedTime || requestedDate) {
+    const matched = upcoming.find((appointment) => {
+      const start = appointmentStartValue(appointment);
+      const timeMatches = requestedTime ? sameSlotTime(start, requestedTime) : true;
+      const dateMatches = requestedDate ? datePart(start) === requestedDate : true;
+      return timeMatches && dateMatches;
+    });
+    if (matched) return matched;
+  }
+
+  return upcoming.length === 1 ? upcoming[0] : null;
+}
+
+async function cancelAppointmentForAgent(clinic, appointment) {
+  if (!appointment?.id) throw httpError('Agendamento nao encontrado.', 404);
+  const rows = await patch('appointments', {
+    id: `eq.${appointment.id}`,
+    clinic_id: `eq.${clinic.id}`,
+  }, { status: 'cancelado' });
+  return appointmentToClient(rows[0] || { ...appointment, status: 'cancelado' });
+}
+
+function appointmentDurationMinutes(appointment = {}, fallback = 30) {
+  const duration = Number(appointment.durationMinutes || appointment.duration_minutes || fallback);
+  return Number.isFinite(duration) && duration > 0 ? duration : fallback;
+}
+
+function appointmentServiceId(appointment = {}) {
+  return appointment.serviceId || appointment.service_id || '';
+}
+
+function serviceForAppointment(appointment = {}, services = []) {
+  const serviceId = appointmentServiceId(appointment);
+  if (serviceId) {
+    const byId = services.find((service) => String(service.id) === String(serviceId));
+    if (byId) return byId;
+  }
+  const serviceName = normalizeAgentText(appointmentServiceName(appointment));
+  return services.find((service) => normalizeAgentText(service.nome_servico) === serviceName) || null;
+}
+
+async function rescheduleAppointmentForAgent(clinic, appointment, startTime) {
+  if (!appointment?.id) throw httpError('Agendamento nao encontrado.', 404);
+  const duration = appointmentDurationMinutes(appointment);
+  const start = parseRequiredDate(startTime, 'Data de reagendamento invalida.');
+  const end = new Date(start.getTime() + duration * 60000);
+  const rows = await patch('appointments', {
+    id: `eq.${appointment.id}`,
+    clinic_id: `eq.${clinic.id}`,
+  }, {
+    start_time: start.toISOString(),
+    end_time: end.toISOString(),
+    duration_minutes: duration,
+    status: appointment.status === 'pending_payment' ? appointment.status : 'confirmado',
+  });
+  return appointmentToClient(rows[0] || {
+    ...appointment,
+    start_time: start.toISOString(),
+    end_time: end.toISOString(),
+    duration_minutes: duration,
+    status: appointment.status === 'pending_payment' ? appointment.status : 'confirmado',
+  });
 }
 
 async function checkPendingAppointmentPayment(context) {
@@ -2347,6 +2631,9 @@ function collectHybridContext(history = [], services = [], professionals = []) {
     slots: [],
     field: null,
     appointment: null,
+    appointments: [],
+    appointment_id: null,
+    pending_intent: null,
   };
 
   for (const entry of Array.isArray(history) ? history : []) {
@@ -2359,17 +2646,35 @@ function collectHybridContext(history = [], services = [], professionals = []) {
       if (plan.professional_id) context.professional_id = plan.professional_id;
       if (plan.professional_preference) context.professional_preference = plan.professional_preference;
       if (plan.date) context.date = plan.date;
+      if (plan.clear_start_time === true) context.start_time = null;
       if (plan.start_time) context.start_time = plan.start_time;
       if (plan.preferred_time) context.preferred_time = plan.preferred_time;
       if (plan.customer_name) context.customer_name = plan.customer_name;
       if (plan.customer_phone) context.customer_phone = plan.customer_phone;
       if (plan.customer_email) context.customer_email = plan.customer_email;
+      if (plan.appointment_id) context.appointment_id = plan.appointment_id;
+      if (plan.intent) context.pending_intent = plan.intent;
       if (plan.field) context.field = plan.field;
       if (entry.field) context.field = entry.field;
       if (Array.isArray(entry.slots) && entry.slots.length) context.slots = entry.slots;
       if (entry.appointment) {
         context.appointment = entry.appointment;
+        context.appointments = uniqueAppointments([entry.appointment, ...context.appointments]);
         clearHybridActiveBookingFlow(context);
+      }
+      const recentAppointments = Array.isArray(entry.metadata?.recent_appointments)
+        ? entry.metadata.recent_appointments
+        : Array.isArray(entry.recent_appointments)
+          ? entry.recent_appointments
+          : [];
+      const actionAppointments = Array.isArray(entry.appointments)
+        ? entry.appointments
+        : [];
+      if (recentAppointments.length) {
+        context.appointments = uniqueAppointments([...context.appointments, ...recentAppointments]);
+      }
+      if (actionAppointments.length) {
+        context.appointments = uniqueAppointments([...context.appointments, ...actionAppointments]);
       }
       for (const action of entry.actions || []) {
         if (action.service_id) context.service_id = action.service_id;
@@ -2377,7 +2682,12 @@ function collectHybridContext(history = [], services = [], professionals = []) {
         if (action.professional_preference) context.professional_preference = action.professional_preference;
         if (action.date) context.date = action.date;
         if (action.preferred_time) context.preferred_time = action.preferred_time;
+        if (action.appointment_id) context.appointment_id = action.appointment_id;
+        if (action.intent) context.pending_intent = action.intent;
         if (Array.isArray(action.slots) && action.slots.length) context.slots = action.slots;
+        if (Array.isArray(action.appointments) && action.appointments.length) {
+          context.appointments = uniqueAppointments([...context.appointments, ...action.appointments]);
+        }
       }
       continue;
     }
@@ -2590,6 +2900,166 @@ async function buildSelectedSlotHybridResult({
   });
 }
 
+async function buildAppointmentsLookupResult({ clinic, context, customerPhone, intent = 'list_appointments' }) {
+  const appointments = await loadCustomerAppointmentsForAgent(clinic, {
+    customerPhone,
+    knownAppointments: context.appointments,
+  });
+
+  return hybridResult('answered', appointmentsListReply(appointments, {
+    emptyAction: intent === 'cancel_appointment' ? 'cancelar' : 'agendar',
+  }), {
+    field: appointments.length ? 'appointment_action' : 'service_id',
+    appointments,
+    actions: [{
+      type: 'consult_appointments',
+      intent,
+      customer_phone: customerPhone || context.customer_phone || '',
+      appointments: appointments.slice(0, 5),
+    }],
+    plan: {
+      action: 'answer',
+      intent,
+      customer_phone: customerPhone || context.customer_phone || '',
+      field: appointments.length ? 'appointment_action' : 'service_id',
+      confidence: 0.95,
+    },
+  });
+}
+
+async function buildCancelAppointmentStartResult({ clinic, context, customerPhone, message }) {
+  const appointments = await loadCustomerAppointmentsForAgent(clinic, {
+    customerPhone,
+    knownAppointments: context.appointments,
+  });
+  const upcoming = upcomingAppointments(appointments);
+
+  if (!upcoming.length) {
+    return hybridResult('answered', appointmentsListReply([], { emptyAction: 'cancelar' }), {
+      field: 'service_id',
+      actions: [{
+        type: 'consult_appointments',
+        intent: 'cancel_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        appointments: [],
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'cancel_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        field: 'service_id',
+        confidence: 0.9,
+      },
+    });
+  }
+
+  const selected = chooseAppointmentFromMessage(message, upcoming);
+  if (!selected) {
+    return hybridResult('needs_info', [
+      'Encontrei estes agendamentos ativos:',
+      upcoming.slice(0, 5).map(formatAppointmentLine).join('\n'),
+      '',
+      'Qual deles voce quer cancelar?',
+    ].join('\n'), {
+      field: 'cancel_appointment',
+      appointments: upcoming,
+      actions: [{
+        type: 'consult_appointments',
+        intent: 'cancel_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        appointments: upcoming.slice(0, 5),
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'cancel_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        field: 'cancel_appointment',
+        confidence: 0.95,
+      },
+    });
+  }
+
+  return hybridResult('needs_confirmation', `Encontrei seu agendamento de ${appointmentServiceName(selected)} em ${formatSlot(appointmentStartValue(selected))}. Posso cancelar esse agendamento?`, {
+    field: 'cancel_appointment_confirm',
+    appointments: upcoming,
+    plan: {
+      action: 'answer',
+      intent: 'cancel_appointment',
+      appointment_id: selected.id,
+      customer_phone: customerPhone || context.customer_phone || '',
+      field: 'cancel_appointment_confirm',
+      confidence: 0.95,
+    },
+  });
+}
+
+async function buildRescheduleAppointmentStartResult({ clinic, context, customerPhone, message }) {
+  const appointments = await loadCustomerAppointmentsForAgent(clinic, {
+    customerPhone,
+    knownAppointments: context.appointments,
+  });
+  const upcoming = upcomingAppointments(appointments);
+
+  if (!upcoming.length) {
+    return hybridResult('answered', 'Nao encontrei agendamentos futuros ativos para esse WhatsApp. Posso te ajudar a fazer um novo agendamento por aqui ou pelo link.', {
+      field: 'service_id',
+      actions: [{
+        type: 'consult_appointments',
+        intent: 'reschedule_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        appointments: [],
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'reschedule_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        field: 'service_id',
+        confidence: 0.9,
+      },
+    });
+  }
+
+  const selected = chooseAppointmentFromMessage(message, upcoming);
+  if (!selected) {
+    return hybridResult('needs_info', [
+      'Encontrei estes agendamentos ativos:',
+      upcoming.slice(0, 5).map(formatAppointmentLine).join('\n'),
+      '',
+      'Qual deles voce quer remarcar?',
+    ].join('\n'), {
+      field: 'reschedule_appointment',
+      appointments: upcoming,
+      actions: [{
+        type: 'consult_appointments',
+        intent: 'reschedule_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        appointments: upcoming.slice(0, 5),
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'reschedule_appointment',
+        customer_phone: customerPhone || context.customer_phone || '',
+        field: 'reschedule_appointment',
+        confidence: 0.95,
+      },
+    });
+  }
+
+  return hybridResult('needs_info', `Certo, vamos remarcar ${appointmentServiceName(selected)} de ${formatSlot(appointmentStartValue(selected))}. Qual novo dia e horario voce prefere?`, {
+    field: 'reschedule_datetime',
+    appointments: upcoming,
+    plan: {
+      action: 'answer',
+      intent: 'reschedule_appointment',
+      appointment_id: selected.id,
+      customer_phone: customerPhone || context.customer_phone || '',
+      field: 'reschedule_datetime',
+      clear_start_time: true,
+      confidence: 0.95,
+    },
+  });
+}
+
 async function tryHybridAgentResponse({ message, history, clinic, services, professionals, settings }) {
   const isFirstTurn = !Array.isArray(history) || history.length === 0;
   const context = collectHybridContext(history, services, professionals);
@@ -2636,16 +3106,331 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   ));
   const gaveSchedulingData = Boolean(currentService || currentProfessionalChoice.professional || currentProfessionalChoice.preference || currentDate || period || currentSlotChoice || currentPreferredTime);
   const shouldContinueScheduling = schedulingIntent || isFirstTurn || Boolean(context.field) || answeredPendingField || gaveSchedulingData;
+  const hybridReply = (status, reply, extra = {}) => hybridResult(
+    status,
+    addAttendantIntro(reply, { isFirstTurn, settings, clinic, context }),
+    extra,
+  );
+  const withIntro = (result) => ({
+    ...result,
+    reply: addAttendantIntro(result.reply, { isFirstTurn, settings, clinic, context }),
+  });
+  const knownCustomerPhone = currentCustomerPhone || context.customer_phone;
+
+  if (context.field === 'lookup_phone' && currentCustomerPhone) {
+    const intent = context.pending_intent || 'list_appointments';
+    const result = intent === 'cancel_appointment'
+      ? await buildCancelAppointmentStartResult({ clinic, context, customerPhone: currentCustomerPhone, message })
+      : intent === 'reschedule_appointment'
+        ? await buildRescheduleAppointmentStartResult({ clinic, context, customerPhone: currentCustomerPhone, message })
+        : await buildAppointmentsLookupResult({ clinic, context, customerPhone: currentCustomerPhone, intent });
+    return withIntro(result);
+  }
+
+  if (context.field === 'cancel_appointment_confirm' && context.pending_intent === 'cancel_appointment') {
+    const appointments = await loadCustomerAppointmentsForAgent(clinic, {
+      customerPhone: knownCustomerPhone,
+      knownAppointments: context.appointments,
+    });
+    const selected = appointments.find((appointment) => String(appointment.id) === String(context.appointment_id))
+      || chooseAppointmentFromMessage(message, appointments);
+
+    if (isRejection(message)) {
+      return hybridReply('needs_info', [
+        'Tudo bem, nao cancelei.',
+        appointments.length ? 'Se quiser cancelar outro, escolha um destes:' : '',
+        appointments.length ? appointments.slice(0, 5).map(formatAppointmentLine).join('\n') : '',
+      ].filter(Boolean).join('\n'), {
+        field: appointments.length ? 'cancel_appointment' : 'service_id',
+        actions: [{
+          type: 'consult_appointments',
+          intent: 'cancel_appointment',
+          customer_phone: knownCustomerPhone || '',
+          appointments: appointments.slice(0, 5),
+        }],
+        plan: {
+          action: 'answer',
+          intent: 'cancel_appointment',
+          customer_phone: knownCustomerPhone || '',
+          field: appointments.length ? 'cancel_appointment' : 'service_id',
+          clear_start_time: true,
+          confidence: 0.95,
+        },
+      });
+    }
+
+    if (isConfirmation(message) && selected) {
+      const cancelled = await cancelAppointmentForAgent(clinic, selected);
+      return hybridReply('appointment_cancelled', `Prontinho, cancelei seu agendamento de ${appointmentServiceName(cancelled)} em ${formatSlot(appointmentStartValue(cancelled))}. Se quiser marcar outro horario, posso te ajudar por aqui ou te mandar o link.`, {
+        appointment: cancelled,
+        actions: [{
+          type: 'cancel_appointment',
+          appointment_id: cancelled.id,
+          customer_phone: knownCustomerPhone || '',
+        }],
+        plan: {
+          action: 'answer',
+          intent: 'cancel_appointment',
+          appointment_id: cancelled.id,
+          customer_phone: knownCustomerPhone || '',
+          field: null,
+          clear_start_time: true,
+          confidence: 1,
+        },
+      });
+    }
+
+    return hybridReply('needs_confirmation', selected
+      ? `So para confirmar: posso cancelar ${appointmentServiceName(selected)} em ${formatSlot(appointmentStartValue(selected))}?`
+      : 'Nao consegui identificar qual agendamento cancelar. Pode escolher pelo numero da lista?', {
+      field: selected ? 'cancel_appointment_confirm' : 'cancel_appointment',
+      actions: selected ? [] : [{
+        type: 'consult_appointments',
+        intent: 'cancel_appointment',
+        customer_phone: knownCustomerPhone || '',
+        appointments: appointments.slice(0, 5),
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'cancel_appointment',
+        appointment_id: selected?.id || context.appointment_id || null,
+        customer_phone: knownCustomerPhone || '',
+        field: selected ? 'cancel_appointment_confirm' : 'cancel_appointment',
+        confidence: 0.9,
+      },
+    });
+  }
+
+  if (context.field === 'cancel_appointment' && context.pending_intent === 'cancel_appointment') {
+    const result = await buildCancelAppointmentStartResult({
+      clinic,
+      context,
+      customerPhone: knownCustomerPhone,
+      message,
+    });
+    return withIntro(result);
+  }
+
+  if (context.pending_intent === 'reschedule_appointment' && context.field === 'reschedule_appointment') {
+    const result = await buildRescheduleAppointmentStartResult({
+      clinic,
+      context,
+      customerPhone: knownCustomerPhone,
+      message,
+    });
+    return withIntro(result);
+  }
+
+  if (context.pending_intent === 'reschedule_appointment' && ['reschedule_datetime', 'reschedule_slot'].includes(context.field)) {
+    const appointments = await loadCustomerAppointmentsForAgent(clinic, {
+      customerPhone: knownCustomerPhone,
+      knownAppointments: context.appointments,
+    });
+    const selectedAppointment = appointments.find((appointment) => String(appointment.id) === String(context.appointment_id))
+      || chooseAppointmentFromMessage(message, appointments);
+    if (!selectedAppointment) {
+      return hybridReply('needs_info', [
+        'Nao consegui identificar qual agendamento remarcar. Pode escolher pelo numero?',
+        appointments.slice(0, 5).map(formatAppointmentLine).join('\n'),
+      ].filter(Boolean).join('\n'), {
+        field: 'reschedule_appointment',
+        actions: [{
+          type: 'consult_appointments',
+          intent: 'reschedule_appointment',
+          customer_phone: knownCustomerPhone || '',
+          appointments: appointments.slice(0, 5),
+        }],
+        plan: {
+          action: 'answer',
+          intent: 'reschedule_appointment',
+          customer_phone: knownCustomerPhone || '',
+          field: 'reschedule_appointment',
+          confidence: 0.9,
+        },
+      });
+    }
+
+    const appointmentService = serviceForAppointment(selectedAppointment, services);
+    if (!appointmentService) {
+      return hybridReply('handoff', 'Nao consegui identificar o servico desse agendamento para remarcar com seguranca. Vou chamar a equipe para te ajudar.', {
+        actions: [{ type: 'handoff' }],
+        plan: { action: 'handoff', intent: 'reschedule_appointment', appointment_id: selectedAppointment.id, confidence: 0.8 },
+      });
+    }
+
+    const chosenSlot = extractSlotChoice(message, context.slots);
+    if (context.field === 'reschedule_slot' && chosenSlot) {
+      const updated = await rescheduleAppointmentForAgent(clinic, selectedAppointment, chosenSlot);
+      return hybridReply('appointment_rescheduled', `Prontinho, remarquei seu agendamento de ${appointmentServiceName(updated)} para ${formatSlot(appointmentStartValue(updated))}. ${appointmentTimingNotice()}`, {
+        appointment: updated,
+        actions: [{
+          type: 'reschedule_appointment',
+          appointment_id: updated.id,
+          start_time: appointmentStartValue(updated),
+          customer_phone: knownCustomerPhone || '',
+        }],
+        plan: {
+          action: 'answer',
+          intent: 'reschedule_appointment',
+          appointment_id: updated.id,
+          customer_phone: knownCustomerPhone || '',
+          field: null,
+          confidence: 1,
+        },
+      });
+    }
+
+    const newDate = currentDate;
+    const newPreferredTime = currentPreferredTime;
+    if (!newDate) {
+      return hybridReply('needs_info', `Certo. Para qual dia voce quer remarcar ${appointmentServiceName(selectedAppointment)}?`, {
+        field: 'reschedule_datetime',
+        plan: {
+          action: 'answer',
+          intent: 'reschedule_appointment',
+          appointment_id: selectedAppointment.id,
+          customer_phone: knownCustomerPhone || '',
+          field: 'reschedule_datetime',
+          clear_start_time: true,
+          confidence: 0.9,
+        },
+      });
+    }
+
+    const availability = await getAvailableSlotsForClinic(clinic, {
+      serviceId: appointmentService.id,
+      date: newDate,
+      professionalId: selectedAppointment.professionalId || selectedAppointment.professional_id || null,
+    });
+    const usableSlots = sortSlotsByPreferredTime(availability.slots, newPreferredTime);
+    const exactSlot = newPreferredTime
+      ? usableSlots.find((slot) => sameSlotTime(slot, newPreferredTime))
+      : null;
+
+    if (exactSlot) {
+      const updated = await rescheduleAppointmentForAgent(clinic, selectedAppointment, exactSlot);
+      return hybridReply('appointment_rescheduled', `Prontinho, remarquei seu agendamento de ${appointmentServiceName(updated)} para ${formatSlot(appointmentStartValue(updated))}. ${appointmentTimingNotice()}`, {
+        appointment: updated,
+        actions: [{
+          type: 'reschedule_appointment',
+          appointment_id: updated.id,
+          start_time: appointmentStartValue(updated),
+          customer_phone: knownCustomerPhone || '',
+        }],
+        plan: {
+          action: 'answer',
+          intent: 'reschedule_appointment',
+          appointment_id: updated.id,
+          customer_phone: knownCustomerPhone || '',
+          field: null,
+          confidence: 1,
+        },
+      });
+    }
+
+    return hybridReply('needs_info', usableSlots.length
+      ? `${newPreferredTime ? `Nao encontrei ${newPreferredTime} livre.` : 'Encontrei estes horarios livres.'} Qual deles voce prefere? ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}`
+      : 'Nao encontrei horarios livres nessa data para esse agendamento. Quer tentar outro dia ou periodo?', {
+      field: usableSlots.length ? 'reschedule_slot' : 'reschedule_datetime',
+      slots: usableSlots,
+      actions: [{
+        type: 'hybrid_list_slots',
+        intent: 'reschedule_appointment',
+        appointment_id: selectedAppointment.id,
+        service_id: appointmentService.id,
+        date: newDate,
+        preferred_time: newPreferredTime,
+        slots: usableSlots.slice(0, 10),
+      }],
+      plan: {
+        action: 'answer',
+        intent: 'reschedule_appointment',
+        appointment_id: selectedAppointment.id,
+        customer_phone: knownCustomerPhone || '',
+        date: newDate,
+        preferred_time: newPreferredTime,
+        field: usableSlots.length ? 'reschedule_slot' : 'reschedule_datetime',
+        clear_start_time: true,
+        confidence: 0.95,
+      },
+    });
+  }
+
+  if (wantsCancelAppointment(message)) {
+    if (!knownCustomerPhone && !context.appointments.length) {
+      return hybridReply('needs_info', lookupPhoneReply('cancel_appointment'), {
+        field: 'lookup_phone',
+        plan: {
+          action: 'answer',
+          intent: 'cancel_appointment',
+          field: 'lookup_phone',
+          confidence: 0.95,
+        },
+      });
+    }
+
+    const result = await buildCancelAppointmentStartResult({
+      clinic,
+      context,
+      customerPhone: knownCustomerPhone,
+      message,
+    });
+    return withIntro(result);
+  }
+
+  if (wantsAppointmentLookup(message) && !wantsRescheduleAppointment(message)) {
+    if (!knownCustomerPhone && !context.appointments.length) {
+      return hybridReply('needs_info', lookupPhoneReply('list_appointments'), {
+        field: 'lookup_phone',
+        plan: {
+          action: 'answer',
+          intent: 'list_appointments',
+          field: 'lookup_phone',
+          confidence: 0.95,
+        },
+      });
+    }
+
+    const result = await buildAppointmentsLookupResult({
+      clinic,
+      context,
+      customerPhone: knownCustomerPhone,
+      intent: 'list_appointments',
+    });
+    return withIntro(result);
+  }
+
+  if (wantsRescheduleAppointment(message)) {
+    if (!knownCustomerPhone && !context.appointments.length) {
+      return hybridReply('needs_info', lookupPhoneReply('reschedule_appointment'), {
+        field: 'lookup_phone',
+        plan: {
+          action: 'answer',
+          intent: 'reschedule_appointment',
+          field: 'lookup_phone',
+          confidence: 0.95,
+        },
+      });
+    }
+
+    const result = await buildRescheduleAppointmentStartResult({
+      clinic,
+      context,
+      customerPhone: knownCustomerPhone,
+      message,
+    });
+    return withIntro(result);
+  }
 
   if (wantsHuman(message)) {
-    return hybridResult('handoff', settings.handoff_message, {
+    return hybridReply('handoff', settings.handoff_message, {
       actions: [{ type: 'handoff' }],
       plan: { action: 'handoff', confidence: 1 },
     });
   }
 
   if (wantsBookingLink(message)) {
-    return hybridResult('answered', bookingLinkReply(clinic), {
+    return hybridReply('answered', bookingLinkReply(clinic), {
       plan: {
         action: 'answer',
         service_id: context.service_id,
@@ -2668,13 +3453,13 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (isShortThanks(message)) {
-    return hybridResult('answered', 'Eu que agradeco. Fico a disposicao para te ajudar no agendamento.', {
+    return hybridReply('answered', 'Eu que agradeco. Fico a disposicao para te ajudar no agendamento.', {
       plan: { action: 'answer', confidence: 1 },
     });
   }
 
   if (context.appointment && !context.field && !gaveSchedulingData && !schedulingIntent && (isGreetingOnly(message) || isConfirmation(message))) {
-    return hybridResult('answered', postBookingGreetingReply(context), {
+    return hybridReply('answered', postBookingGreetingReply(context), {
       plan: {
         action: 'answer',
         customer_name: context.customer_name,
@@ -2686,14 +3471,14 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (wantsOpeningHours(message) && !service && !context.service_id) {
-    return hybridResult('answered', openingHoursReply(clinic, services), {
+    return hybridReply('answered', openingHoursReply(clinic, services), {
       field: 'service_id',
       plan: { action: 'answer', field: 'service_id', confidence: 0.9 },
     });
   }
 
   if (wantsServiceList(message) && !service) {
-    return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Estes sao os servicos disponiveis. Qual voce quer agendar?'), {
+    return hybridReply('needs_info', serviceQuestionReply(services, 'Claro. Estes sao os servicos disponiveis. Qual voce quer agendar?'), {
       field: 'service_id',
       plan: { action: 'answer', field: 'service_id', confidence: 0.9 },
     });
@@ -2701,7 +3486,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
   if (wantsPrice(message)) {
     if (!service) {
-      return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de consultar?'), {
+      return hybridReply('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de consultar?'), {
         field: 'price_service_id',
         plan: { action: 'answer', field: 'price_service_id', confidence: 0.95 },
       });
@@ -2709,7 +3494,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
     const price = Number(service.preco || 0);
     const duration = Number(service.duracao_minutos || 30);
-    return hybridResult('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Se quiser, me passa o melhor dia e horario para eu consultar a agenda.`, {
+    return hybridReply('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Se quiser, me passa o melhor dia e horario para eu consultar a agenda.`, {
       service,
       plan: { action: 'answer', service_id: service.id, confidence: 0.95 },
     });
@@ -2717,7 +3502,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
   if (context.field === 'price_service_id') {
     if (!service) {
-      return hybridResult('needs_info', serviceQuestionReply(services, 'Nao consegui identificar o servico. Qual valor voce quer consultar?'), {
+      return hybridReply('needs_info', serviceQuestionReply(services, 'Nao consegui identificar o servico. Qual valor voce quer consultar?'), {
         field: 'price_service_id',
         plan: { action: 'answer', field: 'price_service_id', confidence: 0.9 },
       });
@@ -2725,7 +3510,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
     const price = Number(service.preco || 0);
     const duration = Number(service.duracao_minutos || 30);
-    return hybridResult('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Quer que eu consulte horarios para voce?`, {
+    return hybridReply('answered', `${service.nome_servico} fica ${formatCurrencyBRL(price)} e dura em media ${duration} minutos. Quer que eu consulte horarios para voce?`, {
       service,
       field: 'date',
       plan: { action: 'answer', service_id: service.id, field: 'date', confidence: 0.95 },
@@ -2734,7 +3519,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
 
   const ambiguousServices = !service ? ambiguousServiceMatches(message, services) : [];
   if (ambiguousServices.length && shouldContinueScheduling) {
-    return hybridResult('needs_info', serviceQuestionReply(ambiguousServices, 'Encontrei algumas opcoes parecidas. Qual delas voce quer?'), {
+    return hybridReply('needs_info', serviceQuestionReply(ambiguousServices, 'Encontrei algumas opcoes parecidas. Qual delas voce quer?'), {
       field: 'service_id',
       plan: { action: 'answer', field: 'service_id', date, preferred_time: preferredTime, confidence: 0.85 },
     });
@@ -2744,7 +3529,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     const intro = context.field === 'professional_id'
       ? 'Nao consegui identificar o profissional. Voce prefere alguem da lista ou pode ser qualquer um?'
       : 'Perfeito. Voce prefere algum profissional ou pode ser qualquer um?';
-    return hybridResult('needs_info', professionalQuestionReply(applicableProfessionals, intro), {
+    return hybridReply('needs_info', professionalQuestionReply(applicableProfessionals, intro), {
       field: 'professional_id',
       service,
       plan: {
@@ -2759,7 +3544,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (context.field === 'start_time' && service && isRejection(message)) {
-    return hybridResult('needs_info', `Sem problemas. Quer tentar outro dia ou outro periodo para ${service.nome_servico}?`, {
+    return hybridReply('needs_info', `Sem problemas. Quer tentar outro dia ou outro periodo para ${service.nome_servico}?`, {
       field: 'date',
       service,
       plan: {
@@ -2775,7 +3560,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (context.field === 'start_time' && service && currentPreferredTime && !currentSlotChoice && context.slots.length) {
-    return hybridResult('needs_info', `Nao encontrei ${currentPreferredTime} entre os horarios livres. Pode escolher um destes? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`, {
+    return hybridReply('needs_info', `Nao encontrei ${currentPreferredTime} entre os horarios livres. Pode escolher um destes? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`, {
       field: 'start_time',
       service,
       slots: context.slots,
@@ -2791,8 +3576,115 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     });
   }
 
+  if (context.field === 'confirm_booking' && service && currentPreferredTime && !currentSlotChoice) {
+    const bookingDate = currentDate || date || datePart(context.start_time);
+    if (!bookingDate) {
+      return hybridReply('needs_info', `Claro, posso trocar. Para qual dia voce quer o horario das ${currentPreferredTime}?`, {
+        field: 'date',
+        service,
+        plan: {
+          action: 'answer',
+          service_id: service.id,
+          professional_id: professionalId,
+          professional_preference: professionalPreference,
+          preferred_time: currentPreferredTime,
+          field: 'date',
+          clear_start_time: true,
+          confidence: 0.9,
+        },
+      });
+    }
+
+    const availability = professionalPreference === 'any' && !professionalId
+      ? await getBestProfessionalSlotsForService(clinic, {
+        service,
+        date: bookingDate,
+        professionals,
+        period: null,
+      })
+      : await getAvailableSlotsForClinic(clinic, {
+        serviceId: service.id,
+        date: bookingDate,
+        professionalId,
+      });
+    const selectedProfessional = availability.professional || professionals.find((item) => item.id === professionalId) || null;
+    const usableSlots = sortSlotsByPreferredTime(availability.slots, currentPreferredTime);
+    const exactSlot = usableSlots.find((slot) => sameSlotTime(slot, currentPreferredTime));
+
+    if (exactSlot) {
+      const exactSlotResult = await buildSelectedSlotHybridResult({
+        message,
+        context: { ...context, field: 'start_time', start_time: exactSlot },
+        clinic,
+        service,
+        professionals,
+        startTime: exactSlot,
+        professionalId: selectedProfessional?.id || professionalId,
+        professionalPreference,
+        date: bookingDate,
+        preferredTime: currentPreferredTime,
+        customerName,
+        customerPhone,
+        customerEmail,
+        signalValue,
+      });
+      return {
+        ...exactSlotResult,
+        reply: addAttendantIntro(exactSlotResult.reply, { isFirstTurn, settings, clinic, context }),
+      };
+    }
+
+    return hybridReply('needs_info', usableSlots.length
+      ? `Claro, posso trocar. Nao encontrei ${currentPreferredTime} livre, entao nao vou confirmar ${formatSlot(context.start_time)} sem voce querer. Pode escolher um destes? ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}`
+      : `Claro, posso trocar. Nao encontrei ${currentPreferredTime} livre nessa data. Quer tentar outro dia ou outro periodo?`, {
+      field: usableSlots.length ? 'start_time' : 'date',
+      service,
+      slots: usableSlots,
+      actions: [{
+        type: 'hybrid_list_slots',
+        service_id: service.id,
+        date: bookingDate,
+        professional_id: selectedProfessional?.id || professionalId,
+        professional_preference: professionalPreference,
+        preferred_time: currentPreferredTime,
+        slots: usableSlots.slice(0, 10),
+      }],
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        professional_id: selectedProfessional?.id || professionalId,
+        professional_preference: professionalPreference,
+        date: bookingDate,
+        preferred_time: currentPreferredTime,
+        field: usableSlots.length ? 'start_time' : 'date',
+        clear_start_time: true,
+        confidence: 0.95,
+      },
+    });
+  }
+
+  if (context.field === 'confirm_booking' && service && isRejection(message)) {
+    return hybridReply('needs_info', context.slots.length
+      ? `Sem problemas, nao confirmei ${formatSlot(context.start_time)}. Pode escolher outro destes horarios? ${context.slots.slice(0, 5).map(formatSlot).join(', ')}`
+      : `Sem problemas, nao confirmei ${formatSlot(context.start_time)}. Qual outro dia ou horario voce prefere?`, {
+      field: context.slots.length ? 'start_time' : 'date',
+      service,
+      slots: context.slots,
+      plan: {
+        action: 'answer',
+        service_id: service.id,
+        professional_id: professionalId,
+        professional_preference: professionalPreference,
+        date,
+        field: context.slots.length ? 'start_time' : 'date',
+        clear_start_time: true,
+        confidence: 0.95,
+      },
+    });
+  }
+
   if (selectedSlot && service) {
-    return buildSelectedSlotHybridResult({
+    const selectedSlotResult = await buildSelectedSlotHybridResult({
       message,
       context,
       clinic,
@@ -2808,10 +3700,14 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
       customerEmail,
       signalValue,
     });
+    return {
+      ...selectedSlotResult,
+      reply: addAttendantIntro(selectedSlotResult.reply, { isFirstTurn, settings, clinic, context }),
+    };
   }
 
   if (isGreetingOnly(message) && !service && !currentProfessionalChoice.professional && !currentProfessionalChoice.preference && !currentDate && !period && !currentSlotChoice) {
-    return hybridResult('answered', openingMessageForContext(context, services, settings), {
+    return hybridReply('answered', openingMessageForContext(context, services, settings, clinic), {
       field: 'service_id',
       plan: {
         action: 'answer',
@@ -2825,28 +3721,28 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
   }
 
   if (!service && context.field === 'service_id' && !date && shouldContinueScheduling) {
-    return hybridResult('needs_info', serviceQuestionReply(services, 'Nao consegui identificar o servico. Pode escolher uma das opcoes?'), {
+    return hybridReply('needs_info', serviceQuestionReply(services, 'Nao consegui identificar o servico. Pode escolher uma das opcoes?'), {
       field: 'service_id',
       plan: { action: 'answer', date, field: 'service_id', confidence: 0.85 },
     });
   }
 
   if (!service && !date && schedulingIntent) {
-    return hybridResult('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de agendar?'), {
+    return hybridReply('needs_info', serviceQuestionReply(services, 'Claro. Qual servico voce gostaria de agendar?'), {
       field: 'service_id',
       plan: { action: 'answer', field: 'service_id', confidence: 0.9 },
     });
   }
 
   if (date && !service && shouldContinueScheduling) {
-    return hybridResult('needs_info', serviceQuestionReply(services, 'Perfeito. Qual servico voce gostaria de agendar?'), {
+    return hybridReply('needs_info', serviceQuestionReply(services, 'Perfeito. Qual servico voce gostaria de agendar?'), {
       field: 'service_id',
       plan: { action: 'answer', date, preferred_time: preferredTime, field: 'service_id', confidence: 0.9 },
     });
   }
 
   if (service && !date && shouldContinueScheduling) {
-    return hybridResult('needs_info', dateQuestionReply(service), {
+    return hybridReply('needs_info', dateQuestionReply(service), {
       field: 'date',
       service,
       plan: {
@@ -2885,7 +3781,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
       : null;
 
     if (exactPreferredSlot) {
-      return buildSelectedSlotHybridResult({
+      const exactSlotResult = await buildSelectedSlotHybridResult({
         message,
         context,
         clinic,
@@ -2901,9 +3797,13 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
         customerEmail,
         signalValue,
       });
+      return {
+        ...exactSlotResult,
+        reply: addAttendantIntro(exactSlotResult.reply, { isFirstTurn, settings, clinic, context }),
+      };
     }
 
-    return hybridResult('slots_found', usableSlots.length
+    return hybridReply('slots_found', usableSlots.length
       ? `Encontrei estes horarios${professionalText} para ${service.nome_servico}${periodLabel(period)}: ${usableSlots.slice(0, 5).map(formatSlot).join(', ')}. Qual deles fica melhor para voce?`
       : `Nao encontrei horarios livres${professionalText} para ${service.nome_servico}${periodLabel(period)} nessa data.`, {
       service,
@@ -2932,7 +3832,7 @@ async function tryHybridAgentResponse({ message, history, clinic, services, prof
     });
   }
 
-  return hybridResult('needs_info', focusSchedulingReply(services), {
+  return hybridReply('needs_info', focusSchedulingReply(services), {
     field: 'service_id',
     plan: { action: 'answer', field: 'service_id', confidence: 0.75 },
   });
@@ -3419,22 +4319,35 @@ async function loadAgentContactContext(clinic, payload = {}, conversation = null
     })
     : [];
   const customer = customers[0] || null;
-  const appointments = customer
+  const appointmentParams = {
+    select: '*',
+    clinic_id: `eq.${clinic.id}`,
+    order: 'start_time.desc',
+    limit: 5,
+  };
+  const appointmentsByCustomer = customer
     ? await select('appointments', {
-      select: '*',
-      clinic_id: `eq.${clinic.id}`,
+      ...appointmentParams,
       customer_id: `eq.${customer.id}`,
-      order: 'start_time.desc',
-      limit: 5,
     })
     : [];
+  const appointmentsByPhone = customerPhone
+    ? await select('appointments', {
+      ...appointmentParams,
+      customer_phone: `eq.${customerPhone}`,
+    })
+    : [];
+  const appointments = uniqueAppointments([
+    ...appointmentsByCustomer.map(appointmentToClient),
+    ...appointmentsByPhone.map(appointmentToClient),
+  ]);
 
   return {
     customer,
     customer_phone: customerPhone || customer?.whatsapp || '',
     customer_name: customer?.nome || customerName || '',
     customer_email: customer?.email || '',
-    appointments: appointments.map(appointmentToClient),
+    appointments,
   };
 }
 
@@ -3525,7 +4438,8 @@ function buildConversationState(assistantEntry = {}) {
     customer_phone: plan.customer_phone || null,
     customer_email: plan.customer_email || null,
     slots: Array.isArray(assistantEntry.slots) ? assistantEntry.slots.slice(0, 10) : [],
-    appointment_id: assistantEntry.appointment?.id || null,
+    intent: plan.intent || null,
+    appointment_id: plan.appointment_id || assistantEntry.appointment?.id || null,
     payment_status: assistantEntry.payment?.status || null,
     updated_at: new Date().toISOString(),
   };
@@ -3775,7 +4689,10 @@ async function handleAgent(req, res, user, parts) {
       ...pickAgentSettings(payload, clinic),
     };
     const rows = await insert('ai_agent_settings', [values], { upsert: true, onConflict: 'clinic_id' });
-    return json(res, 200, rows[0]);
+    return json(res, 200, normalizeAgentSettingsForRuntime({
+      ...defaultAgentSettings(clinic),
+      ...(rows[0] || values),
+    }));
   }
 
   if (action === 'context' && req.method === 'GET') {

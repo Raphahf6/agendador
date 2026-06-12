@@ -128,6 +128,20 @@ function loadAgentRuntime() {
         point_of_interaction: { transaction_data: { qr_code: 'pix-code' } },
       };
     };
+
+    patch = async function(_table, _filters, values) {
+      return [{
+        id: 'appt-known',
+        service_name: 'Barba',
+        service_id: 'svc-barba',
+        professional_id: 'pro-joao',
+        start_time: values.start_time || '2099-01-02T18:00:00.000Z',
+        end_time: values.end_time || values.start_time || '2099-01-02T18:00:00.000Z',
+        duration_minutes: values.duration_minutes || 20,
+        status: values.status || 'confirmado',
+        customer_phone: '5511987654321',
+      }];
+    };
   `, sandbox);
 
   return sandbox;
@@ -163,6 +177,7 @@ const clinic = {
 };
 
 const settings = {
+  attendant_name: 'Lia',
   opening_message: 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?',
   handoff_message: 'Vou chamar uma pessoa da equipe para continuar seu atendimento.',
   fallback_message: 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.',
@@ -261,7 +276,7 @@ const scenarios = [
     name: 'fluxo completo com qualquer profissional',
     messages: ['oi', 'corte de cabelo', 'qualquer um', 'amanha a tarde', 'primeira opcao', 'Ana Lima', '11987654321', 'sim'],
     checks: [
-      { turn: 0, field: 'service_id' },
+      { turn: 0, field: 'service_id', contains: 'Lia' },
       { turn: 1, field: 'professional_id' },
       { turn: 2, field: 'date' },
       { turn: 3, status: 'slots_found', field: 'start_time' },
@@ -830,6 +845,124 @@ const scenarios = [
     messages: ['oi'],
     checks: [
       { turn: 0, status: 'answered', contains: 'ja esta confirmado' },
+    ],
+  },
+  {
+    name: 'onda4 troca horario na confirmacao nao volta ao horario antigo',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Vou confirmar: Corte de cabelo em 02/01, 11:30 para Ana Lima. Posso confirmar?',
+        status: 'needs_confirmation',
+        field: 'confirm_booking',
+        slots: [
+          '2099-01-02T14:30:00.000Z',
+          '2099-01-02T15:00:00.000Z',
+        ],
+        plan: {
+          action: 'confirm_booking',
+          service_id: 'svc-corte',
+          professional_preference: 'any',
+          date: '2099-01-02',
+          start_time: '2099-01-02T14:30:00.000Z',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+          field: 'confirm_booking',
+        },
+      },
+    ],
+    messages: ['prefiro 12:00'],
+    checks: [
+      { turn: 0, field: 'confirm_booking', contains: '12:00' },
+    ],
+  },
+  {
+    name: 'onda4 cliente consulta agendamentos conhecidos',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Cliente reconhecido: Ana Lima.',
+        plan: {
+          action: 'answer',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+          confidence: 1,
+        },
+        metadata: {
+          recent_appointments: [{
+            id: 'appt-known',
+            serviceName: 'Barba',
+            professionalName: 'Joao',
+            startTime: '2099-01-02T18:00:00.000Z',
+            status: 'confirmado',
+          }],
+        },
+      },
+    ],
+    messages: ['quais sao meus agendamentos?'],
+    checks: [
+      { turn: 0, status: 'answered', contains: 'agendamentos futuros' },
+    ],
+  },
+  {
+    name: 'onda4 cliente cancela agendamento conhecido com confirmacao',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Cliente reconhecido: Ana Lima.',
+        plan: {
+          action: 'answer',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+          confidence: 1,
+        },
+        metadata: {
+          recent_appointments: [{
+            id: 'appt-known',
+            serviceName: 'Barba',
+            professionalName: 'Joao',
+            startTime: '2099-01-02T18:00:00.000Z',
+            status: 'confirmado',
+          }],
+        },
+      },
+    ],
+    messages: ['quero cancelar meu horario', 'sim'],
+    checks: [
+      { turn: 0, field: 'cancel_appointment_confirm', contains: 'posso cancelar' },
+      { turn: 1, status: 'appointment_cancelled', contains: 'cancelei' },
+    ],
+  },
+  {
+    name: 'onda4 cliente remarca agendamento conhecido',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Cliente reconhecido: Ana Lima.',
+        plan: {
+          action: 'answer',
+          customer_name: 'Ana Lima',
+          customer_phone: '5511987654321',
+          confidence: 1,
+        },
+        metadata: {
+          recent_appointments: [{
+            id: 'appt-known',
+            serviceId: 'svc-barba',
+            serviceName: 'Barba',
+            professionalId: 'pro-joao',
+            professionalName: 'Joao',
+            durationMinutes: 20,
+            startTime: '2099-01-02T18:00:00.000Z',
+            status: 'confirmado',
+          }],
+        },
+      },
+    ],
+    messages: ['quero remarcar meu horario', 'sexta 16h'],
+    checks: [
+      { turn: 0, field: 'reschedule_datetime', contains: 'Qual novo dia' },
+      { turn: 1, status: 'appointment_rescheduled', contains: 'remarquei' },
     ],
   },
 ];

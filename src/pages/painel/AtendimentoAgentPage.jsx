@@ -29,7 +29,7 @@ import { useSalon } from './PainelLayout';
 
 const DEFAULT_SETTINGS = {
   enabled: false,
-  attendant_name: 'Atendente Horalis',
+  attendant_name: 'Lia',
   persona_summary: '',
   tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
   business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
@@ -69,6 +69,9 @@ const PERSONA_PRESETS = [
   },
 ];
 
+const PERSONA_PRESET_CUSTOM_ID = 'custom';
+const PERSONA_PRESET_FIELDS = new Set(['persona_summary', 'tone_instructions']);
+
 const TEST_SCENARIOS = [
   'Oi, quero ver horarios disponiveis para amanha.',
   'Quero confirmar um horario hoje a tarde. Meu nome e Ana e meu WhatsApp e 11987654321.',
@@ -104,9 +107,17 @@ function textToSamples(value) {
     .slice(0, 12);
 }
 
+function presetIdForSettings(settings = {}) {
+  const preset = PERSONA_PRESETS.find((item) => (
+    String(settings.persona_summary || '').trim() === item.persona
+    && String(settings.tone_instructions || '').trim() === item.tone
+  ));
+  return preset?.id || PERSONA_PRESET_CUSTOM_ID;
+}
+
 function cleanImportedPersonaText(value) {
   return String(value || '')
-    .replace(/\u0000/g, ' ')
+    .replaceAll('\u0000', ' ')
     .replace(/\r/g, '\n')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
@@ -191,6 +202,9 @@ function actionLabel(type) {
     list_slots: 'Consultou horarios',
     create_booking: 'Criou agendamento',
     create_booking_with_signal: 'Criou agendamento com sinal',
+    consult_appointments: 'Consultou agendamentos',
+    cancel_appointment: 'Cancelou agendamento',
+    reschedule_appointment: 'Remarcou agendamento',
     slot_unavailable: 'Horario indisponivel',
     hybrid_list_slots: 'Consultou horarios sem IA',
     handoff: 'Chamou humano',
@@ -271,7 +285,7 @@ export default function AtendimentoAgentPage() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [samplesText, setSamplesText] = useState('');
   const [agentContext, setAgentContext] = useState(null);
-  const [selectedPreset, setSelectedPreset] = useState('acolhedor');
+  const [selectedPreset, setSelectedPreset] = useState(PERSONA_PRESET_CUSTOM_ID);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageError, setPageError] = useState('');
@@ -311,6 +325,7 @@ export default function AtendimentoAgentPage() {
         if (cancelled) return;
         const normalized = normalizeSettings(settingsResponse.data);
         setSettings(normalized);
+        setSelectedPreset(presetIdForSettings(normalized));
         setSamplesText(samplesToText(normalized.sample_dialogues));
         setAgentContext(contextResponse.data || null);
       } catch (err) {
@@ -373,6 +388,7 @@ export default function AtendimentoAgentPage() {
 
   const updateField = (field, value) => {
     setSettings((current) => ({ ...current, [field]: value }));
+    if (PERSONA_PRESET_FIELDS.has(field)) setSelectedPreset(PERSONA_PRESET_CUSTOM_ID);
   };
 
   const applyPreset = (preset) => {
@@ -415,7 +431,8 @@ export default function AtendimentoAgentPage() {
           8000,
         ),
       }));
-      toast.success('Documento importado para a persona.', { id: toastId });
+      setSelectedPreset(PERSONA_PRESET_CUSTOM_ID);
+      toast.success('Documento importado. Clique em Salvar para aplicar.', { id: toastId });
     } catch (err) {
       toast.error(getErrorMessage(err, 'Nao foi possivel importar o documento.'), { id: toastId });
     } finally {
@@ -456,6 +473,7 @@ export default function AtendimentoAgentPage() {
       const response = await apiPut(`/admin/agent/${salaoId}/settings`, payload);
       const normalized = normalizeSettings(response.data);
       setSettings(normalized);
+      setSelectedPreset(presetIdForSettings(normalized));
       setSamplesText(samplesToText(normalized.sample_dialogues));
       toast.success('Agente salvo.');
     } catch (err) {
@@ -673,6 +691,11 @@ export default function AtendimentoAgentPage() {
                   </button>
                 ))}
               </div>
+              {selectedPreset === PERSONA_PRESET_CUSTOM_ID && (
+                <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">
+                  Personalizado
+                </span>
+              )}
               <div className="rounded-lg border border-dashed border-cyan-200 bg-cyan-50/40 p-4">
                 <input
                   ref={personaDocumentInputRef}
