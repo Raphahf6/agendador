@@ -84,7 +84,7 @@ export function normalizeBrazilPhone(value) {
 }
 
 export async function uniqueClinicSlug(name, preferredSlug) {
-  const base = slugify(preferredSlug || name) || 'clinica';
+  const base = slugify(preferredSlug || name) || 'negocio';
   let candidate = base;
   let suffix = 2;
 
@@ -111,7 +111,7 @@ export async function getClinicBySlug(slug, { allowMissing = false } = {}) {
 
   if (!rows.length && allowMissing) return null;
   if (!rows.length) {
-    const error = new Error('Clinica nao encontrada.');
+    const error = new Error('Estabelecimento nao encontrado.');
     error.status = 404;
     throw error;
   }
@@ -126,7 +126,7 @@ export async function getClinicForUser(user) {
   });
 
   if (!rows.length) {
-    const error = new Error('Nenhuma clinica vinculada a este usuario.');
+    const error = new Error('Nenhum estabelecimento vinculado a este usuario.');
     error.status = 404;
     throw error;
   }
@@ -144,7 +144,7 @@ export async function requireClinicMember(user, slug) {
   });
 
   if (!rows.length && clinic.owner_id !== user.id) {
-    const error = new Error('Usuario sem acesso a esta clinica.');
+    const error = new Error('Usuario sem acesso a este estabelecimento.');
     error.status = 403;
     throw error;
   }
@@ -310,7 +310,7 @@ export async function createClinicForOwner(user, payload = {}) {
   const clinicRows = await insert('clinics', [{
     owner_id: user.id,
     slug,
-    nome_salao: payload.nome_salao || payload.nomeSalao || 'Minha Clinica',
+    nome_salao: payload.nome_salao || payload.nomeSalao || 'Meu Estabelecimento',
     telefone: normalizeBrazilPhone(payload.numero_whatsapp || payload.whatsapp),
     email: payload.email || user.email,
     cpf: payload.cpf ? cleanPhone(payload.cpf) : null,

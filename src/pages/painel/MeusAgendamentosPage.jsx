@@ -13,7 +13,7 @@ import {
   MessageCircle,
   Plus,
   RefreshCw,
-  Scissors,
+  Briefcase,
   Search,
   User,
   XCircle,
@@ -156,7 +156,7 @@ function AppointmentRow({ appointment, salonName, salaoId, onCancel, onConfirm }
 
         <div className="mt-2 flex flex-col gap-2 text-sm text-gray-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           <span className="flex items-center gap-1.5">
-            <Scissors className="h-4 w-4 text-cyan-600" />
+            <Briefcase className="h-4 w-4 text-cyan-600" />
             {appointment.serviceName || 'Servico'}
           </span>
           {appointment.professionalName && (

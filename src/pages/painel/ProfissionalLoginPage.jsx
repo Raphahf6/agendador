@@ -86,7 +86,7 @@ function ProfissionalLoginPage() {
             const redirectPath = `/painel/${realSalaoId}/agendamentos`;
             navigate(redirectPath, { replace: true });
         } catch (apiError) {
-            console.error("Erro ao buscar ID do Salão:", apiError);
+            console.error("Erro ao buscar ID do estabelecimento:", apiError);
             await auth.signOut();
             setError(apiError.response?.data?.detail || "Erro ao conectar conta.");
             setLoading(false);
@@ -156,7 +156,7 @@ function ProfissionalLoginPage() {
                                 <div className="relative">
                                     <Icon icon={Mail} className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input
-                                        id="email" type="email" placeholder="seuemail@salao.com" required
+                                        id="email" type="email" placeholder="seuemail@negocio.com" required
                                         className={`w-full pl-12 pr-4 py-3 border border-gray-200 bg-gray-50 rounded-lg h-12 focus:outline-none focus:bg-white focus:ring-2 ${CIANO_RING_FOCUS} ${CIANO_BORDER_FOCUS}`}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}

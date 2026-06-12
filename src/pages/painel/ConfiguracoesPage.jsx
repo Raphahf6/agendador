@@ -54,7 +54,7 @@ export default function ConfiguracoesPage() {
         try {
             const token = await auth.currentUser.getIdToken();
 
-            // Busca dados do salão
+            // Busca dados do estabelecimento
             const response = await axios.get(`${API_BASE_URL}/admin/clientes/${salaoId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });

@@ -17,7 +17,7 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
  * Props:
  * - selectedDate (Date): A data atualmente selecionada.
  * - onDateSelect (function): Função chamada quando uma data é clicada.
- * - primaryColor (string): A cor primária em HEX do salão (ex: '#A020F0').
+ * - primaryColor (string): A cor primária em HEX do estabelecimento (ex: '#A020F0').
  */
 function HoralisCalendar({ selectedDate, onDateSelect, primaryColor }) {
 

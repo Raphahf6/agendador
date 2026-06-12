@@ -173,7 +173,7 @@ export function LandingPage() {
           <div className="text-center lg:text-left order-1" data-aos="fade-right">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-cyan-700 text-xs font-bold uppercase tracking-wide mb-6 shadow-sm">
               <Sparkles className="w-3 h-3 fill-cyan-700" />
-              Agenda Premium Para Autônomos, Salões e Clínicas
+              Agenda premium para negócios com atendimento marcado
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-6">
@@ -304,7 +304,7 @@ export function LandingPage() {
               <MessageCircle className="w-5 h-5" />
               Solicitar Análise Sem Compromisso
             </button>
-            <p className="text-xs text-slate-400 mt-4 font-medium">Atendemos desde autônomos até grandes clínicas.</p>
+            <p className="text-xs text-slate-400 mt-4 font-medium">Atendemos desde autônomos até operações com equipe.</p>
           </div>
         </div>
       </section>
@@ -374,19 +374,19 @@ export function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8">
             <TestimonialCard
-              quote="Eu trabalho sozinha no meu estúdio e achava que sistema era só para salão grande. O Horalis me salvou de ficar respondendo cliente meia-noite no WhatsApp."
+              quote="Eu trabalho sozinha no meu estúdio e achava que sistema era só para empresa grande. O Horalis me salvou de ficar respondendo cliente meia-noite no WhatsApp."
               author="Ana Clara"
               role="Designer de Sobrancelhas"
             />
             <TestimonialCard
-              quote="Minha clínica precisava organizar a agenda das doutoras. O sistema resolveu o conflito de horários e o suporte deles é incrível, respondem na hora."
-              author="Dra. Juliana Costa"
-              role="Biomédica Esteta"
+              quote="Nossa equipe precisava organizar a agenda de vários profissionais. O sistema resolveu o conflito de horários e o suporte deles é incrível, respondem na hora."
+              author="Juliana Costa"
+              role="Coordenadora de atendimento"
             />
             <TestimonialCard
-              quote="O sistema anti-calote (sinal via Pix) é vida! Antes eu tinha 4 a 5 faltas por semana, hoje é zero. Vale cada centavo, mesmo para mim que sou barbeiro solo."
+              quote="O sistema anti-calote (sinal via Pix) é vida! Antes eu tinha 4 a 5 faltas por semana, hoje é zero. Vale cada centavo, mesmo para mim que trabalho solo."
               author="Ricardo Viana"
-              role="Barbeiro"
+              role="Profissional autônomo"
             />
           </div>
 
@@ -423,7 +423,7 @@ export function LandingPage() {
             />
             <FaqItem
               question="Quanto custa o serviço?"
-              answer="Temos planos especiais para quem está começando e planos mais robustos para clínicas maiores. Chame no WhatsApp que encontramos a melhor opção para o seu bolso."
+              answer="Temos planos especiais para quem está começando e planos mais robustos para operações maiores. Chame no WhatsApp que encontramos a melhor opção para o seu bolso."
             />
             <FaqItem
               question="Tenho medo de não saber mexer. É difícil?"
@@ -446,7 +446,7 @@ export function LandingPage() {
                 <LogoHoralis size="h-8" darkText={true} />
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                Tecnologia fácil e acessível para gestão de agendamentos. De autônomos a grandes clínicas.
+                Tecnologia fácil e acessível para gestão de agendamentos. De autônomos a operações com equipe.
               </p>
             </div>
 

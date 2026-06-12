@@ -58,7 +58,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
     }, [isOpen, initialData]);
 
     const uploadProfessionalPhoto = async (file) => {
-        if (!clinicStorageId) throw new Error('ID interno da clinica indisponivel. Recarregue a pagina e tente novamente.');
+        if (!clinicStorageId) throw new Error('ID interno do estabelecimento indisponivel. Recarregue a pagina e tente novamente.');
         if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
         if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`A imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
 
@@ -196,7 +196,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Cargo</label>
-                                        <input value={formData.cargo} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="Ex: Barbeiro" />
+                                        <input value={formData.cargo} onChange={e => setFormData({ ...formData, cargo: e.target.value })} className="w-full p-3.5 bg-gray-50 rounded-2xl border border-gray-100 focus:bg-white focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none transition-all" placeholder="Ex: Especialista" />
                                     </div>
                                     {/* ✨ CAMPO DE COMISSÃO */}
                                     <div>
@@ -323,7 +323,7 @@ const ProfessionalModal = ({ isOpen, onClose, onSave, initialData, availableServ
                         <div className="space-y-3 animate-in fade-in duration-300">
                             {/* ... (Conteúdo da aba Horários mantido igual) ... */}
                             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 mb-4">
-                                <p className="text-[11px] text-amber-700 leading-relaxed"><strong className="block mb-0.5">Customização de Escala:</strong> Marque os dias que este profissional trabalha diferente do padrão do salão.</p>
+                                <p className="text-[11px] text-amber-700 leading-relaxed"><strong className="block mb-0.5">Customização de Escala:</strong> Marque os dias que este profissional trabalha diferente do padrão do estabelecimento.</p>
                             </div>
                             {DIAS_DA_SEMANA.map((day) => {
                                 const config = formData.horario_trabalho[day.key];

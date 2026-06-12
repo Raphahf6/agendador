@@ -17,7 +17,7 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
-const heroImageUrl = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1800&auto=format&fit=crop';
+const heroImageUrl = '/pagina-agendamentos.png';
 
 const primaryButtonClass = 'bg-cyan-800 hover:bg-cyan-700 focus:ring-cyan-500';
 const inputClass = 'w-full h-12 rounded-lg border border-gray-200 bg-gray-50 pl-12 pr-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-200 disabled:cursor-not-allowed disabled:opacity-70';
@@ -55,7 +55,7 @@ function ProfissionalSignupPage() {
   const validate = () => {
     const phoneDigits = formData.whatsapp.replace(/\D/g, '');
 
-    if (formData.nomeSalao.trim().length < 2) return 'Informe o nome da sua clinica ou sala.';
+    if (formData.nomeSalao.trim().length < 2) return 'Informe o nome do seu estabelecimento.';
     if (phoneDigits.length < 10 || phoneDigits.length > 11) return 'Informe um WhatsApp valido com DDD.';
     if (formData.password.length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
     if (formData.password !== formData.confirmPassword) return 'As senhas nao coincidem.';
@@ -123,7 +123,7 @@ function ProfissionalSignupPage() {
               <div>
                 <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-100">Teste gratuito</p>
                 <h1 className="text-4xl font-bold leading-tight">
-                  Crie sua clinica e comece a agendar hoje.
+                  Crie sua agenda e comece a atender hoje.
                 </h1>
               </div>
               <div className="grid gap-3 text-sm text-cyan-50">
@@ -169,13 +169,13 @@ function ProfissionalSignupPage() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="nomeSalao" className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Nome da clinica
+                    Nome do estabelecimento
                   </label>
                   <IconField
                     id="nomeSalao"
                     icon={Building2}
                     type="text"
-                    placeholder="Ex: Clinica Aurora"
+                    placeholder="Ex: Studio Aurora"
                     value={formData.nomeSalao}
                     onChange={(event) => updateField('nomeSalao', event.target.value)}
                     disabled={loading}
@@ -208,7 +208,7 @@ function ProfissionalSignupPage() {
                     id="email"
                     icon={Mail}
                     type="email"
-                    placeholder="voce@clinica.com"
+                    placeholder="voce@negocio.com"
                     value={formData.email}
                     onChange={(event) => updateField('email', event.target.value)}
                     disabled={loading}

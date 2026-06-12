@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Scissors, DollarSign, Clock, Loader2, Plus, Trash2, X, Edit3, Search, AlertCircle,Save } from 'lucide-react';
+import { Briefcase, DollarSign, Clock, Loader2, Plus, Trash2, X, Edit3, Search, AlertCircle,Save } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import HourglassLoading from '@/components/HourglassLoading';
 import { useSalon } from './PainelLayout';
@@ -88,7 +88,7 @@ const ServiceFormModal = ({ isOpen, onClose, serviceData, salaoId, onSaveSuccess
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                    <ModernInput name="nome_servico" label="Nome do Serviço" icon={Scissors} value={formData.nome_servico} onChange={handleChange} placeholder="Ex: Corte Degradê" required autoFocus />
+                    <ModernInput name="nome_servico" label="Nome do Serviço" icon={Briefcase} value={formData.nome_servico} onChange={handleChange} placeholder="Ex: Consulta inicial" required autoFocus />
                     <div className="grid grid-cols-2 gap-4">
                         <ModernInput name="duracao_minutos" label="Duração (min)" icon={Clock} type="number" value={formData.duracao_minutos} onChange={handleChange} min="5" required />
                         <ModernInput name="preco" label="Preço (R$)" icon={DollarSign} type="number" step="0.01" value={formData.preco} onChange={handleChange} min="0" />
@@ -159,7 +159,7 @@ export default function ServicosPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                         <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
-                            <Scissors className="w-6 h-6 text-cyan-600" />
+                            <Briefcase className="w-6 h-6 text-cyan-600" />
                         </div>
                         Meus Serviços
                     </h1>
@@ -189,7 +189,7 @@ export default function ServicosPage() {
             {filteredServices.length === 0 ? (
                 <div className="text-center py-16 bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Scissors className="w-8 h-8 text-gray-400" />
+                        <Briefcase className="w-8 h-8 text-gray-400" />
                     </div>
                     <p className="text-gray-500 font-medium">Nenhum serviço encontrado.</p>
                 </div>

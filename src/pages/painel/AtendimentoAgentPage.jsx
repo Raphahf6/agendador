@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS = {
   persona_summary: '',
   tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
   business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
-  opening_message: 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?',
+  opening_message: 'Posso te ajudar a agendar, consultar horarios, remarcar, cancelar ou te enviar o link de agendamento.',
   conversation_example: '',
   sample_dialogues: [],
   fallback_message: 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.',
@@ -755,7 +755,7 @@ export default function AtendimentoAgentPage() {
                   value={settings.opening_message}
                   onChange={(event) => updateField('opening_message', event.target.value)}
                   maxLength={800}
-                  placeholder="Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?"
+                  placeholder="Posso te ajudar a agendar, consultar horarios, remarcar, cancelar ou te enviar o link de agendamento."
                 />
               </div>
               <div>
@@ -765,7 +765,7 @@ export default function AtendimentoAgentPage() {
                   value={settings.conversation_example}
                   onChange={(event) => updateField('conversation_example', event.target.value)}
                   maxLength={8000}
-                  placeholder={`Atendente: Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?\nCliente: Corte de cabelo.\nAtendente: Perfeito, para corte de cabelo. Qual dia ou periodo voce prefere?\nCliente: Sexta a tarde.\nAtendente: Vou consultar a agenda e ja te passo as melhores opcoes.`}
+                  placeholder={`Atendente: Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?\nCliente: Consulta inicial.\nAtendente: Perfeito, para consulta inicial. Qual dia ou periodo voce prefere?\nCliente: Sexta a tarde.\nAtendente: Vou consultar a agenda e ja te passo as melhores opcoes.`}
                 />
               </div>
             </div>
@@ -774,7 +774,7 @@ export default function AtendimentoAgentPage() {
           <Section icon={ShieldCheck} title="Regras">
             <div className="grid gap-4">
               <div>
-                <label className={labelClass}>Regras da clinica</label>
+                <label className={labelClass}>Regras do estabelecimento</label>
                 <textarea
                   className={`${fieldClass} min-h-32 resize-y`}
                   value={settings.business_rules}

@@ -43,7 +43,7 @@ export default function PoliticaPrivacidadePage() {
 
           <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl mb-8">
             <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-              <Database className="w-4 h-4" /> Resumo para o Dono do Salão (Controlador):
+              <Database className="w-4 h-4" /> Resumo para o Dono do Estabelecimento (Controlador):
             </h4>
             <p className="text-sm text-blue-800">
               Para fins da LGPD, <strong>você (estabelecimento) é o Controlador</strong> dos dados dos seus clientes finais. A <strong>HORALIS atua como Operadora</strong>, processando esses dados em seu nome para permitir o agendamento.

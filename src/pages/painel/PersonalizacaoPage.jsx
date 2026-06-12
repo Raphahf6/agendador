@@ -129,7 +129,7 @@ export default function PersonalizacaoPage() {
     const clinicStorageId = salonDetails?.clinic_id || salonDetails?.uuid || salonDetails?.clinicId || null;
 
     const uploadMediaFile = async (file, folder) => {
-        if (!clinicStorageId) throw new Error('ID interno da clinica indisponivel. Recarregue a pagina e tente novamente.');
+        if (!clinicStorageId) throw new Error('ID interno do estabelecimento indisponivel. Recarregue a pagina e tente novamente.');
         if (!file?.type?.startsWith('image/')) throw new Error('Envie apenas arquivos de imagem.');
         if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) throw new Error(`Cada imagem deve ter ate ${MAX_IMAGE_SIZE_MB}MB.`);
 
@@ -220,7 +220,7 @@ export default function PersonalizacaoPage() {
         setError(null);
 
         if (!formData.nome_salao.trim()) {
-            setError("O nome do salão é obrigatório.");
+            setError("O nome do estabelecimento é obrigatório.");
             setIsSaving(false);
             return;
         }
@@ -333,15 +333,15 @@ export default function PersonalizacaoPage() {
                             <div className={INPUT_CONTAINER}>
                                 <label className={LABEL_CLASS}>Slogan (Tagline)</label>
                                 <Icon icon={Feather} className={INPUT_ICON} />
-                                <input name="tagline" value={formData.tagline || ''} onChange={handleChange} className={INPUT_FIELD} placeholder="Ex: Onde a beleza acontece" />
+                                <input name="tagline" value={formData.tagline || ''} onChange={handleChange} className={INPUT_FIELD} placeholder="Ex: Atendimento com hora marcada" />
                             </div>
 
                             <div>
-                                <label className={LABEL_CLASS}>Logo da Clinica</label>
+                                <label className={LABEL_CLASS}>Logo do Estabelecimento</label>
                                 <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                                 <div className="flex items-center gap-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
                                     {formData.url_logo ? (
-                                        <img src={formData.url_logo} alt="Logo da clinica" className="w-16 h-16 rounded-xl object-cover border border-white shadow-sm bg-white" />
+                                        <img src={formData.url_logo} alt="Logo do estabelecimento" className="w-16 h-16 rounded-xl object-cover border border-white shadow-sm bg-white" />
                                     ) : (
                                         <div className="w-16 h-16 rounded-xl bg-white border border-dashed border-gray-200 flex items-center justify-center text-gray-300">
                                             <ImageIcon className="w-7 h-7" />
@@ -392,7 +392,7 @@ export default function PersonalizacaoPage() {
                                     <label className={LABEL_CLASS}>Instagram</label>
                                     <div className={SOCIAL_INPUT_WRAPPER}>
                                         <span className={SOCIAL_PREFIX}>@</span>
-                                        <input name="instagram" value={formData.redes_sociais.instagram || ''} onChange={handleSocialChange} className={SOCIAL_INPUT} placeholder="seusalao" />
+                                        <input name="instagram" value={formData.redes_sociais.instagram || ''} onChange={handleSocialChange} className={SOCIAL_INPUT} placeholder="seunegocio" />
                                     </div>
                                 </div>
                                 <div>

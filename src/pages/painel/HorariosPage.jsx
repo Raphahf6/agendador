@@ -270,7 +270,7 @@ export default function HorariosPage() {
         e.preventDefault();
         setIsSaving(true); setError(null);
 
-        if (!salaoId) { setError("Erro: ID do salão."); setIsSaving(false); return; }
+        if (!salaoId) { setError("Erro: estabelecimento não identificado."); setIsSaving(false); return; }
 
         // --- VALIDAÇÃO DE HORÁRIOS ---
         for (const dayKey of DIAS_DA_SEMANA.map(d => d.dbKey)) {

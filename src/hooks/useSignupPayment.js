@@ -100,7 +100,7 @@ export function useSignupPayment(isModalOpen) {
         
         if (password !== confirmPassword) { setError("As senhas não coincidem."); return; }
         if (password.length < 6) { setError("A senha deve ter pelo menos 6 caracteres."); return; }
-        if (!nomeSalao.trim()) { setError("O nome do salão é obrigatório."); return; }
+        if (!nomeSalao.trim()) { setError("O nome do estabelecimento é obrigatório."); return; }
         const cleanedWhatsapp = whatsapp.replace(/\D/g, '');
         if (cleanedWhatsapp.length < 10 || cleanedWhatsapp.length > 11) { setError("Telefone inválido."); return; }
         const cleanedCpf = cpf.replace(/\D/g, '');

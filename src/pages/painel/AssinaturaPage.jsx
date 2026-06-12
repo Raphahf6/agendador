@@ -114,7 +114,7 @@ function AssinaturaPage() {
                     trialEndsAt: data.trialEndsAt ? parseISO(data.trialEndsAt) : null,
                 });
             } else {
-                throw new Error("Dados do salão não encontrados.");
+                throw new Error("Dados do estabelecimento não encontrados.");
             }
         } catch (err) {
             console.error("Erro ao buscar dados da assinatura:", err);

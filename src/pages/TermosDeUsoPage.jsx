@@ -49,7 +49,7 @@ export default function TermosDeUsoPage() {
               Estes Termos de Uso regem o acesso e utilização da plataforma <strong>HORALIS</strong>, um software de gestão de agendamentos e comissões (SaaS - Software as a Service). Ao contratar nossos serviços, pagar a taxa de implantação ou utilizar nosso software, você ("CONTRATANTE") concorda expressamente com todas as cláusulas aqui descritas.
             </p>
             <p>
-              A HORALIS atua meramente como uma <strong>ferramenta tecnológica intermediária</strong> para facilitar a organização de agenda e gestão de equipe. Não possuímos vínculo empregatício com seus profissionais, nem responsabilidade sobre os serviços de beleza/estética prestados em seu estabelecimento.
+              A HORALIS atua meramente como uma <strong>ferramenta tecnológica intermediária</strong> para facilitar a organização de agenda e gestão de equipe. Não possuímos vínculo empregatício com seus profissionais, nem responsabilidade sobre os serviços prestados em seu estabelecimento.
             </p>
           </Section>
 

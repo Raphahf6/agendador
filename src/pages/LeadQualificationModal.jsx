@@ -6,7 +6,7 @@ const LeadQualificationModal = ({ isOpen, onClose }) => {
     nome: '',
     whatsapp: '',
     nomeNegocio: '',
-    tipoNegocio: '', // Barbearia, Salão, Estética, etc
+    tipoNegocio: '',
     tamanhoEquipe: '' // Eu sozinho, 2-5, 5-10, 10+
   });
 
@@ -20,12 +20,12 @@ const LeadQualificationModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     
     // 1. Constrói a mensagem personalizada
-    const msg = `🚀 *Quero profissionalizar a minha Agenda!*%0A%0A` +
-      `👤 *Nome:* ${formData.nome}%0A` +
-      `📱 *Zap:* ${formData.whatsapp}%0A` +
-      `🏢 *Negócio:* ${formData.nomeNegocio}%0A` +
-      `✂️ *Ramo:* ${formData.tipoNegocio}%0A` +
-      `👥 *Equipe:* ${formData.tamanhoEquipe}%0A%0A` +
+    const msg = `*Quero profissionalizar a minha agenda!*%0A%0A` +
+      `*Nome:* ${formData.nome}%0A` +
+      `*WhatsApp:* ${formData.whatsapp}%0A` +
+      `*Negócio:* ${formData.nomeNegocio}%0A` +
+      `*Área:* ${formData.tipoNegocio}%0A` +
+      `*Equipe:* ${formData.tamanhoEquipe}%0A%0A` +
       `Gostaria de saber mais sobre a implantação!`;
 
     // 2. Redireciona para o seu WhatsApp com a mensagem pronta
@@ -101,12 +101,13 @@ const LeadQualificationModal = ({ isOpen, onClose }) => {
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all appearance-none text-slate-600"
                   >
                     <option value="" disabled>Selecione...</option>
-                    <option value="Barbearia">Barbearia</option>
-                    <option value="Salão de Beleza">Salão de Beleza</option>
-                    <option value="Clínica de Estética">Clínica de Estética</option>
-                    <option value="Esmalteria/Lash">Esmalteria / Lash</option>
-                    <option value="Studio de Tatuagem">Studio de Tatuagem</option>
-                    <option value="Autônomo">Sou Autônomo(a)</option>
+                    <option value="Saúde e clínica">Saúde e clínica</option>
+                    <option value="Beleza e estética">Beleza e estética</option>
+                    <option value="Cabelo e barbearia">Cabelo e barbearia</option>
+                    <option value="Lash, sobrancelhas e unhas">Lash, sobrancelhas e unhas</option>
+                    <option value="Bem-estar e terapias">Bem-estar e terapias</option>
+                    <option value="Educação e consultoria">Educação e consultoria</option>
+                    <option value="Outro serviço com agenda">Outro serviço com agenda</option>
                   </select>
                 </div>
              </div>
@@ -142,7 +143,7 @@ const LeadQualificationModal = ({ isOpen, onClose }) => {
                 name="nomeNegocio"
                 value={formData.nomeNegocio}
                 onChange={handleChange}
-                placeholder="Ex: Barbearia do Zé"
+                placeholder="Ex: Studio Aurora"
                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
               />
             </div>

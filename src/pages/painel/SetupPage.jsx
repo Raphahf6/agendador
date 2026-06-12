@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { 
     User, Mail, Phone, MapPin, Sparkles, ArrowRight, Check, 
-    Loader2, Palette, Scissors, Users, Clock, Settings, Play
+    Loader2, Palette, Briefcase, Users, Clock, Settings, Play
 } from 'lucide-react';
 import { auth } from '@/firebaseConfig';
 import { onAuthStateChanged } from "firebase/auth";
@@ -45,7 +45,7 @@ const StepIdentity = ({ data, onChange, onNext }) => (
                     value={data.nome_salao} 
                     onChange={e => onChange('nome_salao', e.target.value)} 
                     className={INPUT_CLASS} 
-                    placeholder="Nome do Salão (Ex: Studio Elite)" 
+                    placeholder="Nome do estabelecimento (Ex: Studio Aurora)" 
                     autoFocus 
                 />
             </div>
@@ -57,7 +57,7 @@ const StepIdentity = ({ data, onChange, onNext }) => (
                     value={data.tagline} 
                     onChange={e => onChange('tagline', e.target.value)} 
                     className={INPUT_CLASS} 
-                    placeholder="Slogan (Ex: Realçando sua beleza)" 
+                    placeholder="Slogan (Ex: Atendimento com hora marcada)" 
                 />
             </div>
 
@@ -140,10 +140,10 @@ const StepTutorial = ({ onFinish, loading }) => (
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Próximos Passos:</h3>
             
             <div className="flex items-start gap-3">
-                <div className="p-2 bg-white rounded-lg shadow-sm text-cyan-600"><Scissors className="w-5 h-5"/></div>
+                <div className="p-2 bg-white rounded-lg shadow-sm text-cyan-600"><Briefcase className="w-5 h-5"/></div>
                 <div>
                     <p className="font-bold text-gray-800 text-sm">1. Cadastre Serviços</p>
-                    <p className="text-xs text-gray-500">Vá em <strong>"Meus Serviços"</strong> para adicionar cortes, barbas, etc.</p>
+                    <p className="text-xs text-gray-500">Vá em <strong>"Meus Serviços"</strong> para adicionar atendimentos, pacotes e valores.</p>
                 </div>
             </div>
 
@@ -280,7 +280,7 @@ export default function SetupPage() {
                     <div className="w-full h-full bg-white overflow-y-auto custom-scrollbar">
                         <BookingPagePreview 
                             salaoId="preview"
-                            nomeSalao={setupData.nome_salao || "Seu Salão"}
+                            nomeSalao={setupData.nome_salao || "Seu Estabelecimento"}
                             tagline={setupData.tagline}
                             primaryColor={setupData.cor_primaria}
                             telefone={setupData.telefone}

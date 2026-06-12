@@ -178,7 +178,7 @@ const clinic = {
 
 const settings = {
   attendant_name: 'Lia',
-  opening_message: 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?',
+  opening_message: 'Posso te ajudar a agendar, consultar horarios, remarcar, cancelar ou te enviar o link de agendamento.',
   handoff_message: 'Vou chamar uma pessoa da equipe para continuar seu atendimento.',
   fallback_message: 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.',
 };
@@ -767,6 +767,57 @@ const scenarios = [
     messages: ['me manda o link de agendamento'],
     checks: [
       { turn: 0, status: 'answered', contains: 'https://horalis.app/agendar/salao-teste' },
+    ],
+  },
+  {
+    name: 'onda5 saudacao em conversa antiga incompleta abre menu',
+    initialHistory: [{
+      role: 'assistant',
+      content: 'Perfeito, para Barba. Qual dia ou periodo voce prefere?',
+      status: 'needs_info',
+      field: 'date',
+      plan: {
+        action: 'answer',
+        service_id: 'svc-barba',
+        field: 'date',
+      },
+    }],
+    messages: ['oi'],
+    checks: [
+      { turn: 0, status: 'answered', contains: 'Posso te ajudar com:' },
+    ],
+  },
+  {
+    name: 'onda5 cancelar vence conversa antiga presa em agendamento',
+    initialHistory: [
+      {
+        role: 'assistant',
+        content: 'Perfeito, para Barba. Qual dia ou periodo voce prefere?',
+        status: 'needs_info',
+        field: 'date',
+        plan: {
+          action: 'answer',
+          service_id: 'svc-barba',
+          customer_phone: '5511987654321',
+          field: 'date',
+        },
+        metadata: {
+          recent_appointments: [{
+            id: 'appt-known',
+            serviceName: 'Barba',
+            serviceId: 'svc-barba',
+            professionalName: 'Joao',
+            professionalId: 'pro-joao',
+            startTime: '2099-01-02T18:00:00.000Z',
+            status: 'confirmado',
+            customerPhone: '5511987654321',
+          }],
+        },
+      },
+    ],
+    messages: ['quero cancelar meu horario'],
+    checks: [
+      { turn: 0, status: 'needs_confirmation', field: 'cancel_appointment_confirm', contains: 'Posso cancelar' },
     ],
   },
   {

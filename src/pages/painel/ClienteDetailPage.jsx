@@ -309,7 +309,7 @@ export default function ClienteDetailPage() {
     const [isSavingNote, setIsSavingNote] = useState(false);
 
     // 🌟 CORREÇÃO: Definindo salonName a partir do contexto 🌟
-    const salonName = salonDetails?.nome_salao || "Seu Salão";
+    const salonName = salonDetails?.nome_salao || "Seu Estabelecimento";
 
     // Fetch Data
     const fetchDetails = useCallback(async () => {

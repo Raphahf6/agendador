@@ -25,10 +25,23 @@ const DEFAULT_AGENT_MODEL = process.env.OPENAI_AGENT_MODEL || 'gpt-5.4-mini';
 const DEFAULT_AGENT_ATTENDANT_NAME = process.env.OPENAI_AGENT_ATTENDANT_NAME || 'Lia';
 const DEFAULT_AGENT_FALLBACK = 'Vou confirmar essa informacao com a equipe e ja retorno com seguranca.';
 const DEFAULT_AGENT_HANDOFF = 'Vou chamar uma pessoa da equipe para continuar seu atendimento.';
-const DEFAULT_AGENT_OPENING = 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?';
+const DEFAULT_AGENT_OPENING = 'Posso te ajudar a agendar, consultar horarios, remarcar, cancelar ou te enviar o link de agendamento.';
 const DEFAULT_PUBLIC_BASE_URL = 'https://horalis.app';
 const LEGACY_AGENT_ATTENDANT_NAME = 'Atendente Horalis';
 const LEGACY_AGENT_OPENING = 'Oi, tudo bem? Me passa o melhor dia e horario para voce, por favor?';
+const LEGACY_AGENT_SERVICE_OPENING = 'Oi, tudo bem? Posso te ajudar a agendar. Qual servico voce gostaria de fazer?';
+const AGENT_CONVERSATION_FLOW_VERSION = 'menu-options-v2';
+const ACTIVE_BOOKING_FIELDS = new Set([
+  'service_id',
+  'professional_id',
+  'date',
+  'start_time',
+  'customer_name',
+  'customer_phone',
+  'customer_email',
+  'confirm_booking',
+  'price_service_id',
+]);
 const WEEKDAY_BY_NAME = {
   sunday: 'sunday',
   monday: 'monday',
@@ -193,7 +206,7 @@ function defaultAgentSettings(clinic) {
   return {
     enabled: false,
     attendant_name: DEFAULT_AGENT_ATTENDANT_NAME,
-    persona_summary: `Atendimento da ${clinic?.nome_salao || 'clinica'}.`,
+    persona_summary: `Atendimento de ${clinic?.nome_salao || 'estabelecimento'}.`,
     tone_instructions: 'Use mensagens curtas, naturais, educadas e acolhedoras. Evite parecer robotico.',
     business_rules: 'Nao confirme horarios sem consultar a agenda. Quando nao tiver certeza, encaminhe para atendimento humano.',
     opening_message: DEFAULT_AGENT_OPENING,
@@ -229,12 +242,16 @@ function pickAgentSettings(payload = {}, clinic) {
 function normalizeAgentSettingsForRuntime(settings = {}) {
   const opening = String(settings.opening_message || '').trim();
   const attendantName = String(settings.attendant_name || '').trim();
+  const normalizedOpening = normalizeAgentText(opening);
+  const isLegacyOpening = !opening
+    || normalizedOpening === normalizeAgentText(LEGACY_AGENT_OPENING)
+    || normalizedOpening === normalizeAgentText(LEGACY_AGENT_SERVICE_OPENING);
   return {
     ...settings,
     attendant_name: !attendantName || attendantName === LEGACY_AGENT_ATTENDANT_NAME
       ? DEFAULT_AGENT_ATTENDANT_NAME
       : attendantName,
-    opening_message: !opening || opening === LEGACY_AGENT_OPENING ? DEFAULT_AGENT_OPENING : opening,
+    opening_message: isLegacyOpening ? DEFAULT_AGENT_OPENING : opening,
   };
 }
 
@@ -1456,10 +1473,10 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
   const conversationExample = String(settings.conversation_example || '').trim() || '- Sem exemplo completo cadastrado';
 
   return [
-    `Voce e ${settings.attendant_name}, agente de atendimento da ${clinic.nome_salao}.`,
+    `Voce e ${settings.attendant_name}, agente de atendimento de ${clinic.nome_salao}.`,
     'Responda sempre em portugues do Brasil.',
-    'Sua missao e atender com linguagem humana, objetiva e fiel ao estilo configurado pela clinica.',
-    'No primeiro contato natural, apresente-se pelo nome configurado e diga que e do atendimento da clinica.',
+    'Sua missao e atender com linguagem humana, objetiva e fiel ao estilo configurado pelo estabelecimento.',
+    'No primeiro contato natural, apresente-se pelo nome configurado e diga que e do atendimento do estabelecimento.',
     'Depois da primeira apresentacao, nao repita seu nome sem necessidade; siga conduzindo o agendamento.',
     'Nao invente disponibilidade, preco, profissional, regra, pagamento ou procedimento que nao esteja no contexto.',
     'A mensagem inicial configurada tem prioridade sobre exemplos soltos no primeiro contato.',
@@ -1470,7 +1487,7 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     `Se o cliente pedir o link de agendamento, envie este link: ${bookingLinkForClinic(clinic)}. Diga tambem que voce pode continuar ajudando por aqui.`,
     'Sempre que perguntar qual servico o cliente deseja, liste os servicos cadastrados em linhas curtas.',
     'Se faltar informacao, faca uma pergunta curta por vez.',
-    'Se a pergunta sair do escopo da clinica ou houver incerteza, use a mensagem de fallback ou encaminhe para humano.',
+    'Se a pergunta sair do escopo do estabelecimento ou houver incerteza, use a mensagem de fallback ou encaminhe para humano.',
     '',
     `Personalidade:\n${settings.persona_summary}`,
     '',
@@ -1492,7 +1509,7 @@ function buildAgentInstructions({ clinic, services, professionals, settings }) {
     '',
     `Equipe cadastrada:\n${professionalLines}`,
     '',
-    `Horarios da clinica:\n${summarizeSchedule(clinic.horario_trabalho_detalhado || defaultSchedule())}`,
+    `Horarios do estabelecimento:\n${summarizeSchedule(clinic.horario_trabalho_detalhado || defaultSchedule())}`,
   ].join('\n');
 }
 
@@ -1715,6 +1732,11 @@ const AGENT_NLU_DICTIONARY = {
     night: ['noite', 'a noite', 'pela noite', 'fim do dia', 'final do dia'],
   },
   serviceAliases: [
+    { roots: ['consulta'], aliases: ['consultar', 'atendimento', 'consulta inicial', 'avaliacao', 'avaliacao inicial'] },
+    { roots: ['sessao'], aliases: ['sessao', 'procedimento', 'procedimento inicial', 'sessao avulsa'] },
+    { roots: ['retorno'], aliases: ['revisao', 'acompanhamento', 'voltar', 'retorno'] },
+    { roots: ['terapia'], aliases: ['terapias', 'sessao terapeutica', 'atendimento terapeutico'] },
+    { roots: ['aula', 'consultoria'], aliases: ['mentoria', 'consultoria', 'aula particular', 'orientacao'] },
     { roots: ['corte'], aliases: ['cortar', 'corta', 'aparar', 'degrade', 'cortezinho'] },
     { roots: ['corte infantil'], aliases: ['corte pra crianca', 'corte para crianca', 'corte infantil', 'crianca', 'infantil'] },
     { roots: ['barba'], aliases: ['barbear', 'barbinha', 'fazer barba', 'fazer a barba', 'aparar barba'] },
@@ -2170,8 +2192,8 @@ function stripOpeningGreeting(value) {
 function attendantIntroduction({ settings = {}, clinic = {}, context = {} }) {
   const greeting = context.customer_name ? `Oi, ${firstName(context.customer_name)}!` : 'Oi!';
   const attendantName = attendantNameForSettings(settings);
-  if (attendantName) return `${greeting} Eu sou ${attendantName}, do atendimento da ${clinic.nome_salao}.`;
-  return `${greeting} Sou do atendimento da ${clinic.nome_salao}.`;
+  if (attendantName) return `${greeting} Eu sou ${attendantName}, do atendimento de ${clinic.nome_salao}.`;
+  return `${greeting} Sou do atendimento de ${clinic.nome_salao}.`;
 }
 
 function addAttendantIntro(reply, { isFirstTurn = false, settings = {}, clinic = {}, context = {} } = {}) {
@@ -2615,6 +2637,12 @@ function clearHybridActiveBookingFlow(context) {
   context.preferred_time = null;
   context.slots = [];
   context.field = null;
+}
+
+function resetHybridConversationFocus(context) {
+  clearHybridActiveBookingFlow(context);
+  context.appointment_id = null;
+  context.pending_intent = null;
 }
 
 function collectHybridContext(history = [], services = [], professionals = []) {
@@ -3061,8 +3089,19 @@ async function buildRescheduleAppointmentStartResult({ clinic, context, customer
 }
 
 async function tryHybridAgentResponse({ message, history, clinic, services, professionals, settings }) {
+  settings = normalizeAgentSettingsForRuntime(settings);
   const isFirstTurn = !Array.isArray(history) || history.length === 0;
   const context = collectHybridContext(history, services, professionals);
+  const shouldResetOldFlow = !context.appointment && (
+    isGreetingOnly(message)
+    || wantsHuman(message)
+    || wantsBookingLink(message)
+    || wantsAppointmentLookup(message)
+    || wantsCancelAppointment(message)
+    || wantsRescheduleAppointment(message)
+    || wantsServiceList(message)
+  );
+  if (shouldResetOldFlow) resetHybridConversationFocus(context);
   const currentService = findServiceInMessage(message, services, { expected: context.field === 'service_id' });
   const service = currentService || services.find((item) => item.id === context.service_id) || null;
   const applicableProfessionals = service ? professionalsForService(service, professionals) : [];
@@ -4254,12 +4293,64 @@ async function patchConversationContact(conversation, { customerPhone, customerN
   };
 }
 
+function shouldReplaceLegacyAgentConversation(conversation) {
+  const state = conversation?.state && typeof conversation.state === 'object' ? conversation.state : {};
+  if (state.flow_version === AGENT_CONVERSATION_FLOW_VERSION) return false;
+  if (state.appointment_id || state.payment_status) return false;
+  if (['booking_created', 'payment_created', 'appointment_cancelled', 'appointment_rescheduled'].includes(String(state.status || ''))) return false;
+  if (!Object.keys(state).length) return true;
+  return ACTIVE_BOOKING_FIELDS.has(state.field)
+    || Boolean(state.service_id || state.professional_id || state.date || state.start_time || state.preferred_time);
+}
+
+async function createAgentConversation(clinic, { channel, externalId, customerPhone, customerName }) {
+  const rows = await insert('ai_agent_conversations', [{
+    clinic_id: clinic.id,
+    channel,
+    external_id: externalId || null,
+    customer_phone: customerPhone || null,
+    customer_name: customerName || null,
+    state: { flow_version: AGENT_CONVERSATION_FLOW_VERSION },
+  }]);
+  return rows[0];
+}
+
+async function resetLegacyAgentConversation(conversation, { customerPhone, customerName }) {
+  if (!conversation?.id) return conversation;
+  await remove('ai_agent_messages', {
+    conversation_id: `eq.${conversation.id}`,
+    clinic_id: `eq.${conversation.clinic_id}`,
+  });
+  const nextState = { flow_version: AGENT_CONVERSATION_FLOW_VERSION };
+  const values = {
+    state: nextState,
+    customer_phone: customerPhone || conversation.customer_phone || null,
+    customer_name: customerName || conversation.customer_name || null,
+  };
+  await patch('ai_agent_conversations', {
+    id: `eq.${conversation.id}`,
+    clinic_id: `eq.${conversation.clinic_id}`,
+  }, values);
+
+  return {
+    ...conversation,
+    ...values,
+  };
+}
+
+async function resolveAgentConversationRecord(conversation, context) {
+  if (!conversation) return null;
+  if (!shouldReplaceLegacyAgentConversation(conversation)) return patchConversationContact(conversation, context);
+  return resetLegacyAgentConversation(conversation, context);
+}
+
 async function ensureAgentConversation(clinic, payload = {}) {
   const channel = String(payload.channel || 'preview').trim().slice(0, 40) || 'preview';
   const conversationId = String(payload.conversation_id || '').trim();
   const externalId = String(payload.external_id || '').trim().slice(0, 160);
   const customerPhone = firstNormalizedPayloadPhone(payload);
   const customerName = String(payload.customer_name || '').trim().slice(0, 160);
+  const conversationContext = { channel, externalId, customerPhone, customerName };
 
   if (isUuid(conversationId)) {
     const rows = await select('ai_agent_conversations', {
@@ -4268,7 +4359,7 @@ async function ensureAgentConversation(clinic, payload = {}) {
       clinic_id: `eq.${clinic.id}`,
       limit: 1,
     });
-    if (rows.length) return patchConversationContact(rows[0], { customerPhone, customerName });
+    if (rows.length) return resolveAgentConversationRecord(rows[0], conversationContext);
   }
 
   if (externalId) {
@@ -4277,9 +4368,10 @@ async function ensureAgentConversation(clinic, payload = {}) {
       clinic_id: `eq.${clinic.id}`,
       channel: `eq.${channel}`,
       external_id: `eq.${externalId}`,
+      order: 'updated_at.desc',
       limit: 1,
     });
-    if (found.length) return patchConversationContact(found[0], { customerPhone, customerName });
+    if (found.length) return resolveAgentConversationRecord(found[0], conversationContext);
   }
 
   if (customerPhone) {
@@ -4291,18 +4383,10 @@ async function ensureAgentConversation(clinic, payload = {}) {
       order: 'updated_at.desc',
       limit: 1,
     });
-    if (foundByPhone.length) return patchConversationContact(foundByPhone[0], { customerPhone, customerName });
+    if (foundByPhone.length) return resolveAgentConversationRecord(foundByPhone[0], conversationContext);
   }
 
-  const rows = await insert('ai_agent_conversations', [{
-    clinic_id: clinic.id,
-    channel,
-    external_id: externalId || null,
-    customer_phone: customerPhone || null,
-    customer_name: customerName || null,
-    state: {},
-  }]);
-  return rows[0];
+  return createAgentConversation(clinic, conversationContext);
 }
 
 async function loadAgentContactContext(clinic, payload = {}, conversation = null) {
@@ -4427,6 +4511,7 @@ function buildConversationState(assistantEntry = {}) {
   return {
     status: assistantEntry.status || null,
     routed_by: assistantEntry.routed_by || null,
+    flow_version: AGENT_CONVERSATION_FLOW_VERSION,
     field: assistantEntry.field || plan.field || null,
     service_id: plan.service_id || null,
     professional_id: plan.professional_id || null,
@@ -5049,7 +5134,7 @@ async function handleMercadoPagoOAuthCallback(req, res) {
       ? await select('clinics', { select: '*', id: `eq.${state.clinic_id}`, limit: 1 })
       : [];
     const clinic = clinicRows[0] || (slug ? await getClinicBySlug(slug) : null);
-    if (!clinic) throw httpError('Clinica nao encontrada para conectar Mercado Pago.', 404);
+    if (!clinic) throw httpError('Estabelecimento nao encontrado para conectar Mercado Pago.', 404);
 
     const tokenData = await exchangeMercadoPagoAuthorizationCode(code);
     await saveMercadoPagoConnection(clinic, tokenData);

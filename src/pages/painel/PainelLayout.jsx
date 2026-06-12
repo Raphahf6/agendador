@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext, useContext, useMemo } from '
 import { NavLink, Outlet, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import {
-    Calendar, Settings, Scissors, Palette, Menu, LogOut, X, TimerIcon,
+    Calendar, Settings, Briefcase, Palette, Menu, LogOut, X, TimerIcon,
     BarChart2, CreditCard, Users, Send, Loader2, CirclePercent, Boxes, 
     UsersIcon, CalendarDays, HelpCircle, ExternalLink,
     Sparkles, Bot
@@ -30,7 +30,7 @@ function SalonProvider({ children }) {
     const primaryColorHex = '#00ACC1';
 
     useEffect(() => {
-        if (!salaoId) { setError("ID do salão não fornecido."); setLoading(false); return; }
+        if (!salaoId) { setError("ID do estabelecimento não fornecido."); setLoading(false); return; }
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (!user) { navigate('/login', { replace: true }); return; }
             try {
@@ -55,7 +55,7 @@ const navigation = [
     { name: 'Agendamentos', href: 'agendamentos', icon: CalendarDays, tourBaseClass: 'tour-agendamentos' },
     { name: 'Dashboard', href: 'visaoGeral', icon: BarChart2, tourBaseClass: 'tour-dashboard' },
     { name: 'Calendário', href: 'calendario', icon: Calendar, tourBaseClass: 'tour-calendario' },
-    { name: 'Meus Serviços', href: 'servicos', icon: Scissors, tourBaseClass: 'tour-servicos' },
+    { name: 'Meus Serviços', href: 'servicos', icon: Briefcase, tourBaseClass: 'tour-servicos' },
     { name: 'Minha Equipe', href: 'equipe', icon: UsersIcon, tourBaseClass: 'tour-equipe' },
     { name: 'Relatório de Comissões', href: 'comissoes', icon: Sparkles, tourBaseClass: 'tour-comissoes' },
     { name: 'Meus Clientes', href: 'clientes', icon: Users, tourBaseClass: 'tour-clientes' },

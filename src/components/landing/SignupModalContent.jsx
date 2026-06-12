@@ -52,7 +52,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
 
   const validate = () => {
     const phoneDigits = formData.whatsapp.replace(/\D/g, '');
-    if (formData.nomeSalao.trim().length < 2) return 'Informe o nome da sua clinica ou sala.';
+    if (formData.nomeSalao.trim().length < 2) return 'Informe o nome do seu estabelecimento.';
     if (phoneDigits.length < 10 || phoneDigits.length > 11) return 'Informe um WhatsApp valido com DDD.';
     if (formData.password.length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
     if (formData.password !== formData.confirmPassword) return 'As senhas nao coincidem.';
@@ -122,7 +122,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
       <div className="mb-6 border-b border-gray-100 pb-5 pr-10">
         <p className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">7 dias gratis</p>
         <h2 className="text-2xl font-bold text-gray-950">
-          Cadastre sua clinica
+          Cadastre seu estabelecimento
         </h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
           Sem cartao e sem confirmacao de e-mail. Ao finalizar, voce entra direto no painel.
@@ -134,7 +134,7 @@ function SignupModalContent({ closeModal, isModalOpen }) {
           id="modalNomeSalao"
           icon={Building2}
           type="text"
-          placeholder="Nome da clinica"
+          placeholder="Nome do estabelecimento"
           value={formData.nomeSalao}
           onChange={(event) => updateFormField('nomeSalao', event.target.value)}
           disabled={loading}

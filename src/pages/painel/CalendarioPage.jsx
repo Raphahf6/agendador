@@ -508,7 +508,7 @@ export default function CalendarioPage() {
 
   const loadAppointments = useCallback(async ({ silent = false } = {}) => {
     if (!salaoId || !auth.currentUser) {
-      if (!salaoId) setError('ID do salao nao encontrado.');
+      if (!salaoId) setError('ID do estabelecimento nao encontrado.');
       setLoading(false);
       return;
     }

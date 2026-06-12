@@ -18,11 +18,11 @@ const Icon = ({ icon: IconComponent, className = "" }) => (
     <IconComponent className={`stroke-current ${className}`} aria-hidden="true" />
 );
 
-// 🌟 NOVOS MODELOS DE E-MAIL (COPYWRITING) 🌟
+// Modelos de e-mail
 const EMAIL_TEMPLATES = {
     todos: {
-        subject: '✨ Novidades especiais para você no [Nome do Salão]!',
-        message: `Olá! Temos novidades incríveis esperando por você.\n\nPreparamos condições especiais e novos horários para você cuidar do seu visual com a qualidade que merece.\n\nNão perca tempo, clique no botão abaixo e garanta seu horário agora mesmo!`
+        subject: 'Novidades especiais para você no [Nome do Estabelecimento]!',
+        message: `Olá! Temos novidades incríveis esperando por você.\n\nPreparamos condições especiais e novos horários para você fazer seu próximo atendimento com a qualidade que merece.\n\nNão perca tempo, clique no botão abaixo e garanta seu horário agora mesmo!`
     },
     inativos: {
         subject: 'Saudades de você! 💔 Temos um presente...',
@@ -171,7 +171,7 @@ export default function MarketingPage() {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [linkCopied, setLinkCopied] = useState(false);
 
-    const salonName = salonDetails?.nome_salao || "Seu Salão";
+    const salonName = salonDetails?.nome_salao || "Seu Estabelecimento";
     const publicUrl = `https://horalis.app/agendar/${salaoId}`;
     const cotaTotal = salonDetails?.marketing_cota_total || 100;
     const cotaUsada = salonDetails?.marketing_cota_usada || 0;
@@ -184,8 +184,8 @@ export default function MarketingPage() {
         // Carrega o template correspondente
         const template = EMAIL_TEMPLATES[newSegment];
         if (template) {
-            // Substitui [Nome do Salão] pelo nome real
-            const realSubject = template.subject.replace('[Nome do Salão]', salonName);
+            // Substitui o marcador pelo nome real
+            const realSubject = template.subject.replace('[Nome do Estabelecimento]', salonName);
             setSubject(realSubject);
             setMessage(template.message);
 

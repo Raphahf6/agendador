@@ -92,7 +92,7 @@ function BookingPagePreview({
                 <img src={logoUrl} alt="Logo" className="w-12 h-12 rounded-xl mb-3 border-2 border-white/20 shadow-lg object-cover" />
               )}
               <h1 className="text-2xl font-extrabold mb-1 leading-tight">
-                {nomeSalao || "Seu Salão"}
+                {nomeSalao || "Seu Estabelecimento"}
               </h1>
               <p className="text-white/80 text-sm font-light line-clamp-2">
                 {tagline || "Sua tagline aparecerá aqui."}

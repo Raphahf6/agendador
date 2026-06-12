@@ -211,7 +211,7 @@ const HeroSection = ({ details, onBack, isFlowActive, isOpenNow }) => {
                             {details.nome_salao}
                         </h1>
                         <p className="text-white/80 text-lg lg:text-xl font-light line-clamp-2 mb-4">
-                            {details.tagline || "Experiência única em beleza e bem-estar."}
+                            {details.tagline || "Atendimento com hora marcada."}
                         </p>
                         
                         <div className="flex items-center gap-2 mt-4" title="Avaliação 5.0">
