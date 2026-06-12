@@ -1,9 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "images": {
-    "localPatterns": [],
-    "remotePatterns": []
-  },
   "rewrites": [
     {
       "source": "/api/v1/:path*",
