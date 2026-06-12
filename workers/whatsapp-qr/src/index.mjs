@@ -15,17 +15,35 @@ const {
 
 const makeWASocket = baileys.default || baileys.makeWASocket;
 
+function envNumber(name, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
 const config = {
   apiBaseUrl: process.env.HORALIS_API_BASE_URL || 'http://host.docker.internal:8787/api/v1',
   channelApiKey: process.env.HORALIS_CHANNEL_API_KEY || '',
   sessionPrefix: process.env.WHATSAPP_SESSION_NAME || 'horalis-dev',
   ignoreGroups: process.env.WHATSAPP_IGNORE_GROUPS !== 'false',
-  replyDelayMs: Number(process.env.WHATSAPP_REPLY_DELAY_MS || 350),
+  replyDelayMs: envNumber('WHATSAPP_REPLY_DELAY_MS', 350, { min: 0, max: 30000 }),
+  inboundDebounceMs: envNumber('WHATSAPP_INBOUND_DEBOUNCE_MS', 1400, { min: 0, max: 15000 }),
+  combineWindowMs: envNumber('WHATSAPP_COMBINE_WINDOW_MS', 7000, { min: 0, max: 30000 }),
+  maxCombinedMessages: envNumber('WHATSAPP_MAX_COMBINED_MESSAGES', 4, { min: 1, max: 12 }),
+  queueConcurrency: envNumber('WHATSAPP_QUEUE_CONCURRENCY', 2, { min: 1, max: 8 }),
+  queueMaxSize: envNumber('WHATSAPP_QUEUE_MAX_SIZE', 120, { min: 10, max: 2000 }),
+  maxSessions: envNumber('WHATSAPP_MAX_SESSIONS', 8, { min: 1, max: 50 }),
+  typingMinDelayMs: envNumber('WHATSAPP_TYPING_MIN_DELAY_MS', 1200, { min: 0, max: 30000 }),
+  typingMaxDelayMs: envNumber('WHATSAPP_TYPING_MAX_DELAY_MS', 8000, { min: 500, max: 60000 }),
+  typingCharsPerSecond: envNumber('WHATSAPP_TYPING_CHARS_PER_SECOND', 35, { min: 4, max: 120 }),
+  typingJitterMs: envNumber('WHATSAPP_TYPING_JITTER_MS', 650, { min: 0, max: 5000 }),
+  typingPresenceIntervalMs: envNumber('WHATSAPP_TYPING_PRESENCE_INTERVAL_MS', 4500, { min: 1000, max: 15000 }),
+  paymentQrDelayMs: envNumber('WHATSAPP_PAYMENT_QR_DELAY_MS', 650, { min: 0, max: 10000 }),
   port: Number(process.env.WHATSAPP_QR_PORT || process.env.PORT || 8788),
   host: process.env.WHATSAPP_QR_HOST || '0.0.0.0',
   authDataPath: process.env.WHATSAPP_AUTH_DATA_PATH || './.baileys_auth',
-  connectTimeoutMs: Number(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || 60000),
-  qrTimeoutMs: Number(process.env.WHATSAPP_QR_TIMEOUT_MS || 60000),
+  connectTimeoutMs: envNumber('WHATSAPP_CONNECT_TIMEOUT_MS', 60000, { min: 5000, max: 180000 }),
+  qrTimeoutMs: envNumber('WHATSAPP_QR_TIMEOUT_MS', 60000, { min: 10000, max: 180000 }),
 };
 
 const sessions = new Map();
@@ -75,6 +93,16 @@ function publicSession(session) {
     last_error: session.lastError || null,
     started_at: session.startedAt,
     updated_at: session.updatedAt,
+    queue: queueStats(session),
+  };
+}
+
+function queueStats(session) {
+  return {
+    pending: session.queue?.length || 0,
+    active: session.activeJobs || 0,
+    active_chats: session.activeChats?.size || 0,
+    concurrency: config.queueConcurrency,
   };
 }
 
@@ -120,6 +148,8 @@ async function askHoralisAgent(session, message) {
       external_id: message.chatId,
       metadata: {
         whatsapp_message_id: message.messageId,
+        whatsapp_message_ids: message.messageIds || [message.messageId].filter(Boolean),
+        whatsapp_combined_count: message.messageCount || 1,
         whatsapp_chat_id: message.chatId,
         whatsapp_from: message.from,
         whatsapp_phone_candidates: message.phoneCandidates || [],
@@ -137,6 +167,214 @@ async function askHoralisAgent(session, message) {
 
 function uniqueValues(values = []) {
   return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+function normalizeTextForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function messagePriority(body) {
+  const text = normalizeTextForMatch(body);
+  let priority = 50;
+
+  if (/\b(paguei|pagamento|pix|comprovante|sinal|qrcode|qr code|ja paguei|ja fiz)\b/.test(text)) priority += 40;
+  if (/\b(cancelar|cancela|remarcar|remarca|atrasado|atrasar|urgente|problema|reclamacao)\b/.test(text)) priority += 30;
+  if (/\b(agendar|agendamento|agenda|marcar|marca|horario|horarios|hora|disponivel|amanha|hoje|semana)\b/.test(text)) priority += 20;
+  if (/\b(corte|barba|sobrancelha|servico|servicos|profissional|barbeiro|cabeleireiro|manicure)\b/.test(text)) priority += 12;
+  if (/\b(confirmo|confirmar|confirmado|pode marcar|fechado|sim|ok|beleza)\b/.test(text)) priority += 10;
+  if (/^\s*(obrigad[oa]?|valeu|blz|beleza|ok)\s*[!.]*\s*$/.test(text)) priority -= 12;
+
+  return clamp(priority, 0, 100);
+}
+
+function estimatedTypingDelayMs(text) {
+  const characters = String(text || '').length;
+  const typedDelay = (characters / config.typingCharsPerSecond) * 1000;
+  const jitter = config.typingJitterMs ? Math.round(Math.random() * config.typingJitterMs) : 0;
+  const delay = config.replyDelayMs + typedDelay + jitter;
+  return clamp(Math.round(delay), config.typingMinDelayMs, config.typingMaxDelayMs);
+}
+
+function shortLogText(value, max = 140) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
+function createIncomingJob(session, values) {
+  const now = Date.now();
+  session.queueSequence = (session.queueSequence || 0) + 1;
+  return {
+    ...values,
+    id: `${now}-${session.queueSequence}`,
+    sequence: session.queueSequence,
+    priority: messagePriority(values.body),
+    enqueuedAt: now,
+    updatedAtMs: now,
+    readyAt: now + config.inboundDebounceMs,
+    messageIds: [values.messageId].filter(Boolean),
+    messageCount: 1,
+  };
+}
+
+function mergeIncomingJob(target, incoming) {
+  target.body = [target.body, incoming.body].filter(Boolean).join('\n');
+  target.msg = incoming.msg;
+  target.messageId = incoming.messageId || target.messageId;
+  target.timestamp = incoming.timestamp || target.timestamp;
+  target.customerPhone = target.customerPhone || incoming.customerPhone;
+  target.phoneCandidates = uniqueValues([...(target.phoneCandidates || []), ...(incoming.phoneCandidates || [])]);
+  target.messageIds = uniqueValues([...(target.messageIds || []), incoming.messageId]);
+  target.priority = Math.max(target.priority, incoming.priority);
+  target.messageCount = (target.messageCount || 1) + 1;
+  target.updatedAtMs = Date.now();
+  target.readyAt = target.updatedAtMs + config.inboundDebounceMs;
+}
+
+function scheduleQueue(session, delayMs = 0) {
+  if (!session) return;
+
+  const dueAt = Date.now() + Math.max(0, delayMs);
+  if (session.queueTimer && session.queueTimerDueAt <= dueAt) return;
+  if (session.queueTimer) clearTimeout(session.queueTimer);
+
+  session.queueTimerDueAt = dueAt;
+  session.queueTimer = setTimeout(() => {
+    session.queueTimer = null;
+    session.queueTimerDueAt = 0;
+    processSessionQueue(session).catch((error) => {
+      console.error(`Erro ao processar fila WhatsApp "${session.slug}":`, error?.message || error);
+    });
+  }, Math.max(0, delayMs));
+  session.queueTimer.unref?.();
+}
+
+function findMergeableQueuedJob(session, incoming) {
+  const now = Date.now();
+  for (let index = session.queue.length - 1; index >= 0; index -= 1) {
+    const queued = session.queue[index];
+    if (queued.remoteJid !== incoming.remoteJid) continue;
+    if ((queued.messageCount || 1) >= config.maxCombinedMessages) return null;
+    if (now - queued.updatedAtMs > config.combineWindowMs) return null;
+    return queued;
+  }
+  return null;
+}
+
+async function enqueueIncomingMessage(session, incoming) {
+  if (session.queue.length >= config.queueMaxSize) {
+    console.warn(`Fila cheia para "${session.slug}". Descartando mensagem de ${incoming.remoteJid}.`);
+    await session.sock?.sendMessage(incoming.remoteJid, {
+      text: 'Recebi sua mensagem, mas estamos com um volume alto agora. Vou pedir para a equipe continuar seu atendimento.',
+    }, { quoted: incoming.msg }).catch(() => {});
+    return;
+  }
+
+  const job = createIncomingJob(session, incoming);
+  const mergeable = session.activeChats.has(job.remoteJid) ? null : findMergeableQueuedJob(session, job);
+  if (mergeable) {
+    mergeIncomingJob(mergeable, job);
+    console.log(`[${session.slug}:${job.customerPhone || job.remoteJid}] mensagem combinada na fila (${mergeable.messageCount} partes, prioridade ${mergeable.priority}).`);
+  } else {
+    session.queue.push(job);
+    console.log(`[${session.slug}:${job.customerPhone || job.remoteJid}] mensagem enfileirada (prioridade ${job.priority}, fila ${session.queue.length}).`);
+  }
+
+  scheduleQueue(session);
+}
+
+function pickNextQueueIndex(session) {
+  const now = Date.now();
+  let bestIndex = -1;
+  let bestScore = -Infinity;
+
+  for (let index = 0; index < session.queue.length; index += 1) {
+    const job = session.queue[index];
+    if (job.readyAt > now) continue;
+    if (session.activeChats.has(job.remoteJid)) continue;
+
+    const ageBoost = Math.floor((now - job.enqueuedAt) / 30000);
+    const score = job.priority + ageBoost;
+    if (
+      score > bestScore
+      || (score === bestScore && bestIndex >= 0 && job.enqueuedAt < session.queue[bestIndex].enqueuedAt)
+      || (score === bestScore && bestIndex >= 0 && job.enqueuedAt === session.queue[bestIndex].enqueuedAt && job.sequence < session.queue[bestIndex].sequence)
+    ) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  }
+
+  return bestIndex;
+}
+
+function nextQueueDelayMs(session) {
+  const now = Date.now();
+  let delay = null;
+
+  for (const job of session.queue) {
+    if (session.activeChats.has(job.remoteJid)) continue;
+    const remaining = Math.max(0, job.readyAt - now);
+    delay = delay === null ? remaining : Math.min(delay, remaining);
+  }
+
+  return delay;
+}
+
+async function processSessionQueue(session) {
+  if (sessions.get(session.slug) !== session) return;
+
+  if (session.status !== 'ready') {
+    if (session.queue.length) scheduleQueue(session, 2000);
+    return;
+  }
+
+  while (session.activeJobs < config.queueConcurrency) {
+    const index = pickNextQueueIndex(session);
+    if (index < 0) break;
+
+    const [job] = session.queue.splice(index, 1);
+    session.activeJobs += 1;
+    session.activeChats.add(job.remoteJid);
+
+    processIncomingJob(session, job)
+      .catch((error) => {
+        console.error(`[${session.slug}:${job.customerPhone || job.remoteJid}] erro na fila:`, error?.message || error);
+      })
+      .finally(() => {
+        session.activeJobs = Math.max(0, session.activeJobs - 1);
+        session.activeChats.delete(job.remoteJid);
+        scheduleQueue(session);
+      });
+  }
+
+  const delay = nextQueueDelayMs(session);
+  if (delay !== null && session.activeJobs < config.queueConcurrency) scheduleQueue(session, delay);
+}
+
+function startTyping(session, remoteJid) {
+  let stopped = false;
+
+  const update = () => {
+    session.sock?.sendPresenceUpdate?.('composing', remoteJid).catch(() => {});
+  };
+
+  update();
+  const interval = setInterval(update, config.typingPresenceIntervalMs);
+  interval.unref?.();
+
+  return async () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(interval);
+    await session.sock?.sendPresenceUpdate?.('paused', remoteJid).catch(() => {});
+  };
 }
 
 function sessionClientId(slug) {
@@ -374,6 +612,7 @@ async function connectSession(session) {
       session.lastError = '';
       session.updatedAt = new Date().toISOString();
       console.log(`WhatsApp QR pronto para "${session.slug}".`);
+      scheduleQueue(session);
     }
 
     if (connection === 'close') {
@@ -432,48 +671,66 @@ async function handleIncomingMessage(session, msg) {
   const body = messageText(msg);
   if (!body) return;
 
-  let customerPhone = '';
+  const participant = msg.key?.participant || msg.participant || '';
+  const phoneCandidates = uniqueValues([
+    phoneCandidateFromJid(remoteJid),
+    phoneCandidateFromJid(participant),
+    msg.pushName,
+  ]);
+  const customerPhone = phoneCandidates
+    .map(cleanPhone)
+    .find((candidate) => candidate.length >= 10 && candidate.length <= 13) || '';
 
+  await enqueueIncomingMessage(session, {
+    msg,
+    body,
+    remoteJid,
+    chatId: remoteJid,
+    customerPhone,
+    from: remoteJid,
+    messageId,
+    timestamp: Number(msg.messageTimestamp || 0),
+    phoneCandidates,
+  });
+}
+
+async function processIncomingJob(session, job) {
+  let stopTyping = async () => {};
   try {
-    const participant = msg.key?.participant || msg.participant || '';
-    const phoneCandidates = uniqueValues([
-      phoneCandidateFromJid(remoteJid),
-      phoneCandidateFromJid(participant),
-      msg.pushName,
-    ]);
-    customerPhone = phoneCandidates
-      .map(cleanPhone)
-      .find((candidate) => candidate.length >= 10 && candidate.length <= 13) || '';
-
-    await session.sock?.sendPresenceUpdate?.('composing', remoteJid).catch(() => {});
+    stopTyping = startTyping(session, job.remoteJid);
 
     const result = await askHoralisAgent(session, {
-      body,
-      chatId: remoteJid,
-      customerPhone,
-      from: remoteJid,
-      messageId,
-      timestamp: Number(msg.messageTimestamp || 0),
-      phoneCandidates,
+      body: job.body,
+      chatId: job.chatId,
+      customerPhone: job.customerPhone,
+      from: job.from,
+      messageId: job.messageId,
+      messageIds: job.messageIds,
+      messageCount: job.messageCount,
+      timestamp: job.timestamp,
+      phoneCandidates: job.phoneCandidates,
     });
 
     const reply = String(result.reply || '').trim();
     if (!reply) return;
 
-    await sleep(config.replyDelayMs);
-    await session.sock.sendMessage(remoteJid, { text: reply }, { quoted: msg });
-    await sendPaymentQrImage(session, remoteJid, result, msg);
-    await session.sock?.sendPresenceUpdate?.('paused', remoteJid).catch(() => {});
-    console.log(`[${session.slug}:${customerPhone || remoteJid}] ${body} -> ${result.status || 'answered'} (${result.routed_by || 'unknown'})`);
+    await sleep(estimatedTypingDelayMs(reply));
+    await session.sock.sendMessage(job.remoteJid, { text: reply }, { quoted: job.msg });
+
+    if (result?.payment?.qr_code_base64) await sleep(config.paymentQrDelayMs);
+    await sendPaymentQrImage(session, job.remoteJid, result, job.msg);
+    console.log(`[${session.slug}:${job.customerPhone || job.remoteJid}] ${shortLogText(job.body)} -> ${result.status || 'answered'} (${result.routed_by || 'unknown'}, prioridade ${job.priority}, partes ${job.messageCount || 1})`);
   } catch (error) {
-    console.error(`[${session.slug}:${customerPhone || remoteJid}] erro ao responder:`, error?.message || error);
+    console.error(`[${session.slug}:${job.customerPhone || job.remoteJid}] erro ao responder:`, error?.message || error);
     try {
-      await session.sock?.sendMessage(remoteJid, {
+      await session.sock?.sendMessage(job.remoteJid, {
         text: 'Tive uma instabilidade por aqui. Vou pedir para uma pessoa da equipe continuar seu atendimento.',
-      }, { quoted: msg });
+      }, { quoted: job.msg });
     } catch (replyError) {
       console.error('Nao consegui enviar mensagem de fallback:', replyError?.message || replyError);
     }
+  } finally {
+    await stopTyping();
   }
 }
 
@@ -487,6 +744,11 @@ function startSession(rawSlug, { restored = false } = {}) {
 
   const existing = sessions.get(slug);
   if (existing && ['starting', 'qr', 'ready', 'reconnecting', 'restarting'].includes(existing.status)) return existing;
+  if (!existing && sessions.size >= config.maxSessions) {
+    const error = new Error(`Limite de ${config.maxSessions} sessoes WhatsApp atingido neste worker.`);
+    error.status = 429;
+    throw error;
+  }
 
   const now = new Date().toISOString();
   const session = {
@@ -500,6 +762,12 @@ function startSession(rawSlug, { restored = false } = {}) {
     authResetCount: 0,
     reconnectAttempts: 0,
     seenMessages: new Set(),
+    queue: [],
+    queueSequence: 0,
+    queueTimer: null,
+    queueTimerDueAt: 0,
+    activeJobs: 0,
+    activeChats: new Set(),
     sock: null,
     wasReady: false,
     generation: 0,
@@ -520,8 +788,13 @@ function restorePersistedSessions() {
   const slugs = persistedSessionSlugs();
   if (!slugs.length) return;
 
-  console.log(`Restaurando ${slugs.length} sessao(oes) WhatsApp salva(s): ${slugs.join(', ')}`);
-  for (const slug of slugs) startSession(slug, { restored: true });
+  const restored = slugs.slice(0, config.maxSessions);
+  if (slugs.length > restored.length) {
+    console.warn(`Encontradas ${slugs.length} sessoes salvas, mas WHATSAPP_MAX_SESSIONS=${config.maxSessions}. Restaurando apenas: ${restored.join(', ')}`);
+  }
+
+  console.log(`Restaurando ${restored.length} sessao(oes) WhatsApp salva(s): ${restored.join(', ')}`);
+  for (const slug of restored) startSession(slug, { restored: true });
 }
 
 async function stopSession(rawSlug) {
@@ -550,6 +823,11 @@ async function stopSession(rawSlug) {
   session.status = 'disconnected';
   session.qr = '';
   session.updatedAt = new Date().toISOString();
+  session.queue = [];
+  session.activeChats?.clear?.();
+  session.activeJobs = 0;
+  if (session.queueTimer) clearTimeout(session.queueTimer);
+  session.queueTimer = null;
   sessions.delete(slug);
   return session;
 }
@@ -579,11 +857,15 @@ async function handleRequest(req, res) {
 
   const parts = routePath(req.url);
   if (!parts.length || parts[0] === 'health') {
+    const sessionList = [...sessions.values()];
     return json(res, 200, {
       ok: true,
       service: 'horalis-whatsapp-qr',
       driver: 'baileys',
       sessions: sessions.size,
+      max_sessions: config.maxSessions,
+      pending_messages: sessionList.reduce((total, session) => total + (session.queue?.length || 0), 0),
+      active_jobs: sessionList.reduce((total, session) => total + (session.activeJobs || 0), 0),
     });
   }
 
